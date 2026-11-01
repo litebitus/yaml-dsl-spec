@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.0.1 — 2026-11-01
+
 - Specification
   - What a `yaml-dsl.yml` means, moved from the YAML DSL editor's design doc.
 - Schemas
