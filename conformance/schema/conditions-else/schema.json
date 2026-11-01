@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "rule": {
+      "type": "object",
+      "properties": { "each": { "type": "string" }, "where": { "type": "object" }, "default": {} },
+      "dependentRequired": { "where": ["each"] },
+      "if": { "required": ["each"] },
+      "then": { "not": { "required": ["default"] } },
+      "else": { "required": ["value"] }
+    }
+  }
+}

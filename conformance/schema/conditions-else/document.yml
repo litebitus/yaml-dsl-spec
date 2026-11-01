@@ -1,0 +1,2 @@
+rule:
+  where: {a: 1}

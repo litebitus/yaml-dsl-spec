@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 1,
+      "message": "field `each` is required",
+      "label": "`rule` has no field `each`",
+      "rule": "required, at schema.json#/properties/rule/dependentRequired"
+    },
+    {
+      "line": 1,
+      "column": 1,
+      "message": "field `value` is required",
+      "label": "`rule` has no field `value`",
+      "rule": "required, at schema.json#/properties/rule/else/required"
+    }
+  ]
+}

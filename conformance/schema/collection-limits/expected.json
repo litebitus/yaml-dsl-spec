@@ -1,0 +1,46 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 6,
+      "message": "`few`: [\"a\"] has less than 2 items",
+      "label": "breaks `minItems`",
+      "rule": "minItems, at schema.json#/properties/few/minItems"
+    },
+    {
+      "line": 2,
+      "column": 11,
+      "message": "`one_item`: [\"a\",\"b\"] has more than 1 item",
+      "label": "breaks `maxItems`",
+      "rule": "maxItems, at schema.json#/properties/one_item/maxItems"
+    },
+    {
+      "line": 3,
+      "column": 9,
+      "message": "`unique`: [1,2,1] has non-unique elements",
+      "label": "breaks `uniqueItems`",
+      "rule": "uniqueItems, at schema.json#/properties/unique/uniqueItems"
+    },
+    {
+      "line": 4,
+      "column": 8,
+      "message": "`small`: {\"a\":1,\"b\":2} has more than 1 property",
+      "label": "breaks `maxProperties`",
+      "rule": "maxProperties, at schema.json#/properties/small/maxProperties"
+    },
+    {
+      "line": 5,
+      "column": 15,
+      "message": "`one_property`: {} has less than 1 property",
+      "label": "breaks `minProperties`",
+      "rule": "minProperties, at schema.json#/properties/one_property/minProperties"
+    },
+    {
+      "line": 6,
+      "column": 18,
+      "message": "`many_properties`: {\"a\":1} has less than 2 properties",
+      "label": "breaks `minProperties`",
+      "rule": "minProperties, at schema.json#/properties/many_properties/minProperties"
+    }
+  ]
+}

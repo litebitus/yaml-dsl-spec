@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "whole_float": { "type": "string" },
+    "exponent": { "type": "string" },
+    "huge": { "type": "string" },
+    "integer_one_point_zero": { "type": "integer" }
+  }
+}

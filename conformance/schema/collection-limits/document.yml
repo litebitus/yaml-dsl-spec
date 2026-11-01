@@ -1,0 +1,6 @@
+few: [a]
+one_item: [a, b]
+unique: [1, 2, 1]
+small: {a: 1, b: 2}
+one_property: {}
+many_properties: {a: 1}

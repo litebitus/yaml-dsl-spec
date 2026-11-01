@@ -1,0 +1,8 @@
+bucket: !Ref MockBucket
+arn: !GetAtt [MockRole, Arn]
+text: !Sub
+  - "${Name}-mock"
+  - { Name: !Ref MockName }
+other: !Other kept as a string
+explicit_string: !!str 30
+explicit_string_long: !<tag:yaml.org,2002:str> 31

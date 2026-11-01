@@ -1,0 +1,4 @@
+whole_float: 1.0
+exponent: 2e3
+huge: 99999999999999999999
+integer_one_point_zero: 1.0

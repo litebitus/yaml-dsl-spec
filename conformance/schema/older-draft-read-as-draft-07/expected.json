@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 7,
+      "message": "`name`: \"a\" is shorter than 2 characters",
+      "label": "breaks `minLength`",
+      "rule": "minLength, at schema.json#/properties/name/minLength"
+    }
+  ]
+}

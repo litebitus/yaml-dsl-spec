@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 3,
+      "message": "`tags`: \"Bad\" does not match \"^[a-z]+$\"",
+      "label": "breaks `propertyNames`",
+      "rule": "propertyNames, at schema.json#/properties/tags/propertyNames/pattern"
+    },
+    {
+      "line": 2,
+      "column": 3,
+      "message": "`tags`: \"also_bad\" does not match \"^[a-z]+$\"",
+      "label": "breaks `propertyNames`",
+      "rule": "propertyNames, at schema.json#/properties/tags/propertyNames/pattern"
+    }
+  ]
+}

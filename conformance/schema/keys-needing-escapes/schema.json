@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "paths": {
+      "type": "object",
+      "properties": { "a/b": { "type": "integer" }, "c~d": { "type": "integer" } },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+map: {a: 1, b: [x, y], c: {d: e}}
+list: [ {k: v}, [1, 2], plain ]
+multi_line: {
+  first: 1,
+  second: [
+    a,
+    b
+  ]
+}

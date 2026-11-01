@@ -1,0 +1,115 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "zeta",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "number",
+          "line": 1,
+          "column": 7,
+          "value": "1"
+        }
+      },
+      {
+        "key": "alpha",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 3,
+          "column": 3,
+          "entries": [
+            {
+              "key": "nested",
+              "line": 3,
+              "column": 3,
+              "value": {
+                "kind": "map",
+                "line": 4,
+                "column": 5,
+                "entries": [
+                  {
+                    "key": "deeper",
+                    "line": 4,
+                    "column": 5,
+                    "value": {
+                      "kind": "bool",
+                      "line": 4,
+                      "column": 13,
+                      "value": true
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "list",
+              "line": 5,
+              "column": 3,
+              "value": {
+                "kind": "list",
+                "line": 6,
+                "column": 5,
+                "items": [
+                  {
+                    "kind": "string",
+                    "line": 6,
+                    "column": 7,
+                    "value": "one"
+                  },
+                  {
+                    "kind": "map",
+                    "line": 7,
+                    "column": 7,
+                    "entries": [
+                      {
+                        "key": "two",
+                        "line": 7,
+                        "column": 7,
+                        "value": {
+                          "kind": "number",
+                          "line": 7,
+                          "column": 12,
+                          "value": "2"
+                        }
+                      },
+                      {
+                        "key": "three",
+                        "line": 8,
+                        "column": 7,
+                        "value": {
+                          "kind": "number",
+                          "line": 8,
+                          "column": 14,
+                          "value": "3"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "list",
+                    "line": 10,
+                    "column": 7,
+                    "items": [
+                      {
+                        "kind": "string",
+                        "line": 10,
+                        "column": 9,
+                        "value": "inner"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

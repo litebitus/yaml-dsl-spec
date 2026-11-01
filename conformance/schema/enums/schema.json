@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "tier": { "enum": ["gold", "silver", "bronze"] },
+    "far": { "enum": ["gold", "silver", "bronze"] },
+    "level": { "enum": [1, 2, 3] },
+    "mixed": { "enum": ["auto", 0, null] },
+    "close_pair": { "enum": ["ab", "ac"] }
+  }
+}

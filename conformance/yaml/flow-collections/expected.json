@@ -1,0 +1,181 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "map",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 1,
+          "column": 6,
+          "entries": [
+            {
+              "key": "a",
+              "line": 1,
+              "column": 7,
+              "value": {
+                "kind": "number",
+                "line": 1,
+                "column": 10,
+                "value": "1"
+              }
+            },
+            {
+              "key": "b",
+              "line": 1,
+              "column": 13,
+              "value": {
+                "kind": "list",
+                "line": 1,
+                "column": 16,
+                "items": [
+                  {
+                    "kind": "string",
+                    "line": 1,
+                    "column": 17,
+                    "value": "x"
+                  },
+                  {
+                    "kind": "string",
+                    "line": 1,
+                    "column": 20,
+                    "value": "y"
+                  }
+                ]
+              }
+            },
+            {
+              "key": "c",
+              "line": 1,
+              "column": 24,
+              "value": {
+                "kind": "map",
+                "line": 1,
+                "column": 27,
+                "entries": [
+                  {
+                    "key": "d",
+                    "line": 1,
+                    "column": 28,
+                    "value": {
+                      "kind": "string",
+                      "line": 1,
+                      "column": 31,
+                      "value": "e"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "list",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 2,
+          "column": 7,
+          "items": [
+            {
+              "kind": "map",
+              "line": 2,
+              "column": 9,
+              "entries": [
+                {
+                  "key": "k",
+                  "line": 2,
+                  "column": 10,
+                  "value": {
+                    "kind": "string",
+                    "line": 2,
+                    "column": 13,
+                    "value": "v"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "list",
+              "line": 2,
+              "column": 17,
+              "items": [
+                {
+                  "kind": "number",
+                  "line": 2,
+                  "column": 18,
+                  "value": "1"
+                },
+                {
+                  "kind": "number",
+                  "line": 2,
+                  "column": 21,
+                  "value": "2"
+                }
+              ]
+            },
+            {
+              "kind": "string",
+              "line": 2,
+              "column": 25,
+              "value": "plain"
+            }
+          ]
+        }
+      },
+      {
+        "key": "multi_line",
+        "line": 3,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 3,
+          "column": 13,
+          "entries": [
+            {
+              "key": "first",
+              "line": 4,
+              "column": 3,
+              "value": {
+                "kind": "number",
+                "line": 4,
+                "column": 10,
+                "value": "1"
+              }
+            },
+            {
+              "key": "second",
+              "line": 5,
+              "column": 3,
+              "value": {
+                "kind": "list",
+                "line": 5,
+                "column": 11,
+                "items": [
+                  {
+                    "kind": "string",
+                    "line": 6,
+                    "column": 5,
+                    "value": "a"
+                  },
+                  {
+                    "kind": "string",
+                    "line": 7,
+                    "column": 5,
+                    "value": "b"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 7,
+      "message": "`port`: 70000 is greater than the maximum of 65535",
+      "label": "breaks `maximum`",
+      "rule": "maximum, at schema.json#/definitions/port/maximum"
+    },
+    {
+      "line": 2,
+      "column": 8,
+      "message": "`tuple`: Additional items are not allowed (\"b\" was unexpected)",
+      "label": "breaks `additionalItems`",
+      "rule": "additionalItems, at schema.json#/properties/tuple/additionalItems"
+    },
+    {
+      "line": 3,
+      "column": 1,
+      "message": "field `each` is required",
+      "label": "`rule` has no field `each`",
+      "rule": "required, at schema.json#/properties/rule/dependencies"
+    },
+    {
+      "line": 4,
+      "column": 1,
+      "message": "field `unknown` is not allowed",
+      "label": "the document has no field `unknown`",
+      "rule": "additionalProperties, at schema.json#/additionalProperties"
+    }
+  ]
+}

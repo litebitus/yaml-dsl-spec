@@ -1,7 +1,7 @@
 {
   "name": "yaml-dsl-spec",
   "version": "0.0.1",
-  "description": "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table.",
+  "description": "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table, and a reader returning a yaml-dsl.yml's DSL definitions validated.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,6 +11,7 @@
   "main": "index.js",
   "files": [
     "index.js",
+    "lib/*.js",
     "schema-versions.js",
     "schemas/*-v*.schema.json"
   ],
@@ -19,5 +20,9 @@
     "pretest": "npm run build",
     "test": "node --test --test-timeout=5000 --test-force-exit test/",
     "prepack": "npm run build"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "yaml": "2.9.1"
   }
 }

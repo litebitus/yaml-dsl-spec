@@ -1,0 +1,19 @@
+single: 'it''s mock'
+double: "tab\there\nnewline é \"quoted\""
+literal: |
+  line one
+    indented
+  line three
+folded: >
+  folded one
+  folded two
+
+  next paragraph
+keep: |+
+  kept
+
+strip: |-
+  stripped
+plain_multi_line: first
+  second
+  third

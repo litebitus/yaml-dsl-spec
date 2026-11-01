@@ -1,0 +1,16 @@
+{
+  "problems": [
+    {
+      "line": 9,
+      "column": 16,
+      "message": "tag `!Ref` is listed more than once",
+      "label": "an earlier entry of `tag_keys` has this tag"
+    },
+    {
+      "line": 10,
+      "column": 29,
+      "message": "key `Fn::GetAtt` is listed more than once",
+      "label": "an earlier entry of `tag_keys` has this key"
+    }
+  ]
+}

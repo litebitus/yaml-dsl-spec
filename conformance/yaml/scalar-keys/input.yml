@@ -1,0 +1,6 @@
+1: one
+true: two
+1.5: three
+"quoted key": four
+'single key': five
+key with spaces: six

@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 12,
+      "message": "`tuple[1]` is not an integer",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/tuple/items/1/type"
+    }
+  ]
+}

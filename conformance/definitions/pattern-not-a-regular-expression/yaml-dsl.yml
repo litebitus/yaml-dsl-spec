@@ -50,7 +50,7 @@ dsls:
         declares_every_name: false
         scope_name: RESOURCE
     references:
-      - pattern: "^ref (?<type>[a-z+)\\.(?<name>[a-z0-9_]+)"
+      - pattern: "^ref (?<type>[a-z]+\\.(?<name>[a-z0-9_]+)"
         positions: [whole_scalar]
         text_after_name_allowed: true
         scope_name: RESOURCE

@@ -27,11 +27,20 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 | Language | Package | Folder | Offers |
 |---|---|---|---|
 | Rust | [`yaml-dsl-spec`](https://crates.io/crates/yaml-dsl-spec) | [`rust/`](rust) | `read_dsl_definitions`, a `yaml-dsl.yml`'s DSL definitions validated, or every problem at its field; the YAML reader with positions, diagnostics and schema validation it stands on; the schemas |
-| JavaScript | [`yaml-dsl-spec`](https://www.npmjs.com/package/yaml-dsl-spec) | [`javascript/`](javascript) | the schemas; the reader is to follow, at parity with the Rust crate |
+| JavaScript | [`yaml-dsl-spec`](https://www.npmjs.com/package/yaml-dsl-spec) | [`javascript/`](javascript) | the same as the Rust crate: `readDslDefinitions`, the YAML reader, diagnostics, schema validation and the schemas |
 
 ## Conformance
 
-[`conformance/`](conformance) holds the cases every package reads alike: each `definitions/<case>/yaml-dsl.yml` reads to the DSLs, or the problems, its `expected.json` states, each problem with its line, column, message, label, rule and help. A package's tests run every case.
+[`conformance/`](conformance) holds the cases every package reads alike. A package's tests run every case, and a problem is compared with its line, column, message, label, rule and help.
+
+| Cases | Each case | Reads to |
+|---|---|---|
+| `definitions/<case>/` | a `yaml-dsl.yml` | its DSLs, or its problems |
+| `yaml/<case>/` | an `input.yml`, and the tag keys of an optional `tag-keys.json` | its node tree with every value's line and column, or its problem |
+| `schema/<case>/` | a `document.yml`, its `schema.json`, and the patterns of an optional `child-value-patterns.json` | its problems, or why the schema is not read |
+| `patterns/cases.json` | a pattern of the standard's subset, and texts | whether it compiles, its named groups, and each text's captures |
+
+Each case's `expected.json` states what it reads to; `patterns/expected.json` states it for every pattern.
 
 ## Schemas
 

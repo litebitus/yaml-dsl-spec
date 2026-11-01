@@ -1,0 +1,16 @@
+{
+  "problems": [
+    {
+      "line": 74,
+      "column": 9,
+      "message": "DSL `mock-queues` is declared more than once",
+      "label": "an earlier DSL of this file has this `id`"
+    },
+    {
+      "line": 130,
+      "column": 18,
+      "message": "the pattern has no `(?<name>...)` group",
+      "label": "the group holds the name, by `name_group`"
+    }
+  ]
+}

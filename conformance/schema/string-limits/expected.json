@@ -1,0 +1,39 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 8,
+      "message": "`short`: \"ab\" is shorter than 3 characters",
+      "label": "breaks `minLength`",
+      "rule": "minLength, at schema.json#/properties/short/minLength"
+    },
+    {
+      "line": 2,
+      "column": 6,
+      "message": "`one`: \"\" is shorter than 1 character",
+      "label": "breaks `minLength`",
+      "rule": "minLength, at schema.json#/properties/one/minLength"
+    },
+    {
+      "line": 3,
+      "column": 7,
+      "message": "`long`: \"abc\" is longer than 2 characters",
+      "label": "breaks `maxLength`",
+      "rule": "maxLength, at schema.json#/properties/long/maxLength"
+    },
+    {
+      "line": 4,
+      "column": 9,
+      "message": "`single`: \"ab\" is longer than 1 character",
+      "label": "breaks `maxLength`",
+      "rule": "maxLength, at schema.json#/properties/single/maxLength"
+    },
+    {
+      "line": 5,
+      "column": 5,
+      "message": "`id`: \"Mock_1\" does not match \"^[a-z]+-[0-9]+$\"",
+      "label": "breaks `pattern`",
+      "rule": "pattern, at schema.json#/properties/id/pattern"
+    }
+  ]
+}

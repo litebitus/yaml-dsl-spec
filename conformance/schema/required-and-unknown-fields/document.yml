@@ -1,0 +1,6 @@
+queue:
+  name: mock-orders
+  visiblity: 30
+  retension: 7
+  zzz: 1
+extra: true

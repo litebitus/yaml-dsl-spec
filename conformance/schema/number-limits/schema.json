@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "low": { "minimum": 10 },
+    "high": { "maximum": 10 },
+    "exclusive_low": { "exclusiveMinimum": 0 },
+    "exclusive_high": { "exclusiveMaximum": 1.5 },
+    "step": { "multipleOf": 5 },
+    "fraction_step": { "multipleOf": 0.5 }
+  }
+}

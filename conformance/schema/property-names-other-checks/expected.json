@@ -1,0 +1,32 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 6,
+      "message": "`few`: \"x\" is not one of \"a\" or \"b\"",
+      "label": "breaks `propertyNames`",
+      "rule": "propertyNames, at schema.json#/properties/few/propertyNames/enum"
+    },
+    {
+      "line": 2,
+      "column": 7,
+      "message": "`many`: \"zz\" is not one of \"a\", \"b\" or 3 other candidates",
+      "label": "breaks `propertyNames`",
+      "rule": "propertyNames, at schema.json#/properties/many/propertyNames/enum"
+    },
+    {
+      "line": 3,
+      "column": 8,
+      "message": "`short`: \"toolong\" is longer than 2 characters",
+      "label": "breaks `propertyNames`",
+      "rule": "propertyNames, at schema.json#/properties/short/propertyNames/maxLength"
+    },
+    {
+      "line": 4,
+      "column": 8,
+      "message": "`fixed`: \"only\" was expected",
+      "label": "breaks `propertyNames`",
+      "rule": "propertyNames, at schema.json#/properties/fixed/propertyNames/const"
+    }
+  ]
+}

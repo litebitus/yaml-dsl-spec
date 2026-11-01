@@ -1,0 +1,10 @@
+shared: &shared
+  x: 1
+  y: [a, b]
+copy: *shared
+scalar: &name mock-name
+again: *name
+list:
+  - *shared
+  - &item {z: 3}
+  - *item

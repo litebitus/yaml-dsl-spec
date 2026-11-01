@@ -1,0 +1,20 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 2,
+    "column": 1,
+    "entries": [
+      {
+        "key": "first",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "number",
+          "line": 2,
+          "column": 8,
+          "value": "1"
+        }
+      }
+    ]
+  }
+}

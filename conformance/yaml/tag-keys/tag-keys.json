@@ -1,0 +1,5 @@
+[
+  { "tag": "!Ref", "key": "Ref" },
+  { "tag": "!GetAtt", "key": "Fn::GetAtt" },
+  { "tag": "!Sub", "key": "Fn::Sub" }
+]

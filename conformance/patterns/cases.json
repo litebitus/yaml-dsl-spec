@@ -1,0 +1,163 @@
+{
+  "cases": [
+    {
+      "pattern": "^ref (?<type>[a-z]+)\\.(?<name>[a-z0-9_]+)",
+      "texts": [
+        "ref queue.mock_orders.url",
+        "ref Queue.x",
+        "a ref queue.x"
+      ]
+    },
+    {
+      "pattern": "\\$\\{(?<body>[^}\\n]*)\\}",
+      "texts": [
+        "${env}",
+        "pre-${local.name}-post",
+        "${unclosed",
+        "${a}${b}"
+      ]
+    },
+    {
+      "pattern": "^(?<field>name) (?<value>[a-z0-9-]+)$",
+      "texts": [
+        "name mock-orders",
+        "name Mock",
+        "names x"
+      ]
+    },
+    {
+      "pattern": "^local\\.(?<name>[a-z_]+)",
+      "texts": [
+        "local.team",
+        "local.",
+        "locals.team"
+      ]
+    },
+    {
+      "pattern": "^(?<name>[a-z_]+)$",
+      "texts": [
+        "env",
+        "env_name",
+        "Env",
+        ""
+      ]
+    },
+    {
+      "pattern": "^(?:fn|func)\\.(?<function>[A-Za-z_][A-Za-z0-9_:-]*)(?<splat>\\*)?$",
+      "texts": [
+        "fn.format*",
+        "func.merge",
+        "fn.",
+        "fn.1x"
+      ]
+    },
+    {
+      "pattern": "^(a|b)+$",
+      "texts": [
+        "abba",
+        "abc",
+        ""
+      ]
+    },
+    {
+      "pattern": "colou?r",
+      "texts": [
+        "color",
+        "colour",
+        "colr"
+      ]
+    },
+    {
+      "pattern": "^.$",
+      "texts": [
+        "x",
+        "😀",
+        "xy",
+        ""
+      ]
+    },
+    {
+      "pattern": "^(?<word>[a-z]+) (?<rest>.*)$",
+      "texts": [
+        "hello big world",
+        "single"
+      ]
+    },
+    {
+      "pattern": "^[^\\n]*$",
+      "texts": [
+        "one line",
+        "two\nlines"
+      ]
+    },
+    {
+      "pattern": "^(?<name>[a-z]+)(?=\\.)",
+      "texts": [
+        "queue.url",
+        "queue"
+      ]
+    },
+    {
+      "pattern": "^(?<name>[a-z]+)(?!\\.)$",
+      "texts": [
+        "queue",
+        "queue."
+      ]
+    },
+    {
+      "pattern": "(?<=\\$)(?<name>[a-z]+)",
+      "texts": [
+        "cost $total",
+        "total"
+      ]
+    },
+    {
+      "pattern": "(?<!\\$)(?<name>[a-z]+)$",
+      "texts": [
+        "$total",
+        "net total"
+      ]
+    },
+    {
+      "pattern": "^\\\\(?<escaped>.)",
+      "texts": [
+        "\\n",
+        "n"
+      ]
+    },
+    {
+      "pattern": "^[a-z0-9_-]+$",
+      "texts": [
+        "mock-name_1",
+        "Mock"
+      ]
+    },
+    {
+      "pattern": "^(?<optional>x)?y$",
+      "texts": [
+        "y",
+        "xy"
+      ]
+    },
+    {
+      "pattern": "(?<unclosed>abc",
+      "texts": []
+    },
+    {
+      "pattern": "[a-",
+      "texts": []
+    },
+    {
+      "pattern": "*leading",
+      "texts": []
+    },
+    {
+      "pattern": "a)b",
+      "texts": []
+    },
+    {
+      "pattern": "\\",
+      "texts": []
+    }
+  ]
+}

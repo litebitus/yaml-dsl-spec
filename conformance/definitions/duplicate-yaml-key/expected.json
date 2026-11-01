@@ -1,0 +1,9 @@
+{
+  "problems": [
+    {
+      "line": 6,
+      "column": 5,
+      "message": "duplicate key `file_excludes`"
+    }
+  ]
+}

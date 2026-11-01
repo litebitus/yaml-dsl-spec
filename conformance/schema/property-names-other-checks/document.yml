@@ -1,0 +1,4 @@
+few: {a: 1, x: 2}
+many: {zz: 1}
+short: {ok: 1, toolong: 2}
+fixed: {other: 1}

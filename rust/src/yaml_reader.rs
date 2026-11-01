@@ -191,8 +191,9 @@ fn tag_text(tag: &Tag) -> String {
 }
 
 fn scalar_node(text: &str, style: ScalarStyle, tag: Option<&Tag>, position: Position) -> Node {
-    let explicit_string = tag.is_some_and(|tag| tag.handle == "!!" && tag.suffix == "str")
-        || tag.is_some_and(|tag| tag.handle == "tag:yaml.org,2002:" && tag.suffix == "str");
+    let explicit_string = tag
+        .map(tag_text)
+        .is_some_and(|text| text == "!!str" || text == "tag:yaml.org,2002:str");
     let kind = if style != ScalarStyle::Plain || explicit_string {
         NodeKind::String(text.to_owned())
     } else {

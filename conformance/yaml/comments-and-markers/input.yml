@@ -1,0 +1,11 @@
+%YAML 1.2
+---
+# leading comment
+
+a: 1 # trailing comment
+
+# between
+b:
+  # inside
+  c: 2
+...

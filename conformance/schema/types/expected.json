@@ -1,0 +1,67 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 8,
+      "message": "`count` is not an integer",
+      "label": "is a number",
+      "rule": "type, at schema.json#/properties/count/type"
+    },
+    {
+      "line": 2,
+      "column": 8,
+      "message": "`ratio` is not a number",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/ratio/type"
+    },
+    {
+      "line": 3,
+      "column": 8,
+      "message": "`label` is not a string",
+      "label": "is an integer",
+      "rule": "type, at schema.json#/properties/label/type"
+    },
+    {
+      "line": 4,
+      "column": 7,
+      "message": "`flag` is not a boolean",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/flag/type"
+    },
+    {
+      "line": 5,
+      "column": 8,
+      "message": "`items` is not an array",
+      "label": "is an object",
+      "rule": "type, at schema.json#/properties/items/type"
+    },
+    {
+      "line": 6,
+      "column": 11,
+      "message": "`settings` is not an object",
+      "label": "is an array",
+      "rule": "type, at schema.json#/properties/settings/type"
+    },
+    {
+      "line": 7,
+      "column": 10,
+      "message": "`nothing` is not a null",
+      "label": "is an integer",
+      "rule": "type, at schema.json#/properties/nothing/type"
+    },
+    {
+      "line": 8,
+      "column": 9,
+      "message": "`either` is not a null or string",
+      "label": "is a number",
+      "rule": "type, at schema.json#/properties/either/type"
+    },
+    {
+      "line": 9,
+      "column": 10,
+      "message": "`several` is not a string or array or object",
+      "label": "is a number",
+      "rule": "type, at schema.json#/properties/several/type"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "problems": [
+    {
+      "line": 11,
+      "column": 34,
+      "message": "`.` is not a file name",
+      "label": "a file name, with no folder"
+    },
+    {
+      "line": 11,
+      "column": 39,
+      "message": "`..` is not a file name",
+      "label": "a file name, with no folder"
+    },
+    {
+      "line": 11,
+      "column": 45,
+      "message": "`{concern}-{concern}.yml` holds `{concern}` more than once",
+      "label": "a name holds `{concern}` at most once"
+    },
+    {
+      "line": 12,
+      "column": 21,
+      "message": "every name holds `{concern}`",
+      "label": "a name without it is the common layer of a concern above its overlays"
+    }
+  ]
+}

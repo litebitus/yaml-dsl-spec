@@ -1,0 +1,329 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "nulls",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 1,
+          "column": 8,
+          "items": [
+            {
+              "kind": "null",
+              "line": 1,
+              "column": 9
+            },
+            {
+              "kind": "null",
+              "line": 1,
+              "column": 12
+            },
+            {
+              "kind": "null",
+              "line": 1,
+              "column": 18
+            },
+            {
+              "kind": "null",
+              "line": 1,
+              "column": 24
+            },
+            {
+              "kind": "string",
+              "line": 1,
+              "column": 30,
+              "value": ""
+            }
+          ]
+        }
+      },
+      {
+        "key": "bools",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 2,
+          "column": 8,
+          "items": [
+            {
+              "kind": "bool",
+              "line": 2,
+              "column": 9,
+              "value": true
+            },
+            {
+              "kind": "bool",
+              "line": 2,
+              "column": 15,
+              "value": true
+            },
+            {
+              "kind": "bool",
+              "line": 2,
+              "column": 21,
+              "value": true
+            },
+            {
+              "kind": "bool",
+              "line": 2,
+              "column": 27,
+              "value": false
+            },
+            {
+              "kind": "bool",
+              "line": 2,
+              "column": 34,
+              "value": false
+            },
+            {
+              "kind": "bool",
+              "line": 2,
+              "column": 41,
+              "value": false
+            },
+            {
+              "kind": "string",
+              "line": 2,
+              "column": 48,
+              "value": "yes"
+            },
+            {
+              "kind": "string",
+              "line": 2,
+              "column": 53,
+              "value": "no"
+            },
+            {
+              "kind": "string",
+              "line": 2,
+              "column": 57,
+              "value": "on"
+            }
+          ]
+        }
+      },
+      {
+        "key": "integers",
+        "line": 3,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 3,
+          "column": 11,
+          "items": [
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 12,
+              "value": "0"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 15,
+              "value": "30"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 19,
+              "value": "-7"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 23,
+              "value": "+5"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 27,
+              "value": "030"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 32,
+              "value": "9223372036854775807"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 53,
+              "value": "18446744073709551616"
+            }
+          ]
+        }
+      },
+      {
+        "key": "floats",
+        "line": 4,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 4,
+          "column": 9,
+          "items": [
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 10,
+              "value": "1.5"
+            },
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 15,
+              "value": "-0.5"
+            },
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 21,
+              "value": ".5"
+            },
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 25,
+              "value": "5."
+            },
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 29,
+              "value": "1e5"
+            },
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 34,
+              "value": "1.5E-3"
+            },
+            {
+              "kind": "number",
+              "line": 4,
+              "column": 42,
+              "value": "+2.0e+2"
+            }
+          ]
+        }
+      },
+      {
+        "key": "not_numbers",
+        "line": 5,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 5,
+          "column": 14,
+          "items": [
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 15,
+              "value": "0x1F"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 21,
+              "value": "0o17"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 27,
+              "value": ".inf"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 33,
+              "value": "-.inf"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 40,
+              "value": ".nan"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 46,
+              "value": "1_000"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 53,
+              "value": "1.2.3"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 60,
+              "value": "e5"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 64,
+              "value": "1e"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 68,
+              "value": "30"
+            },
+            {
+              "kind": "string",
+              "line": 5,
+              "column": 74,
+              "value": "1.5"
+            }
+          ]
+        }
+      },
+      {
+        "key": "strings",
+        "line": 6,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 6,
+          "column": 10,
+          "items": [
+            {
+              "kind": "string",
+              "line": 6,
+              "column": 11,
+              "value": "mock"
+            },
+            {
+              "kind": "string",
+              "line": 6,
+              "column": 17,
+              "value": "mock text"
+            },
+            {
+              "kind": "string",
+              "line": 6,
+              "column": 28,
+              "value": "30 queues"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

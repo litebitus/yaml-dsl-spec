@@ -89,7 +89,7 @@ fn version_schema(
     let version = version_node.as_str().unwrap_or_default();
     schema_at(YAML_DSL_SCHEMAS, version).ok_or_else(|| {
         let shown = version_node.as_str().map_or_else(
-            || format!("{:?}", version_node.to_json()),
+            || format!("`{}`", version_node.to_json()),
             |text| format!("`{text}`"),
         );
         vec![

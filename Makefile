@@ -14,6 +14,7 @@ test-rust:
 	cargo test $(RUST)
 
 test-javascript:
+	npm --prefix javascript ci
 	npm --prefix javascript test
 
 promote-npm:

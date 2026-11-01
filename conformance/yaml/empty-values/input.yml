@@ -1,0 +1,8 @@
+key_without_value:
+tilde: ~
+list:
+  -
+  - after_empty
+nested:
+  inner:
+last:

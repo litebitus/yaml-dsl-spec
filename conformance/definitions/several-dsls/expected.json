@@ -1,0 +1,6 @@
+{
+  "dsls": [
+    "mock-queues",
+    "mock-topics"
+  ]
+}

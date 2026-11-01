@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 15,
+      "column": 19,
+      "message": "no declaration rule reads `local` names from keys",
+      "label": "a local is declared by its key"
+    }
+  ]
+}

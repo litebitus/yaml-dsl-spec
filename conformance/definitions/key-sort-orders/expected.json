@@ -1,0 +1,22 @@
+{
+  "problems": [
+    {
+      "line": 20,
+      "column": 21,
+      "message": "`first_keys` is not read with alphabetical order",
+      "label": "`[]` under alphabetical order"
+    },
+    {
+      "line": 21,
+      "column": 20,
+      "message": "`last_keys` is not read with alphabetical order",
+      "label": "`[]` under alphabetical order"
+    },
+    {
+      "line": 25,
+      "column": 28,
+      "message": "a key is in both `first_keys` and `last_keys`",
+      "label": "`last_keys` lists it too"
+    }
+  ]
+}

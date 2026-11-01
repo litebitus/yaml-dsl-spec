@@ -1,0 +1,32 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 8,
+      "message": "`fixed`: \"on\" was expected",
+      "label": "breaks `const`",
+      "rule": "const, at schema.json#/properties/fixed/const"
+    },
+    {
+      "line": 2,
+      "column": 12,
+      "message": "`fixed_map`: {\"a\":1} was expected",
+      "label": "breaks `const`",
+      "rule": "const, at schema.json#/properties/fixed_map/const"
+    },
+    {
+      "line": 3,
+      "column": 12,
+      "message": "`not_empty`: {\"const\":\"\"} is not allowed for \"\"",
+      "label": "breaks `not`",
+      "rule": "not, at schema.json#/properties/not_empty/not"
+    },
+    {
+      "line": 4,
+      "column": 13,
+      "message": "`not_string`: {\"type\":\"string\"} is not allowed for \"text\"",
+      "label": "breaks `not`",
+      "rule": "not, at schema.json#/properties/not_string/not"
+    }
+  ]
+}

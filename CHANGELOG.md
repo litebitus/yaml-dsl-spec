@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Packages
+  - The JavaScript package reads as the Rust crate does: `readDslDefinitions`, the YAML reader, diagnostics, the JSONPath subset, the function table and schema validation.
+  - A document schema is read in the draft its `$schema` names: draft-07 where it names none or an older one, and an unread draft refused, naming the drafts read.
+  - A schema's problems are reported in the document's order.
+  - A verbatim `!<tag:yaml.org,2002:str>` tag reads its value as a string.
+  - A `version` that is not a string is shown as written, such as `` `1` ``.
+- Conformance
+  - Cases of YAML reading, of schema validation and of patterns, and more cases of `yaml-dsl.yml`.
+
 ## v0.0.1 — 2026-11-01
 
 - Specification

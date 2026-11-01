@@ -1,0 +1,7 @@
+queues:
+  - name: mock-orders
+    fifo: "yes"
+  - fifo: true
+  - name: mock-events
+    fif: true
+topic: {}

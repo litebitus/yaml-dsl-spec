@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "count": { "type": "integer" },
+    "ratio": { "type": "number" },
+    "label": { "type": "string" },
+    "flag": { "type": "boolean" },
+    "items": { "type": "array" },
+    "settings": { "type": "object" },
+    "nothing": { "type": "null" },
+    "either": { "type": ["string", "null"] },
+    "several": { "type": ["object", "array", "string"] }
+  }
+}

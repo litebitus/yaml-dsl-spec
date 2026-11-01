@@ -1,0 +1,67 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "a",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "number",
+          "line": 1,
+          "column": 4,
+          "value": "1"
+        }
+      },
+      {
+        "key": "b",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 3,
+          "column": 3,
+          "entries": [
+            {
+              "key": "c",
+              "line": 3,
+              "column": 3,
+              "value": {
+                "kind": "string",
+                "line": 3,
+                "column": 6,
+                "value": "two"
+              }
+            },
+            {
+              "key": "d",
+              "line": 4,
+              "column": 3,
+              "value": {
+                "kind": "list",
+                "line": 4,
+                "column": 6,
+                "items": [
+                  {
+                    "kind": "string",
+                    "line": 4,
+                    "column": 7,
+                    "value": "x"
+                  },
+                  {
+                    "kind": "string",
+                    "line": 4,
+                    "column": 10,
+                    "value": "y"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

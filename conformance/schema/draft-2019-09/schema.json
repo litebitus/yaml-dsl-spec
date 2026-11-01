@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "type": "object",
+  "$defs": { "flag": { "type": "boolean" } },
+  "properties": { "enabled": { "$ref": "#/$defs/flag" } },
+  "unevaluatedProperties": false
+}

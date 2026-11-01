@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "queues": { "type": "array", "items": { "$ref": "#/$defs/queue" } },
+    "topic": { "allOf": [{ "$ref": "#/$defs/named" }, { "required": ["kind"] }] }
+  },
+  "$defs": {
+    "named": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" } } },
+    "queue": {
+      "allOf": [{ "$ref": "#/$defs/named" }],
+      "properties": { "name": true, "fifo": { "type": "boolean" } },
+      "additionalProperties": false
+    }
+  }
+}

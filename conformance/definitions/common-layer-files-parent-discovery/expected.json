@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 11,
+      "column": 34,
+      "message": "`{concern}.yml` names a concern's common layer",
+      "label": "only `common_layer_discovery: ancestor` reaches a concern below its overlays"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "fixed": { "const": "on" },
+    "fixed_map": { "const": { "a": 1 } },
+    "not_empty": { "not": { "const": "" } },
+    "not_string": { "not": { "type": "string" } }
+  }
+}

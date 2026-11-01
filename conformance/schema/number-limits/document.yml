@@ -1,0 +1,6 @@
+low: 9
+high: 10.5
+exclusive_low: 0
+exclusive_high: 1.5
+step: 12
+fraction_step: 0.3

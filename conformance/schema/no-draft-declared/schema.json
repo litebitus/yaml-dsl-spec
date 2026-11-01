@@ -1,0 +1,7 @@
+{
+  "type": "object",
+  "properties": {
+    "tuple": { "type": "array", "items": [{ "type": "string" }, { "type": "integer" }] },
+    "loose": { "type": "object", "unevaluatedProperties": false }
+  }
+}

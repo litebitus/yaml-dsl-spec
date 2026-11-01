@@ -1,0 +1,3 @@
+rule:
+  each: $.items
+  default: 1

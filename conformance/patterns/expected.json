@@ -1,0 +1,452 @@
+{
+  "cases": [
+    {
+      "pattern": "^ref (?<type>[a-z]+)\\.(?<name>[a-z0-9_]+)",
+      "compiles": true,
+      "groups": [
+        "type",
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "ref queue.mock_orders.url",
+          "captures": {
+            "match": "ref queue.mock_orders",
+            "type": "queue",
+            "name": "mock_orders"
+          }
+        },
+        {
+          "text": "ref Queue.x",
+          "captures": null
+        },
+        {
+          "text": "a ref queue.x",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "\\$\\{(?<body>[^}\\n]*)\\}",
+      "compiles": true,
+      "groups": [
+        "body"
+      ],
+      "texts": [
+        {
+          "text": "${env}",
+          "captures": {
+            "match": "${env}",
+            "body": "env"
+          }
+        },
+        {
+          "text": "pre-${local.name}-post",
+          "captures": {
+            "match": "${local.name}",
+            "body": "local.name"
+          }
+        },
+        {
+          "text": "${unclosed",
+          "captures": null
+        },
+        {
+          "text": "${a}${b}",
+          "captures": {
+            "match": "${a}",
+            "body": "a"
+          }
+        }
+      ]
+    },
+    {
+      "pattern": "^(?<field>name) (?<value>[a-z0-9-]+)$",
+      "compiles": true,
+      "groups": [
+        "field",
+        "value"
+      ],
+      "texts": [
+        {
+          "text": "name mock-orders",
+          "captures": {
+            "match": "name mock-orders",
+            "field": "name",
+            "value": "mock-orders"
+          }
+        },
+        {
+          "text": "name Mock",
+          "captures": null
+        },
+        {
+          "text": "names x",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^local\\.(?<name>[a-z_]+)",
+      "compiles": true,
+      "groups": [
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "local.team",
+          "captures": {
+            "match": "local.team",
+            "name": "team"
+          }
+        },
+        {
+          "text": "local.",
+          "captures": null
+        },
+        {
+          "text": "locals.team",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(?<name>[a-z_]+)$",
+      "compiles": true,
+      "groups": [
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "env",
+          "captures": {
+            "match": "env",
+            "name": "env"
+          }
+        },
+        {
+          "text": "env_name",
+          "captures": {
+            "match": "env_name",
+            "name": "env_name"
+          }
+        },
+        {
+          "text": "Env",
+          "captures": null
+        },
+        {
+          "text": "",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(?:fn|func)\\.(?<function>[A-Za-z_][A-Za-z0-9_:-]*)(?<splat>\\*)?$",
+      "compiles": true,
+      "groups": [
+        "function",
+        "splat"
+      ],
+      "texts": [
+        {
+          "text": "fn.format*",
+          "captures": {
+            "match": "fn.format*",
+            "function": "format",
+            "splat": "*"
+          }
+        },
+        {
+          "text": "func.merge",
+          "captures": {
+            "match": "func.merge",
+            "function": "merge",
+            "splat": null
+          }
+        },
+        {
+          "text": "fn.",
+          "captures": null
+        },
+        {
+          "text": "fn.1x",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(a|b)+$",
+      "compiles": true,
+      "groups": [],
+      "texts": [
+        {
+          "text": "abba",
+          "captures": {
+            "match": "abba"
+          }
+        },
+        {
+          "text": "abc",
+          "captures": null
+        },
+        {
+          "text": "",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "colou?r",
+      "compiles": true,
+      "groups": [],
+      "texts": [
+        {
+          "text": "color",
+          "captures": {
+            "match": "color"
+          }
+        },
+        {
+          "text": "colour",
+          "captures": {
+            "match": "colour"
+          }
+        },
+        {
+          "text": "colr",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^.$",
+      "compiles": true,
+      "groups": [],
+      "texts": [
+        {
+          "text": "x",
+          "captures": {
+            "match": "x"
+          }
+        },
+        {
+          "text": "😀",
+          "captures": {
+            "match": "😀"
+          }
+        },
+        {
+          "text": "xy",
+          "captures": null
+        },
+        {
+          "text": "",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(?<word>[a-z]+) (?<rest>.*)$",
+      "compiles": true,
+      "groups": [
+        "word",
+        "rest"
+      ],
+      "texts": [
+        {
+          "text": "hello big world",
+          "captures": {
+            "match": "hello big world",
+            "word": "hello",
+            "rest": "big world"
+          }
+        },
+        {
+          "text": "single",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^[^\\n]*$",
+      "compiles": true,
+      "groups": [],
+      "texts": [
+        {
+          "text": "one line",
+          "captures": {
+            "match": "one line"
+          }
+        },
+        {
+          "text": "two\nlines",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(?<name>[a-z]+)(?=\\.)",
+      "compiles": true,
+      "groups": [
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "queue.url",
+          "captures": {
+            "match": "queue",
+            "name": "queue"
+          }
+        },
+        {
+          "text": "queue",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(?<name>[a-z]+)(?!\\.)$",
+      "compiles": true,
+      "groups": [
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "queue",
+          "captures": {
+            "match": "queue",
+            "name": "queue"
+          }
+        },
+        {
+          "text": "queue.",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "(?<=\\$)(?<name>[a-z]+)",
+      "compiles": true,
+      "groups": [
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "cost $total",
+          "captures": {
+            "match": "total",
+            "name": "total"
+          }
+        },
+        {
+          "text": "total",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "(?<!\\$)(?<name>[a-z]+)$",
+      "compiles": true,
+      "groups": [
+        "name"
+      ],
+      "texts": [
+        {
+          "text": "$total",
+          "captures": {
+            "match": "otal",
+            "name": "otal"
+          }
+        },
+        {
+          "text": "net total",
+          "captures": {
+            "match": "total",
+            "name": "total"
+          }
+        }
+      ]
+    },
+    {
+      "pattern": "^\\\\(?<escaped>.)",
+      "compiles": true,
+      "groups": [
+        "escaped"
+      ],
+      "texts": [
+        {
+          "text": "\\n",
+          "captures": {
+            "match": "\\n",
+            "escaped": "n"
+          }
+        },
+        {
+          "text": "n",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^[a-z0-9_-]+$",
+      "compiles": true,
+      "groups": [],
+      "texts": [
+        {
+          "text": "mock-name_1",
+          "captures": {
+            "match": "mock-name_1"
+          }
+        },
+        {
+          "text": "Mock",
+          "captures": null
+        }
+      ]
+    },
+    {
+      "pattern": "^(?<optional>x)?y$",
+      "compiles": true,
+      "groups": [
+        "optional"
+      ],
+      "texts": [
+        {
+          "text": "y",
+          "captures": {
+            "match": "y",
+            "optional": null
+          }
+        },
+        {
+          "text": "xy",
+          "captures": {
+            "match": "xy",
+            "optional": "x"
+          }
+        }
+      ]
+    },
+    {
+      "pattern": "(?<unclosed>abc",
+      "compiles": false
+    },
+    {
+      "pattern": "[a-",
+      "compiles": false
+    },
+    {
+      "pattern": "*leading",
+      "compiles": false
+    },
+    {
+      "pattern": "a)b",
+      "compiles": false
+    },
+    {
+      "pattern": "\\",
+      "compiles": false
+    }
+  ]
+}

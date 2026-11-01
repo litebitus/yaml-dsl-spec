@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "queue": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["name", "visibility"],
+        "properties": { "name": { "type": "string", "pattern": "^[a-z-]+$" }, "visibility": { "type": "integer" } },
+        "additionalProperties": false
+      }
+    }
+  }
+}

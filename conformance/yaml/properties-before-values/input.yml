@@ -1,0 +1,10 @@
+tagged_map: !mock &anchored
+  k: 1
+tagged_list: !mock [1, 2]
+tagged_block: !mock |
+  text
+anchor_then_tag: &other !mock value
+items:
+  - !mock first
+  - &item second
+  - *item

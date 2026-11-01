@@ -1,0 +1,7 @@
+{
+  "problem": {
+    "line": 2,
+    "column": 3,
+    "message": "a mapping key must be a scalar"
+  }
+}

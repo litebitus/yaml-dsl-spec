@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 17,
+      "column": 19,
+      "message": "no reference rule reads `item`",
+      "label": "a loop variable is read by a reference rule of its scope"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "few": { "type": "object", "propertyNames": { "enum": ["a", "b"] } },
+    "many": { "type": "object", "propertyNames": { "enum": ["a", "b", "c", "d", "e"] } },
+    "short": { "type": "object", "propertyNames": { "maxLength": 2 } },
+    "fixed": { "type": "object", "propertyNames": { "const": "only" } }
+  }
+}

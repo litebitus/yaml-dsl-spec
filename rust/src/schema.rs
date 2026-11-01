@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use fancy_regex::Regex;
 use jsonschema::error::{TypeKind, ValidationErrorKind};
-use jsonschema::{JsonType, ValidationError};
+use jsonschema::{Draft, JsonType, ValidationError};
 use serde_json::{Map, Value as JsonValue};
 
 use crate::diagnostic::Diagnostic;
@@ -57,7 +57,10 @@ impl LoadedSchema {
             serde_json::from_str(text).map_err(|error| format!("schema {name}: {error}"))?;
         let table = FunctionTable::from_schema(&schema)
             .map_err(|error| format!("schema {name}: {error}"))?;
-        let validator = jsonschema::validator_for(&schema)
+        let draft = schema_draft(&schema).map_err(|error| format!("schema {name}: {error}"))?;
+        let validator = jsonschema::options()
+            .with_draft(draft)
+            .build(&schema)
             .map_err(|error| format!("schema {name}: {error}"))?;
         Ok(Self {
             table,
@@ -83,6 +86,11 @@ impl LoadedSchema {
             .filter(|error| !instance.reads_unknown(error.instance_path().as_str(), error.kind()))
             .flat_map(|error| self.error_diagnostics(&error, &instance))
             .collect();
+        diagnostics.sort_by(|first, second| {
+            place(first)
+                .cmp(&place(second))
+                .then_with(|| first.message.cmp(&second.message))
+        });
         diagnostics.dedup();
         diagnostics
     }
@@ -184,6 +192,55 @@ impl LoadedSchema {
             ],
         }
     }
+}
+
+/// The draft-07 meta-schema URIs, and those of the drafts read as draft-07.
+const DRAFT_07_URIS: [&str; 8] = [
+    "http://json-schema.org/draft-07/schema#",
+    "http://json-schema.org/draft-07/schema",
+    "http://json-schema.org/draft-03/schema#",
+    "http://json-schema.org/draft-03/schema",
+    "http://json-schema.org/draft-04/schema#",
+    "http://json-schema.org/draft-04/schema",
+    "http://json-schema.org/draft-06/schema#",
+    "http://json-schema.org/draft-06/schema",
+];
+const DRAFT_2019_09_URIS: [&str; 2] = [
+    "https://json-schema.org/draft/2019-09/schema",
+    "https://json-schema.org/draft/2019-09/schema#",
+];
+const DRAFT_2020_12_URIS: [&str; 2] = [
+    "https://json-schema.org/draft/2020-12/schema",
+    "https://json-schema.org/draft/2020-12/schema#",
+];
+
+/// The draft the standard reads a document schema in, by its root `$schema`:
+/// draft-07 where it names none or an older draft.
+fn schema_draft(schema: &JsonValue) -> Result<Draft, String> {
+    let Some(declared) = schema.get("$schema") else {
+        return Ok(Draft::Draft7);
+    };
+    let uri = declared.as_str().unwrap_or_default();
+    if DRAFT_07_URIS.contains(&uri) {
+        Ok(Draft::Draft7)
+    } else if DRAFT_2019_09_URIS.contains(&uri) {
+        Ok(Draft::Draft201909)
+    } else if DRAFT_2020_12_URIS.contains(&uri) {
+        Ok(Draft::Draft202012)
+    } else {
+        Err(format!(
+            "declares {declared}, a draft this reader does not read; \
+             it reads draft-07, draft 2019-09, draft 2020-12"
+        ))
+    }
+}
+
+/// Where a diagnostic stands, for reporting a document's problems in its order.
+fn place(diagnostic: &Diagnostic) -> Option<(usize, usize)> {
+    diagnostic
+        .position
+        .as_ref()
+        .map(|position| (position.line, position.column))
 }
 
 /// The fields a schema node allows, by the `properties` of the node holding the

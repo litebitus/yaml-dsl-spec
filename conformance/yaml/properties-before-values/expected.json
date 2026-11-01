@@ -1,0 +1,108 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "tagged_map",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 1,
+          "column": 13,
+          "entries": [
+            {
+              "key": "k",
+              "line": 2,
+              "column": 3,
+              "value": {
+                "kind": "number",
+                "line": 2,
+                "column": 6,
+                "value": "1"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "tagged_list",
+        "line": 3,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 3,
+          "column": 14,
+          "items": [
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 21,
+              "value": "1"
+            },
+            {
+              "kind": "number",
+              "line": 3,
+              "column": 24,
+              "value": "2"
+            }
+          ]
+        }
+      },
+      {
+        "key": "tagged_block",
+        "line": 4,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 4,
+          "column": 15,
+          "value": "text\n"
+        }
+      },
+      {
+        "key": "anchor_then_tag",
+        "line": 6,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 6,
+          "column": 18,
+          "value": "value"
+        }
+      },
+      {
+        "key": "items",
+        "line": 7,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 8,
+          "column": 3,
+          "items": [
+            {
+              "kind": "string",
+              "line": 8,
+              "column": 5,
+              "value": "first"
+            },
+            {
+              "kind": "string",
+              "line": 9,
+              "column": 5,
+              "value": "second"
+            },
+            {
+              "kind": "string",
+              "line": 9,
+              "column": 5,
+              "value": "second"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 4,
+      "column": 20,
+      "message": "`file_includes` is not an array",
+      "label": "is a string",
+      "rule": "type, at yaml-dsl-v1.0.schema.json#/$defs/globs/type"
+    },
+    {
+      "line": 46,
+      "column": 22,
+      "message": "`\"kye\"` is not an allowed value",
+      "label": "not one of the 3 values `enum` allows",
+      "rule": "enum, at yaml-dsl-v1.0.schema.json#/$defs/declaration/properties/name_source/enum"
+    }
+  ]
+}

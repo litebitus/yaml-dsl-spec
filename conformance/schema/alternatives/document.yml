@@ -1,0 +1,4 @@
+port: abc
+target: {id: 1}
+both: {arn: a, name: b}
+referenced: {nme: x}

@@ -1,0 +1,215 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "shared",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 1,
+          "column": 9,
+          "entries": [
+            {
+              "key": "x",
+              "line": 2,
+              "column": 3,
+              "value": {
+                "kind": "number",
+                "line": 2,
+                "column": 6,
+                "value": "1"
+              }
+            },
+            {
+              "key": "y",
+              "line": 3,
+              "column": 3,
+              "value": {
+                "kind": "list",
+                "line": 3,
+                "column": 6,
+                "items": [
+                  {
+                    "kind": "string",
+                    "line": 3,
+                    "column": 7,
+                    "value": "a"
+                  },
+                  {
+                    "kind": "string",
+                    "line": 3,
+                    "column": 10,
+                    "value": "b"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "copy",
+        "line": 4,
+        "column": 1,
+        "value": {
+          "kind": "map",
+          "line": 1,
+          "column": 9,
+          "entries": [
+            {
+              "key": "x",
+              "line": 2,
+              "column": 3,
+              "value": {
+                "kind": "number",
+                "line": 2,
+                "column": 6,
+                "value": "1"
+              }
+            },
+            {
+              "key": "y",
+              "line": 3,
+              "column": 3,
+              "value": {
+                "kind": "list",
+                "line": 3,
+                "column": 6,
+                "items": [
+                  {
+                    "kind": "string",
+                    "line": 3,
+                    "column": 7,
+                    "value": "a"
+                  },
+                  {
+                    "kind": "string",
+                    "line": 3,
+                    "column": 10,
+                    "value": "b"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "scalar",
+        "line": 5,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 5,
+          "column": 9,
+          "value": "mock-name"
+        }
+      },
+      {
+        "key": "again",
+        "line": 6,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 5,
+          "column": 9,
+          "value": "mock-name"
+        }
+      },
+      {
+        "key": "list",
+        "line": 7,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 8,
+          "column": 3,
+          "items": [
+            {
+              "kind": "map",
+              "line": 1,
+              "column": 9,
+              "entries": [
+                {
+                  "key": "x",
+                  "line": 2,
+                  "column": 3,
+                  "value": {
+                    "kind": "number",
+                    "line": 2,
+                    "column": 6,
+                    "value": "1"
+                  }
+                },
+                {
+                  "key": "y",
+                  "line": 3,
+                  "column": 3,
+                  "value": {
+                    "kind": "list",
+                    "line": 3,
+                    "column": 6,
+                    "items": [
+                      {
+                        "kind": "string",
+                        "line": 3,
+                        "column": 7,
+                        "value": "a"
+                      },
+                      {
+                        "kind": "string",
+                        "line": 3,
+                        "column": 10,
+                        "value": "b"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "map",
+              "line": 9,
+              "column": 5,
+              "entries": [
+                {
+                  "key": "z",
+                  "line": 9,
+                  "column": 12,
+                  "value": {
+                    "kind": "number",
+                    "line": 9,
+                    "column": 15,
+                    "value": "3"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "map",
+              "line": 9,
+              "column": 5,
+              "entries": [
+                {
+                  "key": "z",
+                  "line": 9,
+                  "column": 12,
+                  "value": {
+                    "kind": "number",
+                    "line": 9,
+                    "column": 15,
+                    "value": "3"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

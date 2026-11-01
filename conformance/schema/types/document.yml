@@ -1,0 +1,9 @@
+count: 1.5
+ratio: "half"
+label: 30
+flag: "yes"
+items: {a: 1}
+settings: [1]
+nothing: 0
+either: 1.0
+several: 1e5

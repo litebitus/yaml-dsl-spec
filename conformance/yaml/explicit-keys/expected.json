@@ -1,0 +1,41 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "a",
+        "line": 1,
+        "column": 3,
+        "value": {
+          "kind": "number",
+          "line": 2,
+          "column": 3,
+          "value": "1"
+        }
+      },
+      {
+        "key": "b",
+        "line": 3,
+        "column": 3,
+        "value": {
+          "kind": "null",
+          "line": 4,
+          "column": 1
+        }
+      },
+      {
+        "key": "c",
+        "line": 4,
+        "column": 1,
+        "value": {
+          "kind": "number",
+          "line": 4,
+          "column": 4,
+          "value": "3"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "few": { "type": "array", "minItems": 2 },
+    "one_item": { "type": "array", "maxItems": 1 },
+    "unique": { "type": "array", "uniqueItems": true },
+    "small": { "type": "object", "maxProperties": 1 },
+    "one_property": { "type": "object", "minProperties": 1 },
+    "many_properties": { "type": "object", "minProperties": 2 }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "short": { "type": "string", "minLength": 3 },
+    "one": { "type": "string", "minLength": 1 },
+    "long": { "type": "string", "maxLength": 2 },
+    "single": { "type": "string", "maxLength": 1 },
+    "id": { "type": "string", "pattern": "^[a-z]+-[0-9]+$" }
+  }
+}

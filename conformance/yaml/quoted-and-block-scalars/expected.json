@@ -1,0 +1,86 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "single",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 1,
+          "column": 9,
+          "value": "it's mock"
+        }
+      },
+      {
+        "key": "double",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 2,
+          "column": 9,
+          "value": "tab\there\nnewline é \"quoted\""
+        }
+      },
+      {
+        "key": "literal",
+        "line": 3,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 4,
+          "column": 3,
+          "value": "line one\n  indented\nline three\n"
+        }
+      },
+      {
+        "key": "folded",
+        "line": 7,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 8,
+          "column": 3,
+          "value": "folded one folded two\nnext paragraph\n"
+        }
+      },
+      {
+        "key": "keep",
+        "line": 12,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 13,
+          "column": 3,
+          "value": "kept\n\n"
+        }
+      },
+      {
+        "key": "strip",
+        "line": 15,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 16,
+          "column": 3,
+          "value": "stripped"
+        }
+      },
+      {
+        "key": "plain_multi_line",
+        "line": 17,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 17,
+          "column": 19,
+          "value": "first second third"
+        }
+      }
+    ]
+  }
+}

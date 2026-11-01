@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "all_but_string": { "type": ["object", "number", "null", "integer", "boolean", "array"] },
+    "all_but_number": { "type": ["string", "object", "null", "integer", "boolean", "array"] }
+  }
+}

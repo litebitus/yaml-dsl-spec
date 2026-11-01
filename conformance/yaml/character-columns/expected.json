@@ -1,0 +1,72 @@
+{
+  "node": {
+    "kind": "map",
+    "line": 1,
+    "column": 1,
+    "entries": [
+      {
+        "key": "héllo",
+        "line": 1,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 1,
+          "column": 8,
+          "value": "wörld"
+        }
+      },
+      {
+        "key": "emoji",
+        "line": 2,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 2,
+          "column": 8,
+          "value": "😀 then"
+        }
+      },
+      {
+        "key": "after",
+        "line": 3,
+        "column": 1,
+        "value": {
+          "kind": "list",
+          "line": 3,
+          "column": 8,
+          "items": [
+            {
+              "kind": "string",
+              "line": 3,
+              "column": 9,
+              "value": "😀"
+            },
+            {
+              "kind": "string",
+              "line": 3,
+              "column": 12,
+              "value": "x"
+            },
+            {
+              "kind": "string",
+              "line": 3,
+              "column": 15,
+              "value": "ñ"
+            }
+          ]
+        }
+      },
+      {
+        "key": "😀",
+        "line": 4,
+        "column": 1,
+        "value": {
+          "kind": "string",
+          "line": 4,
+          "column": 4,
+          "value": "smile"
+        }
+      }
+    ]
+  }
+}

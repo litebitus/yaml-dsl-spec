@@ -1,0 +1,4 @@
+fixed: off
+fixed_map: {a: 2}
+not_empty: ""
+not_string: text

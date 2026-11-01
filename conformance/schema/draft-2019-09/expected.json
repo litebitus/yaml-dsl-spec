@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 10,
+      "message": "`enabled` is not a boolean",
+      "label": "is a string",
+      "rule": "type, at schema.json#/$defs/flag/type"
+    },
+    {
+      "line": 2,
+      "column": 1,
+      "message": "field `extra` is not allowed",
+      "label": "the document has no field `extra`",
+      "rule": "unevaluatedProperties, at schema.json#/unevaluatedProperties"
+    }
+  ]
+}

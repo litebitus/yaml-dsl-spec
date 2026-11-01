@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 3,
+      "message": "`rule`: {\"required\":[\"default\"]} is not allowed for {\"each\":\"$.items\",\"default\":1}",
+      "label": "breaks `not`",
+      "rule": "not, at schema.json#/properties/rule/then/not"
+    }
+  ]
+}

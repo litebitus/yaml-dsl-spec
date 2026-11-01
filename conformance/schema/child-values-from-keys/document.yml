@@ -1,0 +1,10 @@
+queue:
+  name mock-orders:
+    visibility: 30
+  name mock-2:
+    visibility: 30
+  name mock-events:
+    name: Written-Name
+    visibility: 30
+  orders:
+    visibility: 30

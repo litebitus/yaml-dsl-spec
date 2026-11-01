@@ -1,0 +1,25 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 8,
+      "message": "`a/b` is not an integer",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/paths/properties/a~1b/type"
+    },
+    {
+      "line": 3,
+      "column": 8,
+      "message": "`c~d` is not an integer",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/paths/properties/c~0d/type"
+    },
+    {
+      "line": 4,
+      "column": 3,
+      "message": "field `e/f` is not allowed",
+      "label": "`paths` has no field `e/f`",
+      "rule": "additionalProperties, at schema.json#/properties/paths/additionalProperties"
+    }
+  ]
+}

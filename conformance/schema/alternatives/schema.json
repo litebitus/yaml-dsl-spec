@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "port": { "anyOf": [{ "type": "integer" }, { "type": "string", "pattern": "^[0-9]+$" }] },
+    "target": {
+      "oneOf": [
+        { "type": "object", "required": ["arn"] },
+        { "type": "object", "required": ["name"] }
+      ]
+    },
+    "both": {
+      "oneOf": [
+        { "type": "object", "required": ["arn"] },
+        { "type": "object", "required": ["name"] }
+      ]
+    },
+    "referenced": { "anyOf": [{ "$ref": "#/$defs/queue" }, { "type": "string" }] }
+  },
+  "$defs": {
+    "queue": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string" } },
+      "additionalProperties": false
+    }
+  }
+}
