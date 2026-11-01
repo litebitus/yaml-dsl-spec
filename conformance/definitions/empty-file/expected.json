@@ -3,7 +3,7 @@
     {
       "line": 1,
       "column": 1,
-      "message": "field `version` is required",
+      "message": "`version` is required",
       "label": "`version` is one of `\"1\"`, `\"1.0\"`, `\"1.1\"`, `\"1.2\"`"
     }
   ]

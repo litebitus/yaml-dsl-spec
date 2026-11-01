@@ -67,7 +67,7 @@ function versionSchema(root, file) {
   if (versionNode === null) {
     return {
       problems: [
-        Diagnostic.at(Position.fileStart(file), 'field `version` is required')
+        Diagnostic.at(Position.fileStart(file), '`version` is required')
           .withLabel(`\`version\` is one of ${listed}`),
       ],
     };

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Packages
+  - A `yaml-dsl.yml` without a `version` reads "`version` is required", worded as every missing field is.
+
 ## v0.1.3 — 2026-11-01
 
 - Packages

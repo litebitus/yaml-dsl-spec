@@ -83,7 +83,7 @@ fn version_schema(
     let Some(version_node) = root.get("version") else {
         let position = Position::file_start(file);
         return Err(vec![
-            Diagnostic::at(&position, "field `version` is required")
+            Diagnostic::at(&position, "`version` is required")
                 .with_label(format!("`version` is one of {listed}")),
         ]);
     };
