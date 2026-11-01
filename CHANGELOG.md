@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.0 — 2026-11-01
+
 - Packages
   - The JavaScript package reads as the Rust crate does: `readDslDefinitions`, the YAML reader, diagnostics, the JSONPath subset, the function table and schema validation.
   - A document schema is read in the draft its `$schema` names: draft-07 where it names none or an older one, and an unread draft refused, naming the drafts read.
