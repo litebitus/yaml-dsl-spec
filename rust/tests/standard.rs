@@ -22,14 +22,14 @@ fn errors(schema: &str, instance: &Value) -> Vec<String> {
 
 #[test]
 fn a_major_stands_for_its_newest_minor() {
-    assert_eq!(YAML_DSL_VERSIONS, ["1", "1.0"]);
+    assert_eq!(YAML_DSL_VERSIONS, ["1", "1.0", "1.1"]);
     assert_eq!(FUNCTION_TABLE_VERSIONS, ["1", "1.0"]);
-    assert_eq!(yaml_dsl_schema("1"), yaml_dsl_schema("1.0"));
-    assert!(
-        yaml_dsl_schema("1.0")
-            .unwrap()
-            .contains("\"title\": \"yaml-dsl.yml v1.0\"")
-    );
+    assert_eq!(yaml_dsl_schema("1"), yaml_dsl_schema("1.1"));
+    assert_ne!(yaml_dsl_schema("1.0"), yaml_dsl_schema("1.1"));
+    for minor in ["1.0", "1.1"] {
+        let title = format!("\"title\": \"yaml-dsl.yml v{minor}\"");
+        assert!(yaml_dsl_schema(minor).unwrap().contains(&title));
+    }
     assert_eq!(yaml_dsl_schema("2"), None);
     assert_eq!(function_table_schema("1"), function_table_schema("1.0"));
 }
@@ -44,6 +44,11 @@ fn a_minor_schema_takes_a_file_stating_its_minor_or_its_major() {
     }
     config["version"] = Value::from("1.1");
     assert!(!errors(schema, &config).is_empty());
+    let newest = yaml_dsl_schema("1.1").unwrap();
+    for version in ["1", "1.1"] {
+        config["version"] = Value::from(version);
+        assert_eq!(errors(newest, &config), Vec::<String>::new());
+    }
 }
 
 #[test]

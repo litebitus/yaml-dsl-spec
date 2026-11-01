@@ -1,4 +1,4 @@
-version: "1.1"
+version: "2.1"
 dsls:
   - id: mock-queues
     file_includes: ["{config_root}/**/queues.yml"]

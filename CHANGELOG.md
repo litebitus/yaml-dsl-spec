@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Schemas
+  - `yaml-dsl.yml` v1.1: a path takes the `['name']`, `..name` and `..['name']` steps the specification's Paths list; `version: "1"` reads it, and `version: "1.0"` keeps reading v1.0.
+- Conformance
+  - Cases of descendant-name paths under v1.1 and under v1.0.
+
 ## v0.1.0 — 2026-11-01
 
 - Packages

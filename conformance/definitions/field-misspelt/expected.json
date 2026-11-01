@@ -5,14 +5,14 @@
       "column": 5,
       "message": "field `file_excludes` is required",
       "label": "`dsls[0]` has no field `file_excludes`",
-      "rule": "required, at yaml-dsl-v1.0.schema.json#/$defs/dsl/required"
+      "rule": "required, at yaml-dsl-v1.1.schema.json#/$defs/dsl/required"
     },
     {
       "line": 5,
       "column": 5,
       "message": "field `file_exclude` is not allowed",
       "label": "`dsls[0]` has no field `file_exclude`",
-      "rule": "additionalProperties, at yaml-dsl-v1.0.schema.json#/$defs/dsl/additionalProperties",
+      "rule": "additionalProperties, at yaml-dsl-v1.1.schema.json#/$defs/dsl/additionalProperties",
       "help": "did you mean `file_excludes`?"
     }
   ]

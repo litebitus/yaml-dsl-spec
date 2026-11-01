@@ -12,9 +12,10 @@ const rootSchema = (file) =>
   JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'schemas', file), 'utf8'));
 
 test('the package exports each schema by version, a major as its newest minor', () => {
-  assert.deepStrictEqual(Object.keys(spec.yamlDslSchemas), ['1', '1.0']);
+  assert.deepStrictEqual(Object.keys(spec.yamlDslSchemas), ['1', '1.0', '1.1']);
   assert.deepStrictEqual(spec.yamlDslSchemas['1.0'], rootSchema('yaml-dsl-v1.0.schema.json'));
-  assert.strictEqual(spec.yamlDslSchemas['1'], spec.yamlDslSchemas['1.0']);
+  assert.deepStrictEqual(spec.yamlDslSchemas['1.1'], rootSchema('yaml-dsl-v1.1.schema.json'));
+  assert.strictEqual(spec.yamlDslSchemas['1'], spec.yamlDslSchemas['1.1']);
   assert.deepStrictEqual(
     spec.functionTableSchemas['1.0'],
     rootSchema('x-yaml-dsl-functions-v1.0.schema.json'));

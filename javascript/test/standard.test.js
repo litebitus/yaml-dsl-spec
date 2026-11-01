@@ -20,10 +20,11 @@ function errors(schema, instance) {
 }
 
 test('a major stands for its newest minor', () => {
-  assert.deepStrictEqual(spec.YAML_DSL_VERSIONS, ['1', '1.0']);
+  assert.deepStrictEqual(spec.YAML_DSL_VERSIONS, ['1', '1.0', '1.1']);
   assert.deepStrictEqual(spec.FUNCTION_TABLE_VERSIONS, ['1', '1.0']);
-  assert.strictEqual(spec.yamlDslSchema('1'), spec.yamlDslSchema('1.0'));
-  assert.strictEqual(spec.yamlDslSchema('1.0').title, 'yaml-dsl.yml v1.0');
+  assert.strictEqual(spec.yamlDslSchema('1'), spec.yamlDslSchema('1.1'));
+  assert.notStrictEqual(spec.yamlDslSchema('1.0'), spec.yamlDslSchema('1.1'));
+  for (const minor of ['1.0', '1.1']) assert.strictEqual(spec.yamlDslSchema(minor).title, `yaml-dsl.yml v${minor}`);
   assert.strictEqual(spec.yamlDslSchema('2'), null);
   assert.strictEqual(spec.functionTableSchema('1'), spec.functionTableSchema('1.0'));
 });
@@ -34,6 +35,9 @@ test('a minor schema takes a file stating its minor or its major', () => {
     assert.deepStrictEqual(errors(spec.yamlDslSchema('1.0'), { ...config, version }), []);
   }
   assert.notDeepStrictEqual(errors(spec.yamlDslSchema('1.0'), { ...config, version: '1.1' }), []);
+  for (const version of ['1', '1.1']) {
+    assert.deepStrictEqual(errors(spec.yamlDslSchema('1.1'), { ...config, version }), []);
+  }
 });
 
 test('a config the schema accepts reads into its definitions', () => {

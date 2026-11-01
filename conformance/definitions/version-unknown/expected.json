@@ -3,9 +3,9 @@
     {
       "line": 1,
       "column": 10,
-      "message": "`1.1` is not a version this reader reads",
-      "label": "`version` is one of `\"1\"`, `\"1.0\"`",
-      "help": "did you mean `\"1.0\"`?"
+      "message": "`2.1` is not a version this reader reads",
+      "label": "`version` is one of `\"1\"`, `\"1.0\"`, `\"1.1\"`",
+      "help": "did you mean `\"1.1\"`?"
     }
   ]
 }

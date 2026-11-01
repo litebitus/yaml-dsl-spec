@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 43,
+      "column": 15,
+      "message": "`dsls.0.declarations.1.path`: \"$..Exports.*\" does not match \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\])*(\\.\\.\\*)?$\"",
+      "label": "breaks `pattern`",
+      "rule": "pattern, at yaml-dsl-v1.0.schema.json#/$defs/path/pattern"
+    },
+    {
+      "line": 52,
+      "column": 15,
+      "message": "`dsls.0.declarations.2.path`: \"$['Fn::GetAtt']..['Fn::Sub'].*\" does not match \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\])*(\\.\\.\\*)?$\"",
+      "label": "breaks `pattern`",
+      "rule": "pattern, at yaml-dsl-v1.0.schema.json#/$defs/path/pattern"
+    }
+  ]
+}
