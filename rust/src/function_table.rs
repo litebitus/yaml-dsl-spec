@@ -104,10 +104,14 @@ impl FunctionTable {
 }
 
 fn function_entry(name: &str, entry: &JsonValue) -> Result<FunctionEntry, String> {
-    let arguments = entry
-        .get("arguments")
-        .and_then(JsonValue::as_array)
-        .ok_or_else(|| format!("function `{name}` has no arguments list"))?
+    let listed_arguments = match entry {
+        JsonValue::Array(listed_arguments) => listed_arguments,
+        _ => entry
+            .get("arguments")
+            .and_then(JsonValue::as_array)
+            .ok_or_else(|| format!("function `{name}` has no arguments list"))?,
+    };
+    let arguments = listed_arguments
         .iter()
         .map(|argument| {
             Ok(Argument {
@@ -159,7 +163,7 @@ fn macro_entry(name: &str, value: &JsonValue) -> Result<MacroEntry, String> {
         ),
         None => None,
     };
-    let roles = ROLE_NAMES
+    let mut roles: BTreeMap<String, String> = ROLE_NAMES
         .iter()
         .filter_map(|role| {
             value
@@ -168,6 +172,11 @@ fn macro_entry(name: &str, value: &JsonValue) -> Result<MacroEntry, String> {
                 .map(|argument| ((*role).to_owned(), argument.to_owned()))
         })
         .collect();
+    if !roles.contains_key("loop_variables")
+        && let Some(argument) = value.get("loop_variable").and_then(JsonValue::as_str)
+    {
+        roles.insert("loop_variables".to_owned(), argument.to_owned());
+    }
     Ok(MacroEntry {
         kind,
         merge_behavior,
@@ -266,5 +275,31 @@ mod tests {
         assert_eq!(macro_entry.kind, MacroKind::Loop);
         assert_eq!(macro_entry.role("collection"), Some("in"));
         assert_eq!(entry.arguments[2].default, Some(serde_json::json!(["it"])));
+    }
+
+    #[test]
+    fn reads_the_deprecated_forms_until_the_next_major() {
+        let schema = serde_json::json!({
+            "x-yaml-dsl-functions": {
+                "join": [{"name": "parts", "repeated": true}],
+                "loop": {
+                    "arguments": [
+                        {"name": "in", "repeated": false},
+                        {"name": "body", "repeated": false},
+                        {"name": "for", "repeated": false}
+                    ],
+                    "macro": {
+                        "kind": "loop", "loop_variable": "for", "collection": "in", "body": "body"
+                    }
+                }
+            }
+        });
+        let table = FunctionTable::from_schema(&schema).unwrap();
+        let join_entry = table.entry("join").unwrap();
+        assert_eq!(join_entry.arguments[0].name, "parts");
+        assert!(join_entry.arguments[0].repeated);
+        assert!(join_entry.macro_entry.is_none());
+        let loop_entry = table.entry("loop").unwrap().macro_entry.as_ref().unwrap();
+        assert_eq!(loop_entry.role("loop_variables"), Some("for"));
     }
 }

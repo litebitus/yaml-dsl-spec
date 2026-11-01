@@ -49,6 +49,7 @@ module.exports = {
   schemaValidation: {
     SchemaCache: schemaValidation.SchemaCache,
     LoadedSchema: schemaValidation.LoadedSchema,
+    ValidationRules: schemaValidation.ValidationRules,
     childValue: schemaValidation.childValue,
   },
 };

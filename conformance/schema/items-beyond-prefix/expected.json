@@ -2,22 +2,15 @@
   "problems": [
     {
       "line": 1,
-      "column": 14,
-      "message": "`pair.2`: False schema does not allow \"extra\"",
-      "label": "breaks `falseSchema`",
-      "rule": "falseSchema, at schema.json#/properties/pair/items"
-    },
-    {
-      "line": 1,
-      "column": 21,
-      "message": "`pair.3`: False schema does not allow 2",
-      "label": "breaks `falseSchema`",
-      "rule": "falseSchema, at schema.json#/properties/pair/items"
+      "column": 7,
+      "message": "`pair` must NOT have more than 2 items",
+      "label": "breaks `items`",
+      "rule": "items, at schema.json#/properties/pair/items"
     },
     {
       "line": 2,
       "column": 13,
-      "message": "`listed[1]` is not a string",
+      "message": "`listed[1]` must be string",
       "label": "is an integer",
       "rule": "type, at schema.json#/properties/listed/items/type"
     }

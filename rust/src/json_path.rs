@@ -33,44 +33,31 @@ impl PathPattern {
                 "`{text}` is not a path of the supported JSONPath subset"
             ))
         };
-        let rest = text.strip_prefix('$').ok_or_else(invalid)?;
+        let mut rest = text.strip_prefix('$').ok_or_else(invalid)?;
         let mut selectors = Vec::new();
-        let mut index = 0;
-        let bytes = rest.as_bytes();
-        while index < bytes.len() {
-            let descendant = rest[index..].starts_with("..");
-            if descendant {
-                index += 2;
-            } else if bytes[index] == b'.' {
-                index += 1;
-            }
-            let (selector, consumed) = if rest[index..].starts_with("['") {
-                let close = rest[index + 2..].find("']").ok_or_else(invalid)?;
-                (
-                    Some(rest[index + 2..index + 2 + close].to_owned()),
-                    close + 4,
-                )
-            } else if rest[index..].starts_with("[*]") {
-                (None, 3)
-            } else if rest[index..].starts_with('*') {
-                (None, 1)
-            } else {
-                let end = rest[index..]
-                    .find(['.', '['])
-                    .map_or(rest.len(), |offset| index + offset);
-                if end == index {
-                    return Err(invalid());
+        while !rest.is_empty() {
+            let (selector, remaining) = if let Some(after) = rest.strip_prefix("..") {
+                if after == "*" {
+                    (Selector::DescendantAll, "")
+                } else {
+                    let (name, remaining) = quoted_name(after)
+                        .or_else(|| dotted_name(after))
+                        .ok_or_else(invalid)?;
+                    (Selector::DescendantName(name), remaining)
                 }
-                (Some(rest[index..end].to_owned()), end - index)
+            } else if let Some(after) = rest.strip_prefix(".*") {
+                (Selector::Wildcard, after)
+            } else if let Some(after) = rest.strip_prefix('.') {
+                let (name, remaining) = dotted_name(after).ok_or_else(invalid)?;
+                (Selector::Name(name), remaining)
+            } else if let Some(after) = rest.strip_prefix("[*]") {
+                (Selector::Wildcard, after)
+            } else {
+                let (name, remaining) = quoted_name(rest).ok_or_else(invalid)?;
+                (Selector::Name(name), remaining)
             };
-            index += consumed;
-            selectors.push(match (descendant, selector) {
-                (false, Some(name)) => Selector::Name(name),
-                (false, None) => Selector::Wildcard,
-                (true, Some(name)) => Selector::DescendantName(name),
-                (true, None) if index == bytes.len() => Selector::DescendantAll,
-                (true, None) => return Err(invalid()),
-            });
+            selectors.push(selector);
+            rest = remaining;
         }
         Ok(Self {
             selectors,
@@ -159,6 +146,23 @@ impl PathPattern {
 }
 
 /// Several path entries; a node is selected when any of them selects it.
+/// A `['name']` step's name, and the text after the step.
+fn quoted_name(text: &str) -> Option<(String, &str)> {
+    let inner = text.strip_prefix("['")?;
+    let close = inner.find('\'')?;
+    let after = inner[close..].strip_prefix("']")?;
+    (close > 0).then(|| (inner[..close].to_owned(), after))
+}
+
+/// A dotted step's name, which runs to the next `.` or `[`, and the text after it.
+fn dotted_name(text: &str) -> Option<(String, &str)> {
+    if text.starts_with('*') {
+        return None;
+    }
+    let end = text.find(['.', '[']).unwrap_or(text.len());
+    (end > 0).then(|| (text[..end].to_owned(), &text[end..]))
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct PathSet(Vec<PathPattern>);
 
@@ -252,6 +256,30 @@ mod tests {
             .map(|(path, _)| path)
             .collect();
         assert_eq!(selected, [path(&["queue", "b"]), path(&["queue", "a"])]);
+    }
+
+    #[test]
+    fn a_path_is_read_only_in_the_subset_the_schema_states() {
+        for text in [
+            "$.a", "$.*", "$[*]", "$['a.b']", "$..a", "$..['a']", "$.a..*", "$.a*b",
+        ] {
+            assert!(PathPattern::parse(text, &[]).is_ok(), "{text}");
+        }
+        let refused = [
+            "$abc",
+            "$*",
+            "$.a.['b']",
+            "$..[*]",
+            "$..*.a",
+            "$.*a",
+            "$['']",
+            "$['a'b']",
+            "$[\"a\"]",
+            "$.",
+        ];
+        for text in refused {
+            assert!(PathPattern::parse(text, &[]).is_err(), "{text}");
+        }
     }
 
     #[test]

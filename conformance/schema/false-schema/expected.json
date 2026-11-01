@@ -3,7 +3,7 @@
     {
       "line": 1,
       "column": 12,
-      "message": "`forbidden`: False schema does not allow \"anything\"",
+      "message": "`forbidden` boolean schema is false",
       "label": "breaks `falseSchema`",
       "rule": "falseSchema, at schema.json#/properties/forbidden"
     }

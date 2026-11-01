@@ -176,10 +176,22 @@ pub struct TagKey {
     pub key: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct Validator {
     #[serde(default)]
+    pub merge_base_keys: Vec<String>,
+    #[serde(default)]
     pub child_values_from_parent_key: Vec<ChildValueRule>,
+    #[serde(default)]
+    pub allow_quoted_values: Vec<QuotedValueType>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuotedValueType {
+    Boolean,
+    Integer,
+    Number,
 }
 
 #[derive(Clone, Debug, Deserialize)]

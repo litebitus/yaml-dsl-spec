@@ -1,0 +1,25 @@
+{
+  "problems": [
+    {
+      "line": 4,
+      "column": 16,
+      "message": "`retention` must be integer",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/queue/additionalProperties/properties/retention/type"
+    },
+    {
+      "line": 10,
+      "column": 3,
+      "message": "`tags` is required",
+      "label": "`payments` has no field `tags`",
+      "rule": "required, at schema.json#/properties/queue/additionalProperties/required"
+    },
+    {
+      "line": 14,
+      "column": 17,
+      "message": "`visibility` must be integer",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/queue/additionalProperties/properties/visibility/type"
+    }
+  ]
+}

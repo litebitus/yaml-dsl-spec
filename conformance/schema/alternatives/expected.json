@@ -3,28 +3,28 @@
     {
       "line": 1,
       "column": 7,
-      "message": "`port`: \"abc\" is not valid under any of the schemas listed in the 'anyOf' keyword",
+      "message": "`port` matches none of its allowed forms",
       "label": "breaks `anyOf`",
       "rule": "anyOf, at schema.json#/properties/port/anyOf"
     },
     {
       "line": 2,
       "column": 9,
-      "message": "`target`: {\"id\":1} is not valid under any of the schemas listed in the 'oneOf' keyword",
+      "message": "`target` matches none of its allowed forms",
       "label": "breaks `oneOf`",
       "rule": "oneOf, at schema.json#/properties/target/oneOf"
     },
     {
       "line": 3,
       "column": 7,
-      "message": "`both`: {\"arn\":\"a\",\"name\":\"b\"} is valid under more than one of the schemas listed in the 'oneOf' keyword",
+      "message": "`both` matches more than one of its allowed forms",
       "label": "breaks `oneOf`",
       "rule": "oneOf, at schema.json#/properties/both/oneOf"
     },
     {
       "line": 4,
       "column": 13,
-      "message": "`referenced`: {\"nme\":\"x\"} is not valid under any of the schemas listed in the 'anyOf' keyword",
+      "message": "`referenced` matches none of its allowed forms",
       "label": "breaks `anyOf`",
       "rule": "anyOf, at schema.json#/properties/referenced/anyOf"
     }

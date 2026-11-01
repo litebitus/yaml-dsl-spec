@@ -32,6 +32,27 @@ test('reads macro roles from the table', () => {
   assert.deepStrictEqual(entry.arguments[2].default, ['it']);
 });
 
+test('reads the deprecated forms until the next major', () => {
+  const schema = {
+    'x-yaml-dsl-functions': {
+      join: [{ name: 'parts', repeated: true }],
+      loop: {
+        arguments: [
+          { name: 'in', repeated: false },
+          { name: 'body', repeated: false },
+          { name: 'for', repeated: false },
+        ],
+        macro: { kind: 'loop', loop_variable: 'for', collection: 'in', body: 'body' },
+      },
+    },
+  };
+  const table = functionTable.FunctionTable.fromSchema(schema);
+  const joinEntry = table.entry('join');
+  assert.deepStrictEqual(joinEntry.arguments, [{ name: 'parts', repeated: true, default: null }]);
+  assert.strictEqual(joinEntry.macroEntry, null);
+  assert.strictEqual(table.entry('loop').macroEntry.role('loop_variables'), 'for');
+});
+
 test('a suffixed macro name calls its entry', () => {
   const schema = {
     'x-yaml-dsl-functions': {

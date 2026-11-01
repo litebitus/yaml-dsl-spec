@@ -3,21 +3,21 @@
     {
       "line": 3,
       "column": 11,
-      "message": "`fifo` is not a boolean",
+      "message": "`fifo` must be boolean",
       "label": "is a string",
       "rule": "type, at schema.json#/$defs/queue/properties/fifo/type"
     },
     {
       "line": 4,
       "column": 5,
-      "message": "field `name` is required",
+      "message": "`name` is required",
       "label": "`queues[1]` has no field `name`",
       "rule": "required, at schema.json#/$defs/named/required"
     },
     {
       "line": 6,
       "column": 5,
-      "message": "field `fif` is not allowed",
+      "message": "`fif` is not a field of `queues[2]`",
       "label": "`queues[2]` has no field `fif`",
       "rule": "additionalProperties, at schema.json#/$defs/queue/additionalProperties",
       "help": "did you mean `fifo`?"
@@ -25,14 +25,14 @@
     {
       "line": 7,
       "column": 1,
-      "message": "field `kind` is required",
+      "message": "`kind` is required",
       "label": "`topic` has no field `kind`",
       "rule": "required, at schema.json#/properties/topic/allOf/1/required"
     },
     {
       "line": 7,
       "column": 1,
-      "message": "field `name` is required",
+      "message": "`name` is required",
       "label": "`topic` has no field `name`",
       "rule": "required, at schema.json#/$defs/named/required"
     }

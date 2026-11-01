@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "queue": {
+      "type": "object",
+      "required": ["listed", "legacy", "sometimes"],
+      "properties": {
+        "name": { "type": "string", "description": "[required] The queue's name." },
+        "listed": { "type": "string" },
+        "legacy": { "type": "string", "description": "[optional] Kept for old queues." },
+        "sometimes": { "type": "string", "description": "[~required] Present under a condition." }
+      },
+      "allOf": [{ "required": ["legacy"] }],
+      "anyOf": [{ "required": ["legacy"] }, { "required": ["listed"] }]
+    }
+  }
+}

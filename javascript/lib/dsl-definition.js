@@ -125,7 +125,9 @@ const DSL_FIELDS = {
   })), emptyList),
   tag_keys: withDefault(listOf(struct({ tag: required(text), key: required(text) })), emptyList),
   validator: optional(struct({
+    merge_base_keys: withDefault(listOf(text), emptyList),
     child_values_from_parent_key: withDefault(listOf(struct({ pattern: required(text) })), emptyList),
+    allow_quoted_values: withDefault(listOf(oneOf(['boolean', 'integer', 'number'])), emptyList),
   })),
 };
 

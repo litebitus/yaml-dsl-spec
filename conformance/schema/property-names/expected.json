@@ -1,16 +1,16 @@
 {
   "problems": [
     {
-      "line": 2,
+      "line": 3,
       "column": 3,
-      "message": "`tags`: \"Bad\" does not match \"^[a-z]+$\"",
+      "message": "`Bad` is not a valid key of `tags`",
       "label": "breaks `propertyNames`",
       "rule": "propertyNames, at schema.json#/properties/tags/propertyNames/pattern"
     },
     {
-      "line": 2,
+      "line": 4,
       "column": 3,
-      "message": "`tags`: \"also_bad\" does not match \"^[a-z]+$\"",
+      "message": "`also_bad` is not a valid key of `tags`",
       "label": "breaks `propertyNames`",
       "rule": "propertyNames, at schema.json#/properties/tags/propertyNames/pattern"
     }

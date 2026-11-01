@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "size": { "$ref": "#/$defs/number_or_ref" },
+    "role": { "$ref": "#/$defs/role_arn" },
+    "inline": {
+      "description": "A literal number. Inline alternatives are not a definition.",
+      "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^ref " }]
+    }
+  },
+  "$defs": {
+    "number_or_ref": {
+      "description": "[optional] A literal number, or a `ref` resolving to one. More words.",
+      "oneOf": [{ "type": "number" }, { "type": "string", "pattern": "^ref " }]
+    },
+    "role_arn": {
+      "description": "ARN of a role.\nOr a ref to one.",
+      "anyOf": [{ "type": "string", "pattern": "^arn:" }, { "type": "string", "pattern": "^ref " }]
+    }
+  }
+}

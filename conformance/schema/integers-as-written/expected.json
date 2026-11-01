@@ -3,21 +3,21 @@
     {
       "line": 1,
       "column": 14,
-      "message": "`whole_float` is not a string",
+      "message": "`whole_float` must be string",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/whole_float/type"
     },
     {
       "line": 2,
       "column": 11,
-      "message": "`exponent` is not a string",
+      "message": "`exponent` must be string",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/exponent/type"
     },
     {
       "line": 3,
       "column": 7,
-      "message": "`huge` is not a string",
+      "message": "`huge` must be string",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/huge/type"
     }

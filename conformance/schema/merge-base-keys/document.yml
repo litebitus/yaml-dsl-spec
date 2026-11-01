@@ -1,0 +1,14 @@
+queue:
+  defaults:
+    visibility: 30
+    retention: forever
+    tags:
+      team: mock
+  orders:
+    tags:
+      tier: gold
+  payments:
+    retention: 7
+    tags: null
+  refunds:
+    visibility: soon

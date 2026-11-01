@@ -3,14 +3,14 @@
     {
       "line": 24,
       "column": 19,
-      "message": "`dsls.0.scopes.RESOURCE.regions.0`: \"$..*.queue\" does not match \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$\"",
+      "message": "`regions[0]` must match pattern \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$\"",
       "label": "breaks `pattern`",
       "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/path/pattern"
     },
     {
       "line": 43,
       "column": 15,
-      "message": "`dsls.0.declarations.1.path`: \"queue.*\" does not match \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$\"",
+      "message": "`path` must match pattern \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$\"",
       "label": "breaks `pattern`",
       "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/path/pattern"
     }

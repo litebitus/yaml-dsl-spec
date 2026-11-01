@@ -5,8 +5,9 @@ const test = require('node:test');
 
 const { schemaValidation, resolved, Position, closestName } = require('..');
 
-const { LoadedSchema } = schemaValidation;
+const { LoadedSchema, ValidationRules } = schemaValidation;
 const { Value, call } = resolved;
+const noRules = new ValidationRules();
 
 const position = Position.fileStart('mock.yml');
 const map = (entries) => new Value('map', entries.map(([key, value]) => ({ key, keyPosition: position, value })), position);
@@ -22,7 +23,11 @@ function queueSchema() {
         additionalProperties: {
           type: 'object',
           required: ['name', 'visibility'],
-          properties: { name: { type: 'string' }, visibility: { type: 'integer' } },
+          properties: {
+            name: { type: 'string' },
+            visibility: { type: 'integer' },
+            encrypted: { type: 'boolean' },
+          },
         },
       },
     },
@@ -31,8 +36,25 @@ function queueSchema() {
 
 test('a key sets its entry field before validation', () => {
   const document = map([['queue', map([['name mock-orders', map([['visibility', new Value('number', '30', position)]])]])]]);
-  const patterns = [/^(?<field>[a-z]+) (?<value>[a-z-]+)$/u];
-  assert.deepStrictEqual(queueSchema().validate(document, patterns), []);
+  const childValuePatterns = [/^(?<field>[a-z]+) (?<value>[a-z-]+)$/u];
+  const rules = new ValidationRules({ childValuePatterns });
+  assert.deepStrictEqual(queueSchema().validate(document, rules), []);
+});
+
+test('a merge base key supplies its siblings and a quoted value reads as its type', () => {
+  const number = (text) => new Value('number', text, position);
+  const document = map([['queue', map([
+    ['defaults', map([['name', Value.string('mock', position)], ['visibility', number('30')]])],
+    ['orders', map([['encrypted', Value.string('true', position)]])],
+    ['payments', map([['encrypted', Value.string('yes', position)]])],
+  ])]]);
+  const rules = new ValidationRules({
+    mergeBaseKeys: ['defaults'],
+    quotedValueTypes: ['boolean'],
+  });
+  const messages = queueSchema().validate(document, rules)
+    .map((diagnostic) => diagnostic.message);
+  assert.deepStrictEqual(messages, ['`encrypted` must be boolean']);
 });
 
 test('a call is not checked and a wrong type is', () => {
@@ -40,9 +62,9 @@ test('a call is not checked and a wrong type is', () => {
     ['name', unknownCall()],
     ['visibility', Value.string('thirty', position)],
   ])]])]]);
-  const diagnostics = queueSchema().validate(document, []);
+  const diagnostics = queueSchema().validate(document, noRules);
   assert.strictEqual(diagnostics.length, 1);
-  assert.strictEqual(diagnostics[0].message, '`visibility` is not an integer');
+  assert.strictEqual(diagnostics[0].message, '`visibility` must be integer');
   assert.strictEqual(diagnostics[0].notes.label, 'is a string');
   assert.strictEqual(
     diagnostics[0].notes.rule,
@@ -63,9 +85,11 @@ test('a check through a subschema reading an unknown value is not made', () => {
     ['secrets', map([['token', unknownCall()]])],
     ['count', Value.string('three', position)],
   ]);
-  const diagnostics = schema.validate(document, []);
-  assert.strictEqual(diagnostics.length, 1);
-  assert.ok(diagnostics[0].message.startsWith('`count`'));
+  const diagnostics = schema.validate(document, noRules);
+  assert.deepStrictEqual(
+    diagnostics.map((diagnostic) => diagnostic.message),
+    ['`count` matches none of its allowed forms'],
+  );
 });
 
 test('a local reference is validated as the value it reads', () => {
@@ -76,8 +100,11 @@ test('a local reference is validated as the value it reads', () => {
     ['name', Value.string('mock-orders', position)],
     ['visibility', reference],
   ])]])]]);
-  const diagnostics = queueSchema().validate(document, []);
-  assert.deepStrictEqual(diagnostics.map((diagnostic) => diagnostic.message), ['`visibility` is not an integer']);
+  const diagnostics = queueSchema().validate(document, noRules);
+  assert.deepStrictEqual(
+    diagnostics.map((diagnostic) => diagnostic.message),
+    ['`visibility` must be integer'],
+  );
 });
 
 test('a closest name is offered only when it is close and alone', () => {

@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 15,
+      "message": "`at_least_two` must contain at least 2 valid item(s)",
+      "label": "breaks `contains`",
+      "rule": "contains, at schema.json#/properties/at_least_two/contains"
+    },
+    {
+      "line": 2,
+      "column": 14,
+      "message": "`at_most_one` must contain at least 1 and no more than 1 valid item(s)",
+      "label": "breaks `contains`",
+      "rule": "contains, at schema.json#/properties/at_most_one/contains"
+    }
+  ]
+}

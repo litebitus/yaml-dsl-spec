@@ -3,14 +3,14 @@
     {
       "line": 1,
       "column": 17,
-      "message": "`all_but_string` is not a null or boolean or integer or number or array or object",
+      "message": "`all_but_string` must be object or number or null or integer or boolean or array",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/all_but_string/type"
     },
     {
       "line": 2,
       "column": 17,
-      "message": "`all_but_number` is not a null or boolean or integer or string or array or object",
+      "message": "`all_but_number` must be string or object or null or integer or boolean or array",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/all_but_number/type"
     }

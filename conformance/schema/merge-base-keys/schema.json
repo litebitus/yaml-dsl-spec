@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "queue": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["visibility", "tags"],
+        "additionalProperties": false,
+        "properties": {
+          "visibility": { "type": "integer" },
+          "retention": { "type": "integer" },
+          "tags": { "type": "object", "additionalProperties": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

@@ -3,28 +3,28 @@
     {
       "line": 1,
       "column": 7,
-      "message": "`port`: 70000 is greater than the maximum of 65535",
+      "message": "`port` must be <= 65535",
       "label": "breaks `maximum`",
       "rule": "maximum, at schema.json#/definitions/port/maximum"
     },
     {
       "line": 2,
       "column": 8,
-      "message": "`tuple`: Additional items are not allowed (\"b\" was unexpected)",
+      "message": "`tuple` must NOT have more than 1 items",
       "label": "breaks `additionalItems`",
       "rule": "additionalItems, at schema.json#/properties/tuple/additionalItems"
     },
     {
       "line": 3,
-      "column": 1,
-      "message": "field `each` is required",
-      "label": "`rule` has no field `each`",
-      "rule": "required, at schema.json#/properties/rule/dependencies"
+      "column": 8,
+      "message": "`where` needs `each`",
+      "label": "breaks `dependencies`",
+      "rule": "dependencies, at schema.json#/properties/rule/dependencies/where"
     },
     {
       "line": 4,
       "column": 1,
-      "message": "field `unknown` is not allowed",
+      "message": "`unknown` is not a field of the document",
       "label": "the document has no field `unknown`",
       "rule": "additionalProperties, at schema.json#/additionalProperties"
     }

@@ -3,7 +3,7 @@
     {
       "line": 1,
       "column": 7,
-      "message": "`\"gld\"` is not an allowed value",
+      "message": "`tier` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",
       "label": "not one of the 3 values `enum` allows",
       "rule": "enum, at schema.json#/properties/tier/enum",
       "help": "did you mean `gold`?"
@@ -11,28 +11,28 @@
     {
       "line": 2,
       "column": 6,
-      "message": "`\"platinum\"` is not an allowed value",
+      "message": "`far` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",
       "label": "not one of the 3 values `enum` allows",
       "rule": "enum, at schema.json#/properties/far/enum"
     },
     {
       "line": 3,
       "column": 8,
-      "message": "`4` is not an allowed value",
+      "message": "`level` must be one of `1`, `2`, `3`",
       "label": "not one of the 3 values `enum` allows",
       "rule": "enum, at schema.json#/properties/level/enum"
     },
     {
       "line": 4,
       "column": 8,
-      "message": "`\"manual\"` is not an allowed value",
+      "message": "`mixed` must be one of `\"auto\"`, `0`, `null`",
       "label": "not one of the 3 values `enum` allows",
       "rule": "enum, at schema.json#/properties/mixed/enum"
     },
     {
       "line": 5,
       "column": 13,
-      "message": "`\"aa\"` is not an allowed value",
+      "message": "`close_pair` must be one of `\"ab\"`, `\"ac\"`",
       "label": "not one of the 2 values `enum` allows",
       "rule": "enum, at schema.json#/properties/close_pair/enum"
     }

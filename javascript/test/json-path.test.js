@@ -45,6 +45,25 @@ test('select answers every selected node in document order', () => {
   assert.deepStrictEqual(selected, [path(['queue', 'b']), path(['queue', 'a'])]);
 });
 
+test('a path is read only in the subset the schema states', () => {
+  for (const text of ['$.a', '$.*', '$[*]', "$['a.b']", '$..a', "$..['a']", '$.a..*', '$.a*b']) {
+    assert.doesNotThrow(() => PathPattern.parse(text), text);
+  }
+  const refused = [
+    '$abc',
+    '$*',
+    "$.a.['b']",
+    '$..[*]',
+    '$..*.a',
+    '$.*a',
+    "$['']",
+    "$['a'b']",
+    '$["a"]',
+    '$.',
+  ];
+  for (const text of refused) assert.throws(() => PathPattern.parse(text), text);
+});
+
 test('the root selects the document', () => {
   assert.ok(PathPattern.parse('$').selects([]));
   assert.ok(PathPattern.parse('$').covers(path(['any', 'thing'])));

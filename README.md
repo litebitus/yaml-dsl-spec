@@ -24,10 +24,12 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 
 ## Packages
 
-| Language | Package | Folder | Offers |
-|---|---|---|---|
-| Rust | [`yaml-dsl-spec`](https://crates.io/crates/yaml-dsl-spec) | [`rust/`](rust) | `read_dsl_definitions`, a `yaml-dsl.yml`'s DSL definitions validated, or every problem at its field; the YAML reader with positions, diagnostics and schema validation it stands on; the schemas |
-| JavaScript | [`yaml-dsl-spec`](https://www.npmjs.com/package/yaml-dsl-spec) | [`javascript/`](javascript) | the same as the Rust crate: `readDslDefinitions`, the YAML reader, diagnostics, schema validation and the schemas |
+| Language | Package | Folder |
+|---|---|---|
+| Rust | [`yaml-dsl-spec`](https://crates.io/crates/yaml-dsl-spec) | [`rust/`](rust) |
+| JavaScript | [`yaml-dsl-spec`](https://www.npmjs.com/package/yaml-dsl-spec) | [`javascript/`](javascript) |
+
+What each package implements is designed in [docs/package-design.md](docs/package-design.md).
 
 ## Conformance
 
@@ -37,7 +39,7 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 |---|---|---|
 | `definitions/<case>/` | a `yaml-dsl.yml` | its DSLs, or its problems |
 | `yaml/<case>/` | an `input.yml`, and the tag keys of an optional `tag-keys.json` | its node tree with every value's line and column, or its problem |
-| `schema/<case>/` | a `document.yml`, its `schema.json`, and the patterns of an optional `child-value-patterns.json` | its problems, or why the schema is not read |
+| `schema/<case>/` | a `document.yml`, its `schema.json`, and the DSL `validator` block of an optional `validator.json` | its problems, or why the schema is not read |
 | `patterns/cases.json` | a pattern of the standard's subset, and texts | whether it compiles, its named groups, and each text's captures |
 
 Each case's `expected.json` states what it reads to; `patterns/expected.json` states it for every pattern.

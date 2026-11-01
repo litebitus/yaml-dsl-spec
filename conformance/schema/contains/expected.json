@@ -3,7 +3,7 @@
     {
       "line": 1,
       "column": 10,
-      "message": "`regions`: None of [\"eu-west-1\",\"ap-south-1\"] are valid under the given schema",
+      "message": "`regions` must contain at least 1 valid item(s)",
       "label": "breaks `contains`",
       "rule": "contains, at schema.json#/properties/regions/contains"
     }

@@ -11,6 +11,23 @@ function indexStep(index) {
   return { index };
 }
 
+/** A `['name']` step's name and the text after the step, or `null`. */
+function quotedName(text) {
+  if (!text.startsWith("['")) return null;
+  const close = text.indexOf("'", 2);
+  if (close <= 2 || text[close + 1] !== ']') return null;
+  return { name: text.slice(2, close), remaining: text.slice(close + 2) };
+}
+
+/** A dotted step's name, which runs to the next `.` or `[`, and the text after it, or `null`. */
+function dottedName(text) {
+  if (text.startsWith('*')) return null;
+  const stepEnd = text.search(/[.[]/);
+  const end = stepEnd === -1 ? text.length : stepEnd;
+  if (end === 0) return null;
+  return { name: text.slice(0, end), remaining: text.slice(end) };
+}
+
 /** A parsed path and the keys its wildcard steps do not select or descend into. */
 class PathPattern {
   constructor(selectors, skipKeys) {
@@ -23,38 +40,37 @@ class PathPattern {
     const invalid = () =>
       Diagnostic.unplaced(`\`${text}\` is not a path of the supported JSONPath subset`);
     if (!text.startsWith('$')) throw invalid();
-    const rest = text.slice(1);
+    let rest = text.slice(1);
     const selectors = [];
-    let index = 0;
-    while (index < rest.length) {
-      const descendant = rest.startsWith('..', index);
-      if (descendant) index += 2;
-      else if (rest[index] === '.') index += 1;
-      let name;
-      let consumed;
-      if (rest.startsWith("['", index)) {
-        const close = rest.indexOf("']", index + 2);
-        if (close === -1) throw invalid();
-        name = rest.slice(index + 2, close);
-        consumed = close - index + 2;
-      } else if (rest.startsWith('[*]', index)) {
-        name = null;
-        consumed = 3;
-      } else if (rest.startsWith('*', index)) {
-        name = null;
-        consumed = 1;
+    while (rest.length > 0) {
+      let step;
+      if (rest.startsWith('..')) {
+        const after = rest.slice(2);
+        if (after === '*') {
+          step = { selector: { kind: 'descendant_all' }, remaining: '' };
+        } else {
+          const named = quotedName(after) || dottedName(after);
+          if (!named) throw invalid();
+          step = {
+            selector: { kind: 'descendant_name', name: named.name },
+            remaining: named.remaining,
+          };
+        }
+      } else if (rest.startsWith('.*')) {
+        step = { selector: { kind: 'wildcard' }, remaining: rest.slice(2) };
+      } else if (rest.startsWith('.')) {
+        const named = dottedName(rest.slice(1));
+        if (!named) throw invalid();
+        step = { selector: { kind: 'name', name: named.name }, remaining: named.remaining };
+      } else if (rest.startsWith('[*]')) {
+        step = { selector: { kind: 'wildcard' }, remaining: rest.slice(3) };
       } else {
-        const ends = [rest.indexOf('.', index), rest.indexOf('[', index)].filter((end) => end !== -1);
-        const end = ends.length > 0 ? Math.min(...ends) : rest.length;
-        if (end === index) throw invalid();
-        name = rest.slice(index, end);
-        consumed = end - index;
+        const named = quotedName(rest);
+        if (!named) throw invalid();
+        step = { selector: { kind: 'name', name: named.name }, remaining: named.remaining };
       }
-      index += consumed;
-      if (!descendant) selectors.push(name === null ? { kind: 'wildcard' } : { kind: 'name', name });
-      else if (name !== null) selectors.push({ kind: 'descendant_name', name });
-      else if (index === rest.length) selectors.push({ kind: 'descendant_all' });
-      else throw invalid();
+      selectors.push(step.selector);
+      rest = step.remaining;
     }
     return new PathPattern(selectors, [...skipKeys]);
   }

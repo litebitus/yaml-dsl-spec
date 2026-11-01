@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "at_least_two": { "contains": { "type": "string" }, "minContains": 2 },
+    "at_most_one": { "contains": { "type": "string" }, "maxContains": 1 }
+  }
+}

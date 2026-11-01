@@ -4,9 +4,9 @@
 //! - `conformance/definitions/`: a `yaml-dsl.yml`, to its DSLs or its problems;
 //! - `conformance/yaml/`: an `input.yml`, read with the tag keys of an optional
 //!   `tag-keys.json`, to its node tree or its problem;
-//! - `conformance/schema/`: a `document.yml` validated against a `schema.json`, with
-//!   the child-value patterns of an optional `child-value-patterns.json`, to its
-//!   problems, or to why the schema is not read;
+//! - `conformance/schema/`: a `document.yml` validated against a `schema.json`, read
+//!   by the DSL `validator` block of an optional `validator.json`, to its problems,
+//!   or to why the schema is not read;
 //! - `conformance/patterns/cases.json`: each pattern, to its named groups and the
 //!   captures of each text, or to not compiling.
 
@@ -16,10 +16,12 @@ use std::sync::Arc;
 
 use fancy_regex::Regex;
 use serde_json::{Map, Value, json};
-use yaml_dsl_spec::definition::TagKey;
+use yaml_dsl_spec::definition::{TagKey, Validator};
 use yaml_dsl_spec::resolved::Value as ResolvedValue;
 use yaml_dsl_spec::schema::SchemaCache;
-use yaml_dsl_spec::{Diagnostic, Node, NodeKind, read_dsl_definitions, yaml_reader};
+use yaml_dsl_spec::{
+    Diagnostic, Node, NodeKind, ValidationRules, read_dsl_definitions, yaml_reader,
+};
 
 fn conformance_folder() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../conformance")
@@ -162,18 +164,15 @@ fn yaml_reading(folder: &Path) -> Value {
 fn schema_reading(folder: &Path) -> Value {
     let schema = fs::read_to_string(folder.join("schema.json")).unwrap();
     let document = fs::read_to_string(folder.join("document.yml")).unwrap();
-    let patterns: Vec<Regex> = optional_json(&folder.join("child-value-patterns.json"))
-        .and_then(|patterns| patterns.as_array().cloned())
-        .unwrap_or_default()
-        .iter()
-        .map(|pattern| Regex::new(pattern.as_str().unwrap()).unwrap())
-        .collect();
+    let validator: Option<Validator> = optional_json(&folder.join("validator.json"))
+        .map(|validator| serde_json::from_value(validator).unwrap());
+    let rules = ValidationRules::from_validator(validator.as_ref()).unwrap();
     let root = yaml_reader::parse(&Arc::from("document.yml"), &document, &[]).unwrap();
     let loaded = match SchemaCache::default().load("schema.json", &schema) {
         Ok(loaded) => loaded,
         Err(message) => return json!({ "error": message }),
     };
-    let problems = loaded.validate(&ResolvedValue::from_node(&root), &patterns);
+    let problems = loaded.validate(&ResolvedValue::from_node(&root), &rules);
     json!({ "problems": problems.iter().map(problem_json).collect::<Vec<_>>() })
 }
 

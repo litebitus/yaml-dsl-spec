@@ -64,7 +64,7 @@ function compareText(first, second) {
 }
 
 function functionEntry(name, entry) {
-  const listed = isObject(entry) ? entry.arguments : undefined;
+  const listed = Array.isArray(entry) ? entry : isObject(entry) ? entry.arguments : undefined;
   if (!Array.isArray(listed)) throw new Error(`function \`${name}\` has no arguments list`);
   const functionArguments = listed.map((argument) => {
     const argumentName = isObject(argument) ? argument.name : undefined;
@@ -75,7 +75,9 @@ function functionEntry(name, entry) {
       default: hasOwn(argument, 'default') ? argument.default : null,
     };
   });
-  const macroEntry = hasOwn(entry, 'macro') ? macroEntryOf(name, entry.macro) : null;
+  const macroEntry = isObject(entry) && hasOwn(entry, 'macro')
+    ? macroEntryOf(name, entry.macro)
+    : null;
   return { arguments: functionArguments, macroEntry };
 }
 
@@ -100,6 +102,9 @@ function macroEntryOf(name, value) {
   const roles = {};
   for (const role of ROLE_NAMES) {
     if (typeof value[role] === 'string') roles[role] = value[role];
+  }
+  if (!hasOwn(roles, 'loop_variables') && typeof value.loop_variable === 'string') {
+    roles.loop_variables = value.loop_variable;
   }
   return new MacroEntry(kind, written || 'shallow', nameSuffix, roles);
 }

@@ -2,29 +2,29 @@
   "problems": [
     {
       "line": 1,
-      "column": 6,
-      "message": "`few`: \"x\" is not one of \"a\" or \"b\"",
+      "column": 13,
+      "message": "`x` is not a valid key of `few`",
       "label": "breaks `propertyNames`",
       "rule": "propertyNames, at schema.json#/properties/few/propertyNames/enum"
     },
     {
       "line": 2,
-      "column": 7,
-      "message": "`many`: \"zz\" is not one of \"a\", \"b\" or 3 other candidates",
+      "column": 8,
+      "message": "`zz` is not a valid key of `many`",
       "label": "breaks `propertyNames`",
       "rule": "propertyNames, at schema.json#/properties/many/propertyNames/enum"
     },
     {
       "line": 3,
-      "column": 8,
-      "message": "`short`: \"toolong\" is longer than 2 characters",
+      "column": 16,
+      "message": "`toolong` is not a valid key of `short`",
       "label": "breaks `propertyNames`",
       "rule": "propertyNames, at schema.json#/properties/short/propertyNames/maxLength"
     },
     {
       "line": 4,
-      "column": 8,
-      "message": "`fixed`: \"only\" was expected",
+      "column": 9,
+      "message": "`other` is not a valid key of `fixed`",
       "label": "breaks `propertyNames`",
       "rule": "propertyNames, at schema.json#/properties/fixed/propertyNames/const"
     }

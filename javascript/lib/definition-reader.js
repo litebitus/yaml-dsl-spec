@@ -13,6 +13,7 @@ const { compilePattern, groupNamesOf } = require('./pattern-dialect');
 const { Position } = require('./source-position');
 const { Value } = require('./resolved-value');
 const { SchemaCache, closestName, nodeJsonText } = require('./schema-validation');
+const { ValidationRules } = require('./validation-rules');
 const { parseYaml } = require('./yaml-reader');
 const { YAML_DSL_VERSIONS, yamlDslSchemaFile } = require('./schema-catalog');
 
@@ -37,7 +38,7 @@ function readDslDefinitions(file, text) {
   } catch (error) {
     return { problems: [Diagnostic.unplaced(error.message)] };
   }
-  const schemaProblems = schema.validate(Value.fromNode(root), []);
+  const schemaProblems = schema.validate(Value.fromNode(root), new ValidationRules());
   if (schemaProblems.length > 0) return { problems: schemaProblems };
   const blocks = (root.get('dsls') && root.get('dsls').items()) || [];
   const problems = [];

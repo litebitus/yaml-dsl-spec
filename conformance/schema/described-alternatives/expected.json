@@ -1,0 +1,25 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 7,
+      "message": "`size` must be a literal number, or a `ref` resolving to one",
+      "label": "breaks `oneOf`",
+      "rule": "oneOf, at schema.json#/$defs/number_or_ref/oneOf"
+    },
+    {
+      "line": 2,
+      "column": 7,
+      "message": "`role` must be ARN of a role",
+      "label": "breaks `anyOf`",
+      "rule": "anyOf, at schema.json#/$defs/role_arn/anyOf"
+    },
+    {
+      "line": 3,
+      "column": 9,
+      "message": "`inline` matches none of its allowed forms",
+      "label": "breaks `oneOf`",
+      "rule": "oneOf, at schema.json#/properties/inline/oneOf"
+    }
+  ]
+}

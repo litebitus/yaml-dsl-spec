@@ -80,8 +80,13 @@ function yamlReading(folder) {
 function schemaReading(folder) {
   const schema = fs.readFileSync(path.join(folder, 'schema.json'), 'utf8');
   const document = fs.readFileSync(path.join(folder, 'document.yml'), 'utf8');
-  const patterns = (readJson(path.join(folder, 'child-value-patterns.json')) || [])
-    .map((pattern) => new RegExp(pattern, 'u'));
+  const validator = readJson(path.join(folder, 'validator.json'));
+  const rules = schemaValidation.ValidationRules.fromValidator(validator && {
+    merge_base_keys: [],
+    child_values_from_parent_key: [],
+    allow_quoted_values: [],
+    ...validator,
+  });
   const { node } = yamlReader.parseYaml('document.yml', document, []);
   let loaded;
   try {
@@ -89,7 +94,7 @@ function schemaReading(folder) {
   } catch (error) {
     return { error: error.message };
   }
-  return { problems: loaded.validate(resolved.Value.fromNode(node), patterns).map(problemJson) };
+  return { problems: loaded.validate(resolved.Value.fromNode(node), rules).map(problemJson) };
 }
 
 function patternReading(entry) {

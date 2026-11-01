@@ -1,0 +1,3 @@
+{
+  "allow_quoted_values": ["boolean", "integer"]
+}

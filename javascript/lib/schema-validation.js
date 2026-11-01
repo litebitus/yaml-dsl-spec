@@ -7,6 +7,24 @@ const AjvDraft202012 = require('ajv/dist/2020').default;
 const { Diagnostic } = require('./diagnostic-report');
 const { FunctionTable } = require('./function-table');
 const { numberJson, integerOfText } = require('./yaml-node');
+const { markedSchema } = require('./requirement-markers');
+const {
+  fieldName,
+  numberText,
+  describedForm,
+  dependencyOf,
+  dependencyMessage,
+  duplicateItems,
+  containsMessage,
+  schemaNodeAt,
+} = require('./problem-wording');
+const {
+  ValidationRules,
+  childValue,
+  mergedOver,
+  copiedPointers,
+  escapePointer,
+} = require('./validation-rules');
 
 const VALIDATOR_OPTIONS = {
   allErrors: true,
@@ -49,23 +67,22 @@ const READS_BELOW_KEYWORDS = new Set([
   'uniqueItems',
 ]);
 const REQUIRED_KEYWORDS = new Set(['required', 'dependentRequired', 'dependencies']);
-const LIMIT_PLURALS = {
-  maxLength: ['is longer than', 'character', 'characters'],
-  minLength: ['is shorter than', 'character', 'characters'],
-  maxItems: ['has more than', 'item', 'items'],
-  minItems: ['has less than', 'item', 'items'],
-  maxProperties: ['has more than', 'property', 'properties'],
-  minProperties: ['has less than', 'property', 'properties'],
+const BOUND_COMPARISONS = {
+  minimum: '>=',
+  maximum: '<=',
+  exclusiveMinimum: '>',
+  exclusiveMaximum: '<',
 };
-const BOUNDS = {
-  maximum: 'is greater than the maximum of',
-  minimum: 'is less than the minimum of',
-  exclusiveMaximum: 'is greater than or equal to the maximum of',
-  exclusiveMinimum: 'is less than or equal to the minimum of',
+const LENGTH_LIMITS = {
+  minLength: ['fewer', 'characters'],
+  maxLength: ['more', 'characters'],
+  minItems: ['fewer', 'items'],
+  maxItems: ['more', 'items'],
+  minProperties: ['fewer', 'properties'],
+  maxProperties: ['more', 'properties'],
 };
-const KEYWORD_NAMES = { 'false schema': 'falseSchema', items: 'additionalItems' };
+const KEYWORD_NAMES = { 'false schema': 'falseSchema' };
 const FALSE_SCHEMA_STEP = /\/false schema$/;
-const SHOWN_ENUM_OPTIONS = 3;
 
 const hasOwn = (object, field) => Object.prototype.hasOwnProperty.call(object, field);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -88,10 +105,11 @@ function draftOfSchema(schema) {
 
 /** A document's schema, as its caller hands it over: its function table, and the validation against it. */
 class LoadedSchema {
-  constructor(table, validator, schema, name, pointersBySchemaObject) {
+  constructor(table, validator, schema, marked, name, pointersBySchemaObject) {
     this.table = table;
     this.validator = validator;
     this.schema = schema;
+    this.marked = marked;
     this.name = name;
     this.pointersBySchemaObject = pointersBySchemaObject;
   }
@@ -112,119 +130,234 @@ class LoadedSchema {
   /** The schema `text` holds, named `name` in reports, or throws why it holds none. */
   static parse(name, text) {
     const failed = (error) => new Error(`schema ${name}: ${error.message}`);
-    let schema;
-    let table;
-    let validator;
     try {
-      schema = JSON.parse(text);
-      table = FunctionTable.fromSchema(schema);
+      const schema = JSON.parse(text);
+      const table = FunctionTable.fromSchema(schema);
       const draft = draftOfSchema(schema);
-      const compiled = isObject(schema) && schema.$schema !== undefined && OLDER_DRAFT_URIS.includes(schema.$schema)
+      const declaresOlderDraft = isObject(schema)
+        && schema.$schema !== undefined
+        && OLDER_DRAFT_URIS.includes(schema.$schema);
+      const declared = declaresOlderDraft
         ? { ...schema, $schema: ASSUMED_DRAFT.schemaUris[0] }
         : schema;
-      validator = new draft.ValidatorClass(VALIDATOR_OPTIONS).compile(compiled);
-      return new LoadedSchema(table, validator, schema, name, schemaObjectPointers(compiled));
+      const marked = markedSchema(declared, draft.name);
+      const validator = new draft.ValidatorClass(VALIDATOR_OPTIONS).compile(marked);
+      const pointers = schemaObjectPointers(marked);
+      return new LoadedSchema(table, validator, schema, marked, name, pointers);
     } catch (error) {
       throw failed(error);
     }
   }
 
   /**
-   * Validates `document`, a resolved value. A value not known when the document
-   * compiles, such as a call or a reference to a declaration, is not checked.
+   * Validates `document`, a resolved value, read by `rules`. A value not known
+   * when the document compiles, such as a call or a reference to a declaration,
+   * is not checked.
    */
-  validate(document, childValuePatterns = []) {
-    const instance = new InstanceRecord(childValuePatterns);
-    const json = instance.json(document, '', document.position);
+  validate(document, rules) {
+    const instance = new InstanceRecord(rules);
+    const json = this.withQuotedValuesRead(instance.json(document, '', document.position), rules);
     this.validator(json);
-    const errors = reportedErrors(this.validator.errors || [], this.schema)
+    const errors = reportedErrors(this.validator.errors || [], this.marked)
       .filter((error) => !instance.readsUnknown(error.instancePath, error.keyword));
-    const diagnostics = errors.flatMap((error) => this.errorDiagnostics(error, instance));
+    const reported = { dependencies: new Set(), itemLists: new Set(), propertyNames: new Set() };
+    const diagnostics = errors
+      .flatMap((error) => this.errorProblems(error, json, instance, reported))
+      .filter((problem) => !instance.isCopied(problem.subject))
+      .map((problem) => problem.diagnostic);
     diagnostics.sort(compareDiagnostics);
     return diagnostics.filter((diagnostic, index) =>
       index === 0 || !sameDiagnostic(diagnostic, diagnostics[index - 1]));
   }
 
   /**
-   * A schema error as the report a reader fixes it from: placed at the value or
-   * the field that is wrong, labeled with what is wrong there, naming the rule it
-   * breaks, and the allowed name closest to a misspelt one.
+   * `json` with each quoted value that spells a type the schema expects of it, and
+   * `rules` allow, read as that type, until no more are read.
    */
-  errorDiagnostics(error, instance) {
+  withQuotedValuesRead(json, rules) {
+    if (rules.quotedValueTypes.length === 0) return json;
+    let read = json;
+    for (;;) {
+      this.validator(read);
+      const readings = new Map();
+      for (const error of this.validator.errors || []) {
+        if (error.keyword !== 'type' || typeof error.data !== 'string') continue;
+        const reading = rules.quotedValue(error.data, [].concat(error.schema));
+        if (reading !== null && !readings.has(error.instancePath)) {
+          readings.set(error.instancePath, reading.value);
+        }
+      }
+      if (readings.size === 0) return read;
+      for (const [pointer, value] of readings) read = withValueAt(read, pointer, value);
+    }
+  }
+
+  /**
+   * A schema error as the problems a reader fixes it from, `{ subject, diagnostic }`:
+   * placed at the value or the field that is wrong, worded by the standard,
+   * labeled with what is wrong there, naming the rule it breaks, and the allowed
+   * name closest to a misspelt one.
+   */
+  errorProblems(error, json, instance, reported) {
     const pointer = error.instancePath;
     const keyword = keywordName(error);
     const schemaPointer = this.keywordPointer(error);
-    const rule = `${keyword}, at ${this.name}#${schemaPointer}`;
-    if (error.propertyName !== undefined) {
-      return [
-        Diagnostic.at(instance.valuePosition(pointer), `${displayPointer(pointer)}: ${errorText(error, instance)}`)
-          .withLabel(`breaks \`${keyword}\``)
-          .withRule(rule),
-      ];
-    }
-    if (error.keyword === 'items' && error.schema === false) {
-      const extra = Array.isArray(error.data) ? error.data.slice(error.params.limit) : [];
-      return extra.map((item, index) => {
-        const itemPointer = `${pointer}/${error.params.limit + index}`;
-        return Diagnostic.at(
-          instance.valuePosition(itemPointer),
-          `${displayPointer(itemPointer)}: False schema does not allow ${instance.jsonText(item, itemPointer)}`,
+    const ruleAt = (name, at) => `${name}, at ${this.name}#${at}`;
+    const rule = ruleAt(keyword, schemaPointer);
+    const field = fieldName(json, pointer);
+    const missingField = REQUIRED_KEYWORDS.has(error.keyword)
+      ? error.params.missingProperty
+      : null;
+    const dependency = error.propertyName === undefined
+      ? dependencyOf(this.marked, schemaPointer, valueAt(json, pointer), missingField)
+      : null;
+    if (dependency !== null) {
+      const subject = `${pointer}/${escapePointer(dependency.key)}`;
+      if (reported.dependencies.has(subject)) return [];
+      reported.dependencies.add(subject);
+      const { keywordPointer } = dependency;
+      const dependencyKeyword = keywordPointer.slice(keywordPointer.lastIndexOf('/') + 1);
+      const at = `${dependency.keywordPointer}/${escapePointer(dependency.key)}`;
+      return [{
+        subject,
+        diagnostic: Diagnostic.at(
+          instance.position(subject),
+          dependencyMessage(this.marked, dependency.keywordPointer, dependency.key),
         )
-          .withLabel('breaks `falseSchema`')
-          .withRule(`falseSchema, at ${this.name}#${schemaPointer}`);
-      });
+          .withLabel(`breaks \`${dependencyKeyword}\``)
+          .withRule(ruleAt(dependencyKeyword, at)),
+      }];
     }
-    const step = lastStep(pointer);
-    const holder = step === null ? 'the document' : `\`${step}\``;
     const suggestion = (name, candidates) => {
       const closest = closestName(name, candidates);
       return closest === null ? null : `did you mean \`${closest}\`?`;
     };
+    const atValue = (message) => [{
+      subject: pointer,
+      diagnostic: Diagnostic.at(instance.valuePosition(pointer), message)
+        .withLabel(`breaks \`${keyword}\``)
+        .withRule(rule),
+    }];
+    if (error.propertyName !== undefined) {
+      const subject = `${pointer}/${escapePointer(error.propertyName)}`;
+      if (reported.propertyNames.has(subject)) return [];
+      reported.propertyNames.add(subject);
+      return [{
+        subject,
+        diagnostic: Diagnostic.at(
+          instance.position(subject),
+          `\`${error.propertyName}\` is not a valid key of ${field}`,
+        )
+          .withLabel('breaks `propertyNames`')
+          .withRule(rule),
+      }];
+    }
+    const itemsBeyondTuple = (error.keyword === 'items' && error.schema === false)
+      || error.keyword === 'additionalItems';
+    if (itemsBeyondTuple) {
+      if (reported.itemLists.has(pointer)) return [];
+      reported.itemLists.add(pointer);
+      const listKeyword = schemaPointer.slice(schemaPointer.lastIndexOf('/') + 1);
+      return [{
+        subject: pointer,
+        diagnostic: Diagnostic.at(
+          instance.valuePosition(pointer),
+          `${field} must NOT have more than ${error.params.limit} items`,
+        )
+          .withLabel(`breaks \`${listKeyword}\``)
+          .withRule(ruleAt(listKeyword, schemaPointer)),
+      }];
+    }
     if (error.keyword === 'additionalProperties' || error.keyword === 'unevaluatedProperties') {
       const name = error.keyword === 'additionalProperties'
         ? error.params.additionalProperty
         : error.params.unevaluatedProperty;
       const allowed = allowedFields(this.schema, schemaPointer);
-      const field = `${pointer}/${escapePointer(name)}`;
-      return [
-        Diagnostic.at(instance.position(field), `field \`${name}\` is not allowed`)
-          .withLabel(`${holder} has no field \`${name}\``)
+      const subject = `${pointer}/${escapePointer(name)}`;
+      return [{
+        subject,
+        diagnostic: Diagnostic.at(
+          instance.position(subject),
+          `\`${name}\` is not a field of ${field}`,
+        )
+          .withLabel(`${field} has no field \`${name}\``)
           .withRule(rule)
           .withHelp(suggestion(name, allowed)),
-      ];
+      }];
     }
     if (error.keyword === 'enum') {
       const options = Array.isArray(error.schema) ? error.schema : [];
       const allowed = options.filter((option) => typeof option === 'string');
-      const value = error.data;
-      return [
-        Diagnostic.at(instance.valuePosition(pointer), `\`${shownValue(value, pointer, instance)}\` is not an allowed value`)
+      const shown = options.map((option) => `\`${jsonText(option)}\``).join(', ');
+      return [{
+        subject: pointer,
+        diagnostic: Diagnostic.at(
+          instance.valuePosition(pointer),
+          `${field} must be one of ${shown}`,
+        )
           .withLabel(`not one of the ${options.length} values \`enum\` allows`)
           .withRule(rule)
-          .withHelp(typeof value === 'string' ? suggestion(value, allowed) : null),
-      ];
+          .withHelp(typeof error.data === 'string' ? suggestion(error.data, allowed) : null),
+      }];
     }
     if (error.keyword === 'type') {
-      const expected = typesOf(error.schema);
-      return [
-        Diagnostic.at(instance.valuePosition(pointer), `${holder} is not ${withArticle(expected.join(' or '))}`)
+      const expected = [].concat(error.schema);
+      return [{
+        subject: pointer,
+        diagnostic: Diagnostic.at(
+          instance.valuePosition(pointer),
+          `${field} must be ${expected.join(' or ')}`,
+        )
           .withLabel(`is ${withArticle(instance.jsonType(pointer, error.data))}`)
           .withRule(rule),
-      ];
+      }];
     }
     if (REQUIRED_KEYWORDS.has(error.keyword)) {
       const name = error.params.missingProperty;
-      return [
-        Diagnostic.at(instance.position(pointer), `field \`${name}\` is required`)
-          .withLabel(`${holder} has no field \`${name}\``)
+      return [{
+        subject: pointer,
+        diagnostic: Diagnostic.at(instance.position(pointer), `\`${name}\` is required`)
+          .withLabel(`${field} has no field \`${name}\``)
           .withRule(rule),
-      ];
+      }];
     }
-    return [
-      Diagnostic.at(instance.valuePosition(pointer), `${displayPointer(pointer)}: ${errorText(error, instance)}`)
-        .withLabel(`breaks \`${keyword}\``)
-        .withRule(rule),
-    ];
+    if (ALTERNATIVE_KEYWORDS.has(error.keyword)) {
+      if (Array.isArray(error.params.passingSchemas)) {
+        return atValue(`${field} matches more than one of its allowed forms`);
+      }
+      const holderPointer = schemaPointer.slice(0, schemaPointer.lastIndexOf('/'));
+      const form = describedForm(this.schema, holderPointer);
+      return atValue(form === null
+        ? `${field} matches none of its allowed forms`
+        : `${field} must be ${form}`);
+    }
+    if (hasOwn(BOUND_COMPARISONS, error.keyword)) {
+      const comparison = BOUND_COMPARISONS[error.keyword];
+      return atValue(`${field} must be ${comparison} ${numberText(error.schema)}`);
+    }
+    if (hasOwn(LENGTH_LIMITS, error.keyword)) {
+      const [comparison, unit] = LENGTH_LIMITS[error.keyword];
+      return atValue(`${field} must NOT have ${comparison} than ${error.params.limit} ${unit}`);
+    }
+    switch (error.keyword) {
+      case 'const': return atValue(`${field} must be equal to constant`);
+      case 'multipleOf':
+        return atValue(`${field} must be multiple of ${numberText(error.schema)}`);
+      case 'pattern': return atValue(`${field} must match pattern "${error.params.pattern}"`);
+      case 'uniqueItems': {
+        const items = Array.isArray(error.data) ? error.data : [];
+        const [later, earlier] = duplicateItems(items) || [0, 0];
+        return atValue(
+          `${field} must NOT have duplicate items (items ## ${later} and ${earlier} are identical)`,
+        );
+      }
+      case 'contains': return atValue(`${field} ${containsMessage(error.parentSchema)}`);
+      case 'not': return atValue(`${field} must NOT be valid`);
+      case 'false schema': return atValue(`${field} boolean schema is false`);
+      case 'unevaluatedItems':
+        return atValue(`${field} must NOT have more than ${error.params.len} items`);
+      default: return atValue(`${field} breaks \`${keyword}\``);
+    }
   }
 }
 
@@ -322,17 +455,6 @@ function pointerOfSchemaPath(path) {
   }
 }
 
-function schemaNodeAt(root, pointer) {
-  if (pointer === '') return root;
-  let node = root;
-  for (const step of pointer.slice(1).split('/')) {
-    const key = step.replaceAll('~1', '/').replaceAll('~0', '~');
-    if (node === null || typeof node !== 'object' || !hasOwn(node, key)) return undefined;
-    node = node[key];
-  }
-  return node;
-}
-
 /**
  * The fields a schema node allows, by the `properties` of the node holding the
  * keyword at `keywordPointer`, of the schemas it references and of those it
@@ -397,59 +519,8 @@ function editDistance(first, second) {
   return previous[secondCharacters.length];
 }
 
-/**
- * What a JSON pointer names, as a report shows it: its last key, or for a list
- * item, the list's key and the item's index, such as `dsls[0]`; `null` for the
- * document's root.
- */
-function lastStep(pointer) {
-  const slash = pointer.lastIndexOf('/');
-  if (slash === -1) return null;
-  const parent = pointer.slice(0, slash);
-  const step = pointer.slice(slash + 1);
-  if (/^\d+$/.test(step)) {
-    const list = lastStep(parent);
-    if (list !== null) return `${list}[${step}]`;
-  }
-  return step.replaceAll('~1', '/').replaceAll('~0', '~');
-}
-
-function escapePointer(key) {
-  return key.replaceAll('~', '~0').replaceAll('/', '~1');
-}
-
-function displayPointer(pointer) {
-  if (pointer === '') return 'the document';
-  const steps = pointer.slice(1).split('/').map((step) => step.replaceAll('~1', '/').replaceAll('~0', '~'));
-  return `\`${steps.join('.')}\``;
-}
-
 function withArticle(noun) {
   return `${/^[aeiou]/.test(noun) ? 'an' : 'a'} ${noun}`;
-}
-
-/** A schema's `type` as the crate lists several: in its fixed order of JSON types. */
-function typesOf(typeKeyword) {
-  if (!Array.isArray(typeKeyword)) return [String(typeKeyword)];
-  const order = ['null', 'boolean', 'integer', 'number', 'string', 'array', 'object'];
-  return order.filter((type) => typeKeyword.includes(type));
-}
-
-/** A string as Rust's `Debug` writes it. */
-function debugText(text) {
-  let written = '"';
-  for (const character of text) {
-    const code = character.codePointAt(0);
-    if (character === '"') written += '\\"';
-    else if (character === '\\') written += '\\\\';
-    else if (character === '\n') written += '\\n';
-    else if (character === '\r') written += '\\r';
-    else if (character === '\t') written += '\\t';
-    else if (character === '\0') written += '\\0';
-    else if (code < 0x20 || code === 0x7f) written += `\\u{${code.toString(16)}}`;
-    else written += character;
-  }
-  return `${written}"`;
 }
 
 /** A floating-point number as `serde_json` writes one. */
@@ -496,72 +567,6 @@ function nodeJsonText(node) {
   return jsonText(node.toJson(), (at) => (numberTexts.has(at) ? numberTexts.get(at) : null));
 }
 
-function shownValue(value, pointer, instance) {
-  return typeof value === 'string' ? debugText(value) : instance.jsonText(value, pointer);
-}
-
-function plural(count, words) {
-  return count === 1 ? words[1] : words[2];
-}
-
-/** An error's text as the crate's validator words it. */
-function errorText(error, instance) {
-  const shown = instance.jsonText(error.data, error.instancePath);
-  const { keyword, params } = error;
-  if (hasOwn(LIMIT_PLURALS, keyword)) {
-    const words = LIMIT_PLURALS[keyword];
-    return `${shown} ${words[0]} ${params.limit} ${plural(params.limit, words)}`;
-  }
-  if (hasOwn(BOUNDS, keyword)) return `${shown} ${BOUNDS[keyword]} ${jsonText(params.limit)}`;
-  switch (keyword) {
-    case 'enum': return `${shown} is not one of ${enumOptionsText(Array.isArray(error.schema) ? error.schema : [])}`;
-    case 'type': {
-      const types = typesOf(error.schema);
-      return types.length === 1
-        ? `${shown} is not of type ${JSON.stringify(types[0])}`
-        : `${shown} is not of types ${types.map((type) => JSON.stringify(type)).join(', ')}`;
-    }
-    case 'const': return `${jsonText(error.schema)} was expected`;
-    case 'pattern': return `${shown} does not match "${params.pattern}"`;
-    case 'multipleOf': return `${shown} is not a multiple of ${params.multipleOf}`;
-    case 'uniqueItems': return `${shown} has non-unique elements`;
-    case 'not': return `${jsonText(error.schema)} is not allowed for ${shown}`;
-    case 'anyOf': return `${shown} is not valid under any of the schemas listed in the 'anyOf' keyword`;
-    case 'oneOf':
-      return params.passingSchemas
-        ? `${shown} is valid under more than one of the schemas listed in the 'oneOf' keyword`
-        : `${shown} is not valid under any of the schemas listed in the 'oneOf' keyword`;
-    case 'contains': return `None of ${shown} are valid under the given schema`;
-    case 'false schema': return `False schema does not allow ${shown}`;
-    case 'propertyNames': return `${JSON.stringify(params.propertyName)} is not valid under the property names schema`;
-    case 'items':
-    case 'additionalItems': {
-      const extra = Array.isArray(error.data) ? error.data.slice(params.limit) : [];
-      const listed = extra.map((item, index) =>
-        instance.jsonText(item, `${error.instancePath}/${params.limit + index}`));
-      return `Additional items are not allowed (${listed.join(', ')} ${extra.length === 1 ? 'was' : 'were'} unexpected)`;
-    }
-    case 'unevaluatedItems': {
-      const extra = Array.isArray(error.data) ? error.data.slice(params.len) : [];
-      const listed = extra.map((item, index) =>
-        `'${instance.jsonText(item, `${error.instancePath}/${params.len + index}`)}'`);
-      return `Unevaluated items are not allowed (${listed.join(', ')} ${extra.length === 1 ? 'was' : 'were'} unexpected)`;
-    }
-    default: return error.message;
-  }
-}
-
-/** An enum's options as the crate's validator lists them: a few, then how many more. */
-function enumOptionsText(options) {
-  const written = options.map((option) => jsonText(option));
-  if (written.length <= SHOWN_ENUM_OPTIONS) {
-    if (written.length <= 1) return written.join('');
-    return `${written.slice(0, -1).join(', ')} or ${written.at(-1)}`;
-  }
-  const shown = written.slice(0, SHOWN_ENUM_OPTIONS - 1);
-  return `${shown.join(', ')} or ${written.length - shown.length} other candidates`;
-}
-
 function compareDiagnostics(first, second) {
   const firstPlace = first.position ? [first.position.line, first.position.column] : [0, 0];
   const secondPlace = second.position ? [second.position.line, second.position.column] : [0, 0];
@@ -573,14 +578,39 @@ function sameDiagnostic(first, second) {
   return JSON.stringify(first) === JSON.stringify(second);
 }
 
+function pointerSteps(pointer) {
+  return pointer.slice(1).split('/')
+    .map((step) => step.replaceAll('~1', '/').replaceAll('~0', '~'));
+}
+
+/** The value at a JSON pointer of `json`, `null` where it holds none. */
+function valueAt(json, pointer) {
+  if (pointer === '') return json;
+  let node = json;
+  for (const step of pointerSteps(pointer)) {
+    if (node === null || typeof node !== 'object' || !hasOwn(node, step)) return null;
+    node = node[step];
+  }
+  return node;
+}
+
+/** `json` with the value at a JSON pointer it holds replaced by `value`. */
+function withValueAt(json, pointer, value) {
+  if (pointer === '') return value;
+  const holder = valueAt(json, pointer.slice(0, pointer.lastIndexOf('/')));
+  if (holder !== null && typeof holder === 'object') holder[pointerSteps(pointer).at(-1)] = value;
+  return json;
+}
+
 /** The document as JSON, and where each of its values was written. */
 class InstanceRecord {
-  constructor(childValuePatterns) {
-    this.childValuePatterns = childValuePatterns;
+  constructor(rules) {
+    this.rules = rules;
     this.positions = new Map();
     this.valuePositions = new Map();
     this.numberTexts = new Map();
     this.unknown = [];
+    this.copied = [];
   }
 
   json(value, pointer, keyPosition) {
@@ -604,6 +634,7 @@ class InstanceRecord {
           if (isObject(json)) this.setChildValue(entry.key, json);
           object[entry.key] = json;
         }
+        this.mergeBaseKeys(object, pointer);
         return object;
       }
       default:
@@ -614,8 +645,28 @@ class InstanceRecord {
 
   /** A key such as `name mock-orders` sets the field `name` of the entry it keys, unless it writes the field. */
   setChildValue(key, fields) {
-    const found = childValue(key, this.childValuePatterns);
+    const found = this.rules.childValue(key);
     if (found !== null && !hasOwn(fields, found.field)) fields[found.field] = found.value;
+  }
+
+  /** Merges the content of each merge base key `object` holds into each sibling map. */
+  mergeBaseKeys(object, pointer) {
+    const { mergeBaseKeys } = this.rules;
+    for (const baseKey of mergeBaseKeys.filter((key) => hasOwn(object, key))) {
+      const base = object[baseKey];
+      for (const [key, written] of Object.entries(object)) {
+        if (mergeBaseKeys.includes(key) || !isObject(written)) continue;
+        const entryPointer = `${pointer}/${escapePointer(key)}`;
+        const merged = mergedOver(base, written, entryPointer, (at) => this.isUnknown(at));
+        this.copied.push(...copiedPointers(merged, written, entryPointer));
+        object[key] = merged;
+      }
+    }
+  }
+
+  /** Whether `pointer` names a value a merge base key copied in, or one below it. */
+  isCopied(pointer) {
+    return this.copied.some((copied) => pointer === copied || pointer.startsWith(`${copied}/`));
   }
 
   /**
@@ -658,35 +709,15 @@ class InstanceRecord {
     }
     return 'object';
   }
-
-  jsonText(value, pointer) {
-    return jsonText(value, (at) => (this.numberTexts.has(at) ? this.numberTexts.get(at) : null), pointer);
-  }
-}
-
-/**
- * The field a key such as `name mock-orders` sets on the entry it keys, and the
- * value it sets, `{ field, value }`, by the first of `patterns` with `field` and
- * `value` groups that matches; else `null`.
- */
-function childValue(key, patterns) {
-  for (const pattern of patterns) {
-    const match = pattern.exec(key);
-    const groups = match && match.groups;
-    if (groups && groups.field !== undefined && groups.value !== undefined) {
-      return { field: groups.field, value: groups.value };
-    }
-  }
-  return null;
 }
 
 module.exports = {
   LoadedSchema,
   SchemaCache,
+  ValidationRules,
   childValue,
   closestName,
   nodeJsonText,
   draftOfSchema,
   compareText,
-  debugText,
 };

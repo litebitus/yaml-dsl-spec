@@ -13,8 +13,11 @@ pub mod function_table;
 pub mod json_path;
 mod node;
 mod position;
+mod problem_wording;
+mod requirement_markers;
 pub mod resolved;
 pub mod schema;
+pub mod validation_rules;
 pub mod yaml_reader;
 
 pub use definition::DslDefinition;
@@ -24,6 +27,7 @@ pub use function_table::{CallKey, parse_call_key};
 pub use node::{Entry, Node, NodeKind, number_json};
 pub use position::Position;
 pub use schema::closest_name;
+pub use validation_rules::ValidationRules;
 
 include!(concat!(env!("OUT_DIR"), "/schema_versions.rs"));
 

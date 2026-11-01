@@ -14,6 +14,7 @@ use crate::node::{Node, NodeKind};
 use crate::position::Position;
 use crate::resolved::Value;
 use crate::schema::{SchemaCache, closest_name};
+use crate::validation_rules::ValidationRules;
 use crate::{YAML_DSL_SCHEMAS, YAML_DSL_VERSIONS, schema_at, yaml_reader};
 
 /// The text in a `common_layer_files` name that stands for a concern.
@@ -36,7 +37,7 @@ pub fn read_dsl_definitions(file: &Path, text: &str) -> Result<Vec<DeclaredDsl>,
     let schema = SchemaCache::default()
         .load(schema_file, schema_text)
         .map_err(|message| vec![Diagnostic::unplaced(message)])?;
-    let problems = schema.validate(&Value::from_node(&root), &[]);
+    let problems = schema.validate(&Value::from_node(&root), &ValidationRules::default());
     if !problems.is_empty() {
         return Err(problems);
     }

@@ -3,21 +3,21 @@
     {
       "line": 4,
       "column": 3,
-      "message": "`queue.name mock-2.name`: \"mock-2\" does not match \"^[a-z-]+$\"",
+      "message": "`name` must match pattern \"^[a-z-]+$\"",
       "label": "breaks `pattern`",
       "rule": "pattern, at schema.json#/properties/queue/additionalProperties/properties/name/pattern"
     },
     {
       "line": 7,
       "column": 11,
-      "message": "`queue.name mock-events.name`: \"Written-Name\" does not match \"^[a-z-]+$\"",
+      "message": "`name` must match pattern \"^[a-z-]+$\"",
       "label": "breaks `pattern`",
       "rule": "pattern, at schema.json#/properties/queue/additionalProperties/properties/name/pattern"
     },
     {
       "line": 9,
       "column": 3,
-      "message": "field `name` is required",
+      "message": "`name` is required",
       "label": "`orders` has no field `name`",
       "rule": "required, at schema.json#/properties/queue/additionalProperties/required"
     }
