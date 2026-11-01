@@ -1,6 +1,6 @@
 [package]
 name = "yaml-dsl-spec"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
 description = "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table, and the types of a DSL's definition."
