@@ -12,13 +12,18 @@ const rootSchema = (file) =>
   JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'schemas', file), 'utf8'));
 
 test('the package exports each schema by version, a major as its newest minor', () => {
-  assert.deepStrictEqual(Object.keys(spec.yamlDslSchemas), ['1', '1.0', '1.1']);
-  assert.deepStrictEqual(spec.yamlDslSchemas['1.0'], rootSchema('yaml-dsl-v1.0.schema.json'));
-  assert.deepStrictEqual(spec.yamlDslSchemas['1.1'], rootSchema('yaml-dsl-v1.1.schema.json'));
-  assert.strictEqual(spec.yamlDslSchemas['1'], spec.yamlDslSchemas['1.1']);
-  assert.deepStrictEqual(
-    spec.functionTableSchemas['1.0'],
-    rootSchema('x-yaml-dsl-functions-v1.0.schema.json'));
+  assert.deepStrictEqual(Object.keys(spec.yamlDslSchemas), ['1', '1.0', '1.1', '1.2']);
+  for (const minor of ['1.0', '1.1', '1.2']) {
+    assert.deepStrictEqual(spec.yamlDslSchemas[minor], rootSchema(`yaml-dsl-v${minor}.schema.json`));
+  }
+  assert.strictEqual(spec.yamlDslSchemas['1'], spec.yamlDslSchemas['1.2']);
+  assert.deepStrictEqual(Object.keys(spec.functionTableSchemas), ['1', '1.0', '1.1']);
+  for (const minor of ['1.0', '1.1']) {
+    assert.deepStrictEqual(
+      spec.functionTableSchemas[minor],
+      rootSchema(`x-yaml-dsl-functions-v${minor}.schema.json`));
+  }
+  assert.strictEqual(spec.functionTableSchemas['1'], spec.functionTableSchemas['1.1']);
 });
 
 test('a major is its newest minor, and other families are left out', () => {

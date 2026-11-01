@@ -2,7 +2,7 @@
 
 A YAML DSL is defined by configuration: a block of a `yaml-dsl.yml` states which files are the DSL's, its layers, scopes, declarations, references, placeholders and calls, and where its documents' schemas are. This document specifies what a `yaml-dsl.yml` means, so every reader of a DSL reads it the same way. A reader is any tool that reads a DSL's documents, such as the [YAML DSL editor](https://github.com/litebitus/vscode-yaml-dsl-editor) or [yaml-dsl-compiler](https://github.com/litebitus/yaml-dsl-compiler).
 
-The fields are described in the JSON Schema of each version, `schemas/yaml-dsl-v<version>.schema.json`, and versions are covered in the README.
+The fields are described in the JSON Schema of each version, `schemas/yaml-dsl-v<version>.schema.json`, and versions are covered in the README. The standard deprecates only its own forms, never a feature a DSL may choose.
 
 ## Generic by config
 

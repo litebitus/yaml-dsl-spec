@@ -5,14 +5,14 @@
       "column": 19,
       "message": "`dsls.0.scopes.RESOURCE.regions.0`: \"$..*.queue\" does not match \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$\"",
       "label": "breaks `pattern`",
-      "rule": "pattern, at yaml-dsl-v1.1.schema.json#/$defs/path/pattern"
+      "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/path/pattern"
     },
     {
       "line": 43,
       "column": 15,
       "message": "`dsls.0.declarations.1.path`: \"queue.*\" does not match \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$\"",
       "label": "breaks `pattern`",
-      "rule": "pattern, at yaml-dsl-v1.1.schema.json#/$defs/path/pattern"
+      "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/path/pattern"
     }
   ]
 }

@@ -61,7 +61,9 @@ A schema and the packages carry separate versions. A schema's version is the ver
 
 ### Schemas
 
-- A minor's schema is a file of its own, frozen once released: `yaml-dsl-v1.0.schema.json`, then `yaml-dsl-v1.1.schema.json` beside it.
+- A minor's schema is a file of its own: `yaml-dsl-v1.0.schema.json`, then `yaml-dsl-v1.1.schema.json` beside it.
+- A released schema is always frozen. Any change to it, a description's wording included, is a new minor beside it.
+- A deprecated field stays until the next major, which removes it.
 - A major floats to its newest minor. `version: "1"` in a `yaml-dsl.yml` is read against the newest 1.x its reader carries; `version: "1.0"` against 1.0.
 - The schemas are edited here, and only here. Each package's build copies them in.
 
@@ -73,7 +75,7 @@ A schema and the packages carry separate versions. A schema's version is the ver
 
 ### Modelines
 
-The newest 1.x, from the latest release, so the modeline never needs editing:
+The modeline a `yaml-dsl.yml` takes, and every example's: the newest 1.x, from the latest release, so it never needs editing:
 
 ```yaml
 # yaml-language-server: $schema=https://github.com/litebitus/yaml-dsl-spec/releases/latest/download/yaml-dsl-v1.schema.json

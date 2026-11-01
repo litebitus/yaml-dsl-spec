@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Schemas
+  - `yaml-dsl.yml` v1.2: `merge_base_keys` is a DSL's feature again, no longer deprecated.
+  - A deprecated field's description says what replaces it, without a "Deprecated:" prefix: `yaml-dsl.yml` v1.2 and the function table's v1.1.
+
 ## v0.1.1 — 2026-11-01
 
 - Schemas
