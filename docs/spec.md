@@ -302,24 +302,31 @@ A schema URL, in a modeline or in `schema_search_paths`, may carry the reader's 
 | Parameter | Holds |
 |---|---|
 | `yaml_dsl_max_age_days` | the whole number of days a downloaded copy is used before it is checked with the server; `0`, or no parameter, fetches the URL each time a stack reading it loads |
+| `yaml_dsl_machine_credentials` | `true` reads the URL again with the machine's credentials when the read without them is refused; `false`, or no parameter, reads it without credentials only |
 
 - The reader's parameters are removed before the URL is fetched. Every other parameter reaches the server as written, in its order.
-- Any other `yaml_dsl_` parameter, or a max age that is not a whole number, is a problem on the modeline's line.
+- Any other `yaml_dsl_` parameter, a max age that is not a whole number, or a machine credentials value other than `true` or `false` is a problem on the modeline's line.
 - A downloaded copy is kept under the URL without the reader's parameters, with the server's `ETag` and `Last-Modified` and the time the server last sent or confirmed it.
 - A copy older than its max age is checked with `If-None-Match`, else `If-Modified-Since`, else a full download. A `304` keeps the copy, and either answer restarts its age.
 - Files naming one URL with different max ages share its copy, each judging the copy's age by its own max age.
 - When the server does not answer, the kept copy is used.
 
-A private schema URL is read with the machine's credentials:
+A schema URL is read without credentials. One carrying `yaml_dsl_machine_credentials=true` is read in this order, stopping at the first answer that is not refused:
 
-| Link | Credentials, tried in order |
+| Link | Read with, in order |
 |---|---|
-| a GitHub release asset, `https://github.com/<owner>/<repo>/releases/download/<tag>/<asset>` | `GH_TOKEN`, `GITHUB_TOKEN`, the `gh` command's login (`gh auth token`), then the `.netrc` entry for `api.github.com` |
-| any other | the `.netrc` entry for the link's host, sent as Basic auth |
+| a GitHub link under `https://github.com/<owner>/<repo>/releases/`, or `www.github.com` | no credentials; then `GH_TOKEN`, `GITHUB_TOKEN`, the `gh` command's login (`gh auth token`), then the `.netrc` entry for `api.github.com` |
+| any other | no credentials; then the `.netrc` entry for the link's host, sent as Basic auth |
 
+- An answer is refused when it is 401 or 403, or 404 from a GitHub link, which GitHub gives for a private repository.
+- A source the machine lacks is skipped: a variable that is not set, `gh` not installed or not logged in, a `.netrc` without an entry for the host.
 - `.netrc` is the file `NETRC` names, else the one in the user's home folder.
-- With a GitHub token, a release asset is read through GitHub's API: the release by its tag, then the asset by its id, following GitHub's redirect without the token. With none, the link is read as written.
-- A refused credential gives way to the next, and each refusal is reported with where the credential came from and what renews it. Once all are refused, the credentials are read again for the next read, so a renewed login takes effect without a restart.
+- With a GitHub token, the link is read through GitHub's API. The release comes from the link's path: `download/<tag>/<asset>` is the release by its tag, and `latest/download/<asset>` is the latest release. The asset is then read by its name, following GitHub's redirect without the token.
+- A link no credential reads is reported by what is known:
+  - a release or asset the repository lacks is a missing release or asset;
+  - a repository no credential can see is not found, naming the repository;
+  - a refused credential is reported with where it came from and what renews it.
+- Once all credentials are refused, they are read again for the next read, so a renewed login takes effect without a restart.
 
 ## JSON Schema drafts
 
