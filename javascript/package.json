@@ -1,6 +1,6 @@
 {
   "name": "yaml-dsl-spec",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table, and a reader returning a yaml-dsl.yml's DSL definitions validated.",
   "license": "MIT",
   "repository": {
