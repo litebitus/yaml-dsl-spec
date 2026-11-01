@@ -154,3 +154,7 @@ A problem is placed at the value it is about; a missing field at its map's key, 
 - A dependency is one problem per key.
 - A `then` or `else` that fails reports its own failures.
 - A problem's rule names the keyword and where the schema holds it; its label says what is wrong where it is placed.
+
+## TODO
+
+- Schema resolution joins the core: a document's schema found and read as the specification's "Finding the schema" and "Schema URLs" state, in place of each reader's own copy.
