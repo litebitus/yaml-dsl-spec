@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.1.3 — 2026-11-01
+
 - Packages
   - A function table's deprecated forms are read until the next major: an entry written as its argument list, and `loop_variable`.
   - A path is read only in the subset the schema states, so `$abc`, `$*` and `$.a.['b']` are refused.
