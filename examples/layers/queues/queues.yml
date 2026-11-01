@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../mock-queues.schema.json
+locals:
+  team: mock-team
+
+key:
+  name mock-main:
+    rotation: true
+
+queue:
+  name mock-orders:
+    retention_seconds: 345600
+    kms_key: ref key.mock_main.arn
+    tags: { env: "${env}", team: local.team }

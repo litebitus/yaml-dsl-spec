@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 59,
+      "column": 18,
+      "message": "the pattern has no `(?<name>...)` group",
+      "label": "the group holds the name, by `name_group`"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "format": {
+    "description": "Formats its operands by a layout.",
+    "arguments": [
+      {
+        "name": "layout",
+        "type": "text",
+        "required": true,
+        "repeated": false,
+        "description": "The layout, with printing verbs."
+      },
+      {
+        "name": "operands",
+        "type": "any",
+        "required": false,
+        "repeated": true,
+        "description": "The values the verbs print."
+      }
+    ],
+    "return": {
+      "type": "text",
+      "description": "The formatted text."
+    }
+  },
+  "merge": {
+    "description": "Merges its content into the map holding the call.",
+    "arguments": [
+      {
+        "name": "content",
+        "type": "map",
+        "required": true,
+        "repeated": false,
+        "description": "The content merged in."
+      }
+    ],
+    "macro": {
+      "kind": "merge",
+      "merge_behavior": "deep",
+      "content": "content"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../../mock-queues.schema.json
+queue:
+  name mock-orders:
+    retention_seconds: 86400
+
+outputs:
+  orders_url: ref queue.mock_orders.url

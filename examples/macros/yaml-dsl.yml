@@ -1,0 +1,88 @@
+version: "1"
+dsls:
+  - id: mock-pipeline
+    file_includes: ["{config_root}/**/pipeline.yml"]
+    file_excludes: []
+    schema_search_paths: ["{config_root}/mock-pipeline.schema.json"]
+    placeholder:
+      pattern: "\\$\\{(?<body>(?:[^{}\\n]|\\$\\{[^{}\\n]*\\})*)\\}"
+      unscanned_paths: []
+    function:
+      definitions: [schema]
+      call_result_reference_positions: [whole_scalar]
+      calls_not_allowed_at: []
+      marker_function:
+        call_marker: fn.
+        splat_operator: "*"
+        calls_without_name_allowed: true
+    locals:
+      scope_name: local
+      path_separator: "."
+    loops:
+      scope_name: LOOP
+    key_sort_orders: []
+    scopes:
+      GLOBAL:
+        regions: ["$"]
+        later_items_of_declaring_list: false
+        named_by_parent_key: false
+        builtin_names: [env]
+      JOB:
+        regions: ["$"]
+        later_items_of_declaring_list: false
+        named_by_parent_key: true
+        builtin_names: []
+      local:
+        regions: ["$"]
+        later_items_of_declaring_list: false
+        named_by_parent_key: false
+        builtin_names: []
+      LOOP:
+        regions: ["$"]
+        later_items_of_declaring_list: false
+        named_by_parent_key: false
+        builtin_names: []
+    declarations:
+      - path: "$.locals.*"
+        skip_keys: []
+        exclude_candidates: []
+        name_source: key
+        key_token: all_words
+        name_spelling: as_written
+        meta_argument_name: null
+        declares_every_name: false
+        scope_name: local
+      - path: "$.*.*"
+        skip_keys: [locals]
+        exclude_candidates: []
+        name_source: key
+        key_token: all_words
+        name_spelling: dashes_as_underscores
+        meta_argument_name: null
+        declares_every_name: false
+        scope_name: JOB
+    references:
+      - pattern: "^ref (?<type>[a-z]+)\\.(?<name>[a-z0-9_]+)"
+        positions: [whole_scalar]
+        text_after_name_allowed: true
+        scope_name: JOB
+        scope_group: type
+        name_group: name
+      - pattern: "^local\\.(?<name>[a-z_]+)"
+        positions: [whole_scalar, whole_placeholder, placeholder_in_text]
+        text_after_name_allowed: true
+        scope_name: local
+        scope_group: null
+        name_group: name
+      - pattern: "^~(?<name>[a-z_][a-z0-9_]*)"
+        positions: [whole_scalar, whole_placeholder, placeholder_in_text]
+        text_after_name_allowed: true
+        scope_name: LOOP
+        scope_group: null
+        name_group: name
+      - pattern: "^(?<name>[a-z_]+)$"
+        positions: [whole_placeholder, placeholder_in_text]
+        text_after_name_allowed: false
+        scope_name: GLOBAL
+        scope_group: null
+        name_group: name

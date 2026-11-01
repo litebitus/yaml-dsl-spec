@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 53,
+      "column": 18,
+      "message": "the pattern is not a regular expression",
+      "label": "a regular expression the reader compiles"
+    }
+  ]
+}

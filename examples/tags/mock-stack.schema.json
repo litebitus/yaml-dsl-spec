@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mock-stack",
+  "description": "A stack of resources, referenced by YAML tags.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "Resources": {
+      "type": "object",
+      "description": "The resources, by logical name.",
+      "additionalProperties": {
+        "$ref": "#/$defs/resource"
+      }
+    }
+  },
+  "$defs": {
+    "reference": {
+      "description": "A resource's id, `!Ref <name>`, or one of its attributes, `!GetAtt <name>.<attribute>`.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "Ref": {
+          "type": "string"
+        },
+        "Fn::GetAtt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "resource": {
+      "type": "object",
+      "required": [
+        "Type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "Type": {
+          "enum": [
+            "Mock::Key",
+            "Mock::Queue"
+          ],
+          "description": "The resource's type."
+        },
+        "Properties": {
+          "type": "object",
+          "description": "The resource's properties.",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": [
+                  "string",
+                  "integer",
+                  "boolean"
+                ]
+              },
+              {
+                "$ref": "#/$defs/reference"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

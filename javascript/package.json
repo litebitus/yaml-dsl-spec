@@ -1,0 +1,23 @@
+{
+  "name": "yaml-dsl-spec",
+  "version": "0.0.0",
+  "description": "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/litebitus/yaml-dsl-spec.git",
+    "directory": "javascript"
+  },
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "schema-versions.js",
+    "schemas/*-v*.schema.json"
+  ],
+  "scripts": {
+    "build": "node scripts/copy-schemas.js",
+    "pretest": "npm run build",
+    "test": "node --test --test-timeout=5000 --test-force-exit test/",
+    "prepack": "npm run build"
+  }
+}

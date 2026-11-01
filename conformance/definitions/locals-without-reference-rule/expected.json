@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 15,
+      "column": 19,
+      "message": "no reference rule reads `local`",
+      "label": "a local is read by a reference rule of its scope"
+    }
+  ]
+}

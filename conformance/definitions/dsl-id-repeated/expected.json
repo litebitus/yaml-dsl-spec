@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 74,
+      "column": 9,
+      "message": "DSL `mock-queues` is declared more than once",
+      "label": "an earlier DSL of this file has this `id`"
+    }
+  ]
+}

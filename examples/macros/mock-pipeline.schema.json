@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mock-pipeline",
+  "description": "A pipeline of jobs.",
+  "x-yaml-dsl-functions": {
+    "format": {
+      "description": "Fills the layout's `%s` placeholders with the operands, in order.",
+      "arguments": [
+        {
+          "name": "layout",
+          "type": "text",
+          "required": true,
+          "repeated": false,
+          "description": "The text holding the placeholders."
+        },
+        {
+          "name": "operands",
+          "type": "any",
+          "required": false,
+          "repeated": true,
+          "description": "The values put in the placeholders, in order."
+        }
+      ],
+      "return": {
+        "type": "text",
+        "description": "The layout with each placeholder filled."
+      }
+    },
+    "merge": {
+      "description": "Merges the contents into the map holding the call, its own keys winning.",
+      "arguments": [
+        {
+          "name": "contents",
+          "type": "map",
+          "required": true,
+          "repeated": true,
+          "description": "The maps merged in, in order."
+        }
+      ],
+      "macro": {
+        "kind": "merge",
+        "content": "contents",
+        "merge_behavior": "deep"
+      }
+    },
+    "loop": {
+      "description": "Repeats the body once per item of the collection.",
+      "arguments": [
+        {
+          "name": "in",
+          "type": "any",
+          "required": true,
+          "repeated": false,
+          "description": "The collection, a list or a map."
+        },
+        {
+          "name": "body",
+          "type": "any",
+          "required": true,
+          "repeated": false,
+          "description": "What each pass yields: a map's entries, or a list's one element."
+        },
+        {
+          "name": "for",
+          "type": "list",
+          "required": false,
+          "repeated": false,
+          "default": [
+            "it"
+          ],
+          "description": "The loop variables: one binds each item, two bind each key or index and its value."
+        }
+      ],
+      "macro": {
+        "kind": "loop",
+        "loop_variables": "for",
+        "collection": "in",
+        "body": "body"
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "locals": {
+      "type": "object",
+      "description": "Named values a document reads as `local.<name>`."
+    },
+    "job": {
+      "type": "object",
+      "description": "The jobs, by name.",
+      "additionalProperties": {
+        "$ref": "#/$defs/job"
+      }
+    }
+  },
+  "$defs": {
+    "job": {
+      "type": "object",
+      "required": [
+        "image",
+        "timeout_minutes"
+      ],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(\\S+ )?fn\\.[a-z0-9_]+\\*?$": {
+          "description": "A field whose value a function call computes when the document is used, such as `message fn.format*`."
+        }
+      },
+      "properties": {
+        "image": {
+          "type": "string",
+          "description": "The image the job runs."
+        },
+        "timeout_minutes": {
+          "type": "integer",
+          "description": "Minutes the job may run."
+        },
+        "retries": {
+          "type": "integer",
+          "description": "Times a failed job is run again."
+        },
+        "needs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The jobs that finish first, as references."
+        },
+        "message": {
+          "type": "string",
+          "description": "What the job announces when it starts."
+        }
+      }
+    }
+  }
+}

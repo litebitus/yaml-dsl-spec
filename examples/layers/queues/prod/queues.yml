@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../mock-queues.schema.json
+key:
+  name mock-audit:
+    rotation: true
+
+queue:
+  name mock-audits:
+    retention_seconds: 1209600
+    kms_key: ref key.mock_audit.arn
+
+outputs:
+  orders_url: ref queue.mock_orders.url
+  audits_url: ref queue.mock_audits.url

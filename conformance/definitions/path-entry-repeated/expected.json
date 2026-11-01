@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 15,
+      "column": 19,
+      "message": "path `$.outputs` is listed more than once",
+      "label": "an earlier entry of `placeholder.unscanned_paths` has this path"
+    }
+  ]
+}

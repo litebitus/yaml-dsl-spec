@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 57,
+      "column": 22,
+      "message": "`scope_group` is required",
+      "label": "scope `RESOURCE` is named by a parent key"
+    }
+  ]
+}

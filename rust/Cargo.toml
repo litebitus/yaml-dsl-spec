@@ -1,0 +1,18 @@
+[package]
+name = "yaml-dsl-spec"
+version = "0.0.0"
+edition = "2024"
+license = "MIT"
+description = "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table, and the types of a DSL's definition."
+readme = "README.md"
+repository = "https://github.com/litebitus/yaml-dsl-spec"
+keywords = ["yaml", "dsl", "json-schema", "spec"]
+categories = ["development-tools", "config"]
+include = ["/build.rs", "/README.md", "/schema_versions.rs", "/schemas/*.json", "/src/**", "/tests/**"]
+
+[dependencies]
+fancy-regex = "0.20.0"
+jsonschema = { version = "0.60.2", default-features = false }
+saphyr-parser = "0.3.3"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }

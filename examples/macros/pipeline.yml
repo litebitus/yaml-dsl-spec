@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=mock-pipeline.schema.json
+locals:
+  defaults:
+    timeout_minutes: 30
+    retries: 1
+  services: [api, worker]
+
+job:
+  fn.loop:
+    for: [service]
+    in: local.services
+    body:
+      "build-${~service}":
+        fn.merge: local.defaults
+        image: "mock-registry/${~service}"
+  deploy:
+    fn.merge: local.defaults
+    image: mock-registry/deployer
+    timeout_minutes: 60
+    needs: [ref job.build_api, ref job.build_worker]
+    message fn.format*: ["deploying to %s", "${env}"]

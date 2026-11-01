@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mock-queues",
+  "description": "Queues and the keys that encrypt them.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "locals": {
+      "type": "object",
+      "description": "Named values a document reads as `local.<name>`."
+    },
+    "key": {
+      "type": "object",
+      "description": "Encryption keys, each keyed `name <key name>`.",
+      "additionalProperties": {
+        "$ref": "#/$defs/key"
+      }
+    },
+    "queue": {
+      "type": "object",
+      "description": "Queues, each keyed `name <queue name>`.",
+      "additionalProperties": {
+        "$ref": "#/$defs/queue"
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "description": "What the stack exposes, each a reference."
+    }
+  },
+  "$defs": {
+    "key": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The key's alias."
+        },
+        "rotation": {
+          "type": "boolean",
+          "description": "Whether the key rotates yearly."
+        }
+      }
+    },
+    "queue": {
+      "type": "object",
+      "required": [
+        "name",
+        "retention_seconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The queue's name."
+        },
+        "retention_seconds": {
+          "type": "integer",
+          "description": "How long a message is kept."
+        },
+        "kms_key": {
+          "type": "string",
+          "description": "The key that encrypts the queue, a reference."
+        },
+        "tags": {
+          "type": "object",
+          "description": "Tags, by name."
+        }
+      }
+    }
+  }
+}

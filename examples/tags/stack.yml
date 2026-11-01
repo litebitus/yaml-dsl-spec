@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=mock-stack.schema.json
+Resources:
+  OrdersKey:
+    Type: Mock::Key
+    Properties:
+      Rotation: true
+  OrdersQueue:
+    Type: Mock::Queue
+    Properties:
+      KeyId: !Ref OrdersKey
+      KeyArn: !GetAtt OrdersKey.Arn
+      RetentionSeconds: 345600
