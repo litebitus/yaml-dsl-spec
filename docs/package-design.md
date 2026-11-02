@@ -157,4 +157,4 @@ A problem is placed at the value it is about; a missing field at its map's key, 
 
 ## TODO
 
-- Schema resolution joins the core: a document's schema found and read as the specification's "Finding the schema" and "Schema URLs" state, a URL's copies cached, least recently used dropped first, in place of each reader's own copy. The cache's capacity is the consumer's to set.
+- Schema resolution joins the core: a document's schema found and read as the specification's "Finding the schema" and "Schema URLs" state, through a schema cache, least recently used dropped first, in place of each reader's own copy. The schema cache's capacity is the consumer's to set.
