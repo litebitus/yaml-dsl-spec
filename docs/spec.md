@@ -33,6 +33,10 @@ For `parent` and `ancestor`:
 
 - Each overlay is a `mock-dsl.yml` under an overlay directory, one `layers.overlay_folders` names, such as `overlay-1` or `overlay-2`, directly below the common layer's directory.
 - A file below no overlay directory is a common layer.
+- An overlay directory that holds the overlay's place but no overlay file is an overlay holding no documents: its folded document is the common layer alone.
+- The overlay's place is where its file would be: the overlay directory itself for `parent`; for `ancestor`, the path below the overlay directory that the stack's other overlays take, or the concern for a `{concern}` common layer.
+- An overlay holding no documents finds its schema as a file at its place with no modeline: by the DSL's search paths from there.
+- A common layer with no overlay file in any overlay directory is a document with no overlays, read as if no overlay directory existed: a stack of its own.
 
 | Value | The overlay file | Example |
 |---|---|---|

@@ -5,6 +5,7 @@
 - Specification
   - A schema URL is read without credentials; `yaml_dsl_machine_credentials=true` opts in to the machine's credentials, tried only when the read without them is refused.
   - A GitHub link under `<owner>/<repo>/releases/`, `latest` included, is read through GitHub's API with a token, and a link no credential reads is reported by what is known.
+  - An overlay directory holding no documents is an overlay of its stack, folding to the common layer alone; a common layer with no overlay files is a stack of its own.
 
 ## v0.1.4 — 2026-11-01
 
