@@ -9,6 +9,7 @@
 - Packages
   - A problem's notes gain `schema`: the schema's own words it reports, as written.
   - Schema validation fences every key and value a message names, and a schema's description moves from the message to the schema note.
+  - The Go package, `github.com/litebitus/yaml-dsl-spec/go`: the whole core, passing every conformance case.
 - Conformance
   - A problem is compared with its schema note too; a case of `not` with and without a described schema.
 

@@ -1,12 +1,15 @@
 RUST = --manifest-path rust/Cargo.toml
 NPM_PACKAGE = $(shell node -p "require('./javascript/package.json').name")
 
-.PHONY: build promote-npm test test-javascript test-rust
+.PHONY: build promote-npm test test-go test-javascript test-rust
 
 build: test
 	cargo build $(RUST) --release
+	npm --prefix javascript run build
+	go -C go generate ./...
+	go -C go build ./...
 
-test: test-rust test-javascript
+test: test-rust test-javascript test-go
 
 test-rust:
 	cargo fmt $(RUST) --check
@@ -16,6 +19,12 @@ test-rust:
 test-javascript:
 	npm --prefix javascript ci
 	npm --prefix javascript test
+
+test-go:
+	go -C go generate ./...
+	@unformatted="$$(gofmt -l go)"; if [ -n "$$unformatted" ]; then echo "$$unformatted" >&2; exit 1; fi
+	go -C go vet ./...
+	go -C go test -timeout 5s ./...
 
 promote-npm:
 	@if [ -z "$(STAGE_ID)" ]; then \

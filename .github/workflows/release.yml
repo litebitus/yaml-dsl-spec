@@ -113,7 +113,11 @@ jobs:
           git add CHANGELOG.md rust/Cargo.toml rust/Cargo.lock javascript/package.json
           git commit -m "docs(changelog): ${NEXT}"
           git tag -a "$NEXT" -m "Release $NEXT"
-          git push --atomic origin "HEAD:${GITHUB_REF_NAME}" "$NEXT"
+          go -C go generate ./...
+          git add --force go/schemas
+          git commit -m "chore(go): the schemas of ${NEXT}"
+          git tag -a "go/${NEXT}" -m "Release go/${NEXT}"
+          git push --atomic origin "${NEXT}^{commit}:refs/heads/${GITHUB_REF_NAME}" "$NEXT" "go/${NEXT}"
 
       - name: Publish the crate
         if: ${{ !inputs.dry_run }}
@@ -144,8 +148,8 @@ jobs:
           NEXT: ${{ steps.version.outputs.next }}
         run: |
           set -euo pipefail
-          commit="$(git rev-parse --short=7 HEAD)"
-          echo "Published \`yaml-dsl-spec\` \`${NEXT#v}\` to crates.io and staged it on npm, from commit \`${commit}\`; promote the npm version on npmjs.com." >> "$GITHUB_STEP_SUMMARY"
+          commit="$(git rev-parse --short=7 "${NEXT}^{commit}")"
+          echo "Published \`yaml-dsl-spec\` \`${NEXT#v}\` to crates.io, staged it on npm and tagged the Go module \`go/${NEXT}\`, from commit \`${commit}\`; promote the npm version on npmjs.com." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Dry run summary
         if: ${{ inputs.dry_run }}

@@ -1,0 +1,109 @@
+name: Snapshot
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  pre-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up Rust
+        run: rustup toolchain install
+
+      - name: Set up Node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 26.13.0
+          registry-url: https://registry.npmjs.org
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version: 1.27.3
+          cache: false
+
+      - name: Test
+        run: make test
+
+      - name: Install svu
+        run: go install github.com/caarlos0/svu/v3@v3.4.1
+
+      - name: Compute the snapshot version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(svu patch)-snapshot.$(date -u +%Y%m%d%H%M%S)"
+          if [ -n "$(git ls-remote --tags origin "refs/tags/${version}" "refs/tags/go/${version}")" ]; then
+            echo "tag $version or go/$version already exists on origin" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Snapshot: $version"
+
+      - name: Stamp every package's version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          sed -i "0,/^version = \".*\"$/s//version = \"${VERSION#v}\"/" rust/Cargo.toml
+          cargo update --workspace --manifest-path rust/Cargo.toml
+          jq --arg version "${VERSION#v}" '.version = $version' javascript/package.json > "$RUNNER_TEMP/package.json"
+          mv "$RUNNER_TEMP/package.json" javascript/package.json
+          mkdir -p rust/schemas
+          cp schemas/*.schema.json rust/schemas/
+
+      - name: Publish the snapshot crate
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --manifest-path rust/Cargo.toml --allow-dirty
+
+      - name: Stage the snapshot JS package
+        working-directory: javascript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm stage publish --tag snapshot
+
+      - name: Tag and push the snapshot
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Snapshot $VERSION"
+          go -C go generate ./...
+          git add --force go/schemas
+          git commit -m "chore(go): the schemas of ${VERSION}"
+          git tag -a "go/${VERSION}" -m "Snapshot go/${VERSION}"
+          git push --atomic origin "$VERSION" "go/${VERSION}"
+
+      - name: Summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Published \`yaml-dsl-spec\` \`${VERSION#v}\` to crates.io, staged it on npm with the \`snapshot\` tag and tagged the Go module \`go/${VERSION}\`, from commit \`${GITHUB_SHA::7}\`; promote the npm version on npmjs.com."
+            echo
+            echo '```toml'
+            echo "yaml-dsl-spec = \"=${VERSION#v}\""
+            echo '```'
+            echo
+            echo '```sh'
+            echo "npm install yaml-dsl-spec@${VERSION#v}"
+            echo "go get github.com/litebitus/yaml-dsl-spec/go@${VERSION}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

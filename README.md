@@ -28,6 +28,7 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 |---|---|---|
 | Rust | [`yaml-dsl-spec`](https://crates.io/crates/yaml-dsl-spec) | [`rust/`](rust) |
 | JavaScript | [`yaml-dsl-spec`](https://www.npmjs.com/package/yaml-dsl-spec) | [`javascript/`](javascript) |
+| Go | [`github.com/litebitus/yaml-dsl-spec/go`](https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go) | [`go/`](go) |
 
 What each package implements is designed in [docs/package-design.md](docs/package-design.md).
 
@@ -95,8 +96,10 @@ version: "1.0"
 
 | Target | Does |
 |---|---|
-| `make test` | the crate's format check, clippy with warnings as errors and tests, then the package's tests |
-| `make build` | `make test`, then a release build of the crate |
-| `make promote-npm STAGE_ID=<stage id>` | shows a version the `Release` workflow staged on npm, then promotes it, asking for two-factor authentication; without `STAGE_ID`, lists the staged versions |
+| `make test` | the crate's format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests |
+| `make build` | `make test`, then builds every package with the schemas of the checkout |
+| `make promote-npm STAGE_ID=<stage id>` | shows a version the `Release` or `Snapshot` workflow staged on npm, then promotes it, asking for two-factor authentication; without `STAGE_ID`, lists the staged versions |
 
-The `Release` workflow is dispatched by hand: it stamps `CHANGELOG.md` and the version of every package, tags, publishes the crate, stages the npm package, and attaches the schemas to a GitHub release. A maintainer promotes the staged npm version, on npmjs.com or with `make promote-npm`, with two-factor authentication. Every package carries the same version.
+The `Release` workflow is dispatched by hand: it stamps `CHANGELOG.md` and the version of every package, tags, the Go module as `go/<version>` on a commit of its own that carries the schemas, publishes the crate, stages the npm package, and attaches the schemas to a GitHub release. A maintainer promotes the staged npm version, on npmjs.com or with `make promote-npm`, with two-factor authentication. Every package carries the same version.
+
+The `Snapshot` workflow is dispatched by hand: it publishes every package as a pre-release, such as `0.1.5-snapshot.20261107123456`, tagged on its commit, the Go module as `go/<version>` on a commit of its own that carries the schemas, and the npm package staged with the `snapshot` tag. No package manager picks a pre-release on its own, so a consumer names a snapshot by its exact version.

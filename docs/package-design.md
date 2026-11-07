@@ -22,72 +22,72 @@ Each entry is named in each language's own case. A version is a minor, such as `
 
 ### Schemas
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| a `yaml-dsl.yml` schema | `yaml_dsl_schema(version)` | `yamlDslSchema(version)` | the schema at `version`; none for a version the package does not carry |
-| a function table schema | `function_table_schema(version)` | `functionTableSchema(version)` | the schema at `version`; none for a version the package does not carry |
-| the versions | `YAML_DSL_VERSIONS`, `FUNCTION_TABLE_VERSIONS` | `YAML_DSL_VERSIONS`, `FUNCTION_TABLE_VERSIONS` | every version the package reads, majors first |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| a `yaml-dsl.yml` schema | `yaml_dsl_schema(version)` | `yamlDslSchema(version)` | `YAMLDSLSchema(version)` | the schema at `version`; none for a version the package does not carry |
+| a function table schema | `function_table_schema(version)` | `functionTableSchema(version)` | `FunctionTableSchema(version)` | the schema at `version`; none for a version the package does not carry |
+| the versions | `YAML_DSL_VERSIONS`, `FUNCTION_TABLE_VERSIONS` | `YAML_DSL_VERSIONS`, `FUNCTION_TABLE_VERSIONS` | `YAMLDSLVersions()`, `FunctionTableVersions()` | every version the package reads, majors first |
 
 ### Definition reader
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| read a `yaml-dsl.yml` | `read_dsl_definitions(file, text)` | `readDslDefinitions(file, text)` | each DSL's definition and its block as written, validated against its version's schema and the checks the schema cannot state; else every problem at its field |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| read a `yaml-dsl.yml` | `read_dsl_definitions(file, text)` | `readDslDefinitions(file, text)` | `ReadDSLDefinitions(file, text)` | each DSL's definition and its block as written, validated against its version's schema and the checks the schema cannot state; else every problem at its field |
 
 ### DSL definition model
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| a DSL block | `DslDefinition::from_json(block)` | `dslDefinition.dslDefinitionFromJson(block)` | the block's fields as the standard names them, each with its default; else why the block is none |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| a DSL block | `DslDefinition::from_json(block)` | `dslDefinition.dslDefinitionFromJson(block)` | `DSLDefinitionFromJSON(block)` | the block's fields as the standard names them, each with its default; else why the block is none |
 
 ### YAML reader
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| read YAML | `yaml_reader::parse(file, text, tag_keys)` | `yamlReader.parseYaml(file, text, tagKeys)` | the node tree, each node with its position and a tag listed in `tag_keys` read as a map holding its key; else the first problem |
-| a node | `Node` | `Node` | a value as written: its kind, its value and its position |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| read YAML | `yaml_reader::parse(file, text, tag_keys)` | `yamlReader.parseYaml(file, text, tagKeys)` | `ParseYAML(file, text, tagKeys)` | the node tree, each node with its position and a tag listed in `tag_keys` read as a map holding its key; else the first problem |
+| a node | `Node` | `Node` | `Node` | a value as written: its kind, its value and its position |
 
 ### Diagnostics
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| a problem | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule, schema and help |
-| a position | `Position` | `Position` | a file, a line and a column, each from 1 |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| a problem | `Diagnostic` | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule, schema and help |
+| a position | `Position` | `Position` | `Position` | a file, a line and a column, each from 1 |
 
 ### Paths
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| parse a path | `PathPattern::parse(text, skip_keys)` | `PathPattern.parse(text, skipKeys)` | the pattern; else a problem naming the path outside the subset |
-| match a path | `selects(path)`, `covers(path)` | `selects(path)`, `covers(path)` | whether the pattern selects a concrete path, or the path or one above it |
-| select | `select(document)` | `select(document)` | every node the pattern selects, with its path, in document order |
-| several paths | `PathSet` | `PathSet` | the patterns of a list of paths, matched as one |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| parse a path | `PathPattern::parse(text, skip_keys)` | `PathPattern.parse(text, skipKeys)` | `ParsePathPattern(text, skipKeys)` | the pattern; else a problem naming the path outside the subset |
+| match a path | `selects(path)`, `covers(path)` | `selects(path)`, `covers(path)` | `Selects(path)`, `Covers(path)` | whether the pattern selects a concrete path, or the path or one above it |
+| select | `select(document)` | `select(document)` | `Select(document)` | every node the pattern selects, with its path, in document order |
+| several paths | `PathSet` | `PathSet` | `PathSet` | the patterns of a list of paths, matched as one |
 
 ### Function table
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| read a table | `FunctionTable::from_schema(schema)` | `FunctionTable.fromSchema(schema)` | the table a document schema publishes at `#/x-yaml-dsl-functions`, empty for none; else why it is none |
-| an entry | `entry(name)` | `entry(name)` | the function or macro a call names, a suffixed macro name included |
-| a macro's role | `MacroEntry::role(role)` | `MacroEntry.role(role)` | the argument that plays `role` |
-| a call key | `parse_call_key(key, marker)` | `parseCallKey(key, marker)` | the call a key writes, its name, function and splat; none for a key that writes none |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| read a table | `FunctionTable::from_schema(schema)` | `FunctionTable.fromSchema(schema)` | `FunctionTableFromSchema(schema)` | the table a document schema publishes at `#/x-yaml-dsl-functions`, empty for none; else why it is none |
+| an entry | `entry(name)` | `entry(name)` | `Entry(name)` | the function or macro a call names, a suffixed macro name included |
+| a macro's role | `MacroEntry::role(role)` | `MacroEntry.role(role)` | `MacroEntry.Role(role)` | the argument that plays `role` |
+| a call key | `parse_call_key(key, marker)` | `parseCallKey(key, marker)` | `ParseCallKey(key, marker)` | the call a key writes, its name, function and splat; none for a key that writes none |
 
 ### Resolved values
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| a value | `resolved::Value` | `resolved.Value` | a document value with its position: a scalar, a list, a map, or a reference, a call or a template |
-| from YAML | `Value::from_node(node)` | `Value.fromNode(node)` | the value a node reads to |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| a value | `resolved::Value` | `resolved.Value` | `ResolvedValue` | a document value with its position: a scalar, a list, a map, or a reference, a call or a template |
+| from YAML | `Value::from_node(node)` | `Value.fromNode(node)` | `ResolvedValueFromNode(node)` | the value a node reads to |
 
 ### Schema validation
 
-| Entry | Rust | JavaScript | Gives |
-|---|---|---|---|
-| load a schema | `SchemaCache::load(name, text)` | `SchemaCache.load(name, text)` | the schema, read once per name and text, in its draft, with its function table; else why it does not load |
-| the rules | `ValidationRules::from_validator(validator)` | `ValidationRules.fromValidator(validator)` | a DSL definition's `validator` block, its patterns compiled; no rules for none |
-| validate | `LoadedSchema::validate(document, rules)` | `LoadedSchema.validate(document, rules)` | every problem of a resolved document, read by the rules, in document order |
-| a child value | `child_value(key, patterns)` | `childValue(key, patterns)` | the field and value a key sets on the entry it keys |
-| a closest name | `closest_name(name, candidates)` | `closestName(name, candidates)` | the candidate a misspelt name most likely means |
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| load a schema | `SchemaCache::load(name, text)` | `SchemaCache.load(name, text)` | `SchemaCache.Load(name, text)` | the schema, read once per name and text, in its draft, with its function table; else why it does not load |
+| the rules | `ValidationRules::from_validator(validator)` | `ValidationRules.fromValidator(validator)` | `ValidationRulesFromValidator(validator)` | a DSL definition's `validator` block, its patterns compiled; no rules for none |
+| validate | `LoadedSchema::validate(document, rules)` | `LoadedSchema.validate(document, rules)` | `LoadedSchema.Validate(document, rules)` | every problem of a resolved document, read by the rules, in document order |
+| a child value | `child_value(key, patterns)` | `childValue(key, patterns)` | `ChildValue(key, patterns)` | the field and value a key sets on the entry it keys |
+| a closest name | `closest_name(name, candidates)` | `closestName(name, candidates)` | `ClosestName(name, candidates)` | the candidate a misspelt name most likely means |
 
 ## Schema validation
 
