@@ -3,7 +3,7 @@
     {
       "line": 3,
       "column": 9,
-      "message": "`matrix[1][1]` must be integer",
+      "message": "`matrix[1][1]` must be `integer`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/matrix/items/items/type"
     },

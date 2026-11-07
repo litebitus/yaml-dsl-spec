@@ -3,14 +3,14 @@
     {
       "line": 1,
       "column": 7,
-      "message": "`pair` must NOT have more than 2 items",
+      "message": "`pair` must NOT have more than `2` items",
       "label": "breaks `items`",
       "rule": "items, at schema.json#/properties/pair/items"
     },
     {
       "line": 2,
       "column": 13,
-      "message": "`listed[1]` must be string",
+      "message": "`listed[1]` must be `string`",
       "label": "is an integer",
       "rule": "type, at schema.json#/properties/listed/items/type"
     }

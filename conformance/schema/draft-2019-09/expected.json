@@ -3,7 +3,7 @@
     {
       "line": 1,
       "column": 10,
-      "message": "`enabled` must be boolean",
+      "message": "`enabled` must be `boolean`",
       "label": "is a string",
       "rule": "type, at schema.json#/$defs/flag/type"
     },

@@ -338,7 +338,7 @@ class BlockChecks {
         this.report(group || rule, '`scope_group` is required', `scope \`${name}\` is named by a parent key`);
       }
       if (!namedByParentKey && hasGroup) {
-        this.report(group || rule, '`scope_group` must be null', `scope \`${name}\` is not named by a parent key`);
+        this.report(group || rule, '`scope_group` must be `null`', `scope \`${name}\` is not named by a parent key`);
       }
     }
   }

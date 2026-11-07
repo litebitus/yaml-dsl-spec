@@ -43,7 +43,7 @@ function problemJson(problem) {
     fields.column = problem.position.column;
   }
   fields.message = problem.message;
-  for (const note of ['label', 'rule', 'help']) {
+  for (const note of ['label', 'rule', 'schema', 'help']) {
     if (problem.notes && problem.notes[note] !== null) fields[note] = problem.notes[note];
   }
   return fields;

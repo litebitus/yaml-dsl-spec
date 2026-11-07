@@ -3,7 +3,7 @@
     {
       "line": 2,
       "column": 3,
-      "message": "`rule` must NOT be valid",
+      "message": "`rule` matches a form that is not allowed",
       "label": "breaks `not`",
       "rule": "not, at schema.json#/properties/rule/then/not"
     }

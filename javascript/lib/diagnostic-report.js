@@ -28,6 +28,12 @@ class Diagnostic {
     return this;
   }
 
+  /** The schema's own words a problem reports, as written; nothing is noted for `null`. */
+  withSchema(text) {
+    if (text !== null && text !== undefined) this.writableNotes().schema = text;
+    return this;
+  }
+
   /** How the problem may be fixed; nothing is noted for `null`. */
   withHelp(help) {
     if (help !== null && help !== undefined) this.writableNotes().help = help;
@@ -35,7 +41,7 @@ class Diagnostic {
   }
 
   writableNotes() {
-    if (this.notes === null) this.notes = { label: null, rule: null, help: null };
+    if (this.notes === null) this.notes = { label: null, rule: null, schema: null, help: null };
     return this.notes;
   }
 

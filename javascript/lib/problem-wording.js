@@ -57,7 +57,19 @@ function fieldName(document, pointer) {
   while (keyAt >= 0 && steps[keyAt].inList) keyAt -= 1;
   const key = keyAt >= 0 ? steps[keyAt].key : '';
   const indexes = steps.slice(keyAt + 1).map((step) => `[${step.key}]`).join('');
-  return `\`${key}${indexes}\``;
+  return codeSpan(`${key}${indexes}`);
+}
+
+/**
+ * `text` fenced in the fewest backticks it does not hold, padded with a space where
+ * it begins or ends with a backtick.
+ */
+function codeSpan(text) {
+  const longestRun = Math.max(0, ...(text.match(/`+/gu) || []).map((run) => run.length));
+  const fence = '`'.repeat(longestRun + 1);
+  return text.startsWith('`') || text.endsWith('`')
+    ? `${fence} ${text} ${fence}`
+    : `${fence}${text}${fence}`;
 }
 
 /** A JSON number as a report writes it. */
@@ -66,21 +78,14 @@ function numberText(number) {
 }
 
 /**
- * The sentence of an alternative none of whose forms holds: the first sentence of
- * the definition holding the alternatives, where they are a described
- * definition's, `#/$defs/<name>` or `#/definitions/<name>`; else `null`.
+ * The description of the definition holding alternatives none of whose forms
+ * holds, where they are a definition's, `#/$defs/<name>` or `#/definitions/<name>`;
+ * else `null`.
  */
-function describedForm(schema, holderPointer) {
+function definitionDescription(schema, holderPointer) {
   const steps = holderPointer.split('/').slice(1);
   if (steps.length !== 2 || !DEFINITION_KEYWORDS.includes(steps[0])) return null;
-  const description = descriptionText(schemaNodeAt(schema, holderPointer));
-  if (!description) return null;
-  const sentence = description.split(/(?<=\.)\s/u)[0];
-  const firstSentence = sentence.endsWith('.') ? sentence.slice(0, -1) : sentence;
-  const leadingWord = /^[A-Za-z0-9]*/u.exec(firstSentence)[0];
-  if (leadingWord.length >= 2 && /^[A-Z]+$/u.test(leadingWord)) return firstSentence;
-  const [first, ...rest] = Array.from(firstSentence);
-  return first === undefined ? null : `${first.toLowerCase()}${rest.join('')}`;
+  return descriptionText(schemaNodeAt(schema, holderPointer));
 }
 
 /**
@@ -121,7 +126,7 @@ function dependencyMessage(schema, keywordPointer, key) {
   const neededTexts = DEPENDENCY_KEYWORDS
     .filter(statesKey)
     .map((keyword) => neededText(holder[keyword][key]));
-  return `\`${key}\` needs ${neededTexts.length > 0 ? neededTexts.join('; ') : UNSTATED_CONDITION}`;
+  return `${codeSpan(key)} needs ${neededTexts.length > 0 ? neededTexts.join('; ') : UNSTATED_CONDITION}`;
 }
 
 function neededText(needed) {
@@ -139,7 +144,7 @@ function consequenceText(node) {
   const properties = isObject(node.properties) ? node.properties : {};
   for (const [field, fieldSchema] of Object.entries(properties)) {
     if (isObject(fieldSchema) && typeof fieldSchema.$ref === 'string') {
-      parts.push(`\`${field}\` is a \`${referenceName(fieldSchema.$ref)}\``);
+      parts.push(`${codeSpan(field)} is a ${codeSpan(referenceName(fieldSchema.$ref))}`);
     }
   }
   for (const part of Array.isArray(node.allOf) ? node.allOf : []) {
@@ -154,7 +159,7 @@ function consequenceText(node) {
       .join(', or '));
   }
   if (parts.length === 0 && typeof node.$ref === 'string') {
-    parts.push(`a \`${referenceName(node.$ref)}\``);
+    parts.push(`a ${codeSpan(referenceName(node.$ref))}`);
   }
   return parts.length > 0 ? parts.join('; ') : null;
 }
@@ -164,7 +169,7 @@ function referenceName(reference) {
 }
 
 function keyList(keys) {
-  const spans = keys.map((key) => `\`${typeof key === 'string' ? key : JSON.stringify(key)}\``);
+  const spans = keys.map((key) => codeSpan(typeof key === 'string' ? key : JSON.stringify(key)));
   return spans.length > 1 ? `${spans.slice(0, -1).join(', ')} and ${spans.at(-1)}` : spans.join('');
 }
 
@@ -201,9 +206,9 @@ function jsonEqual(first, second) {
  */
 function containsMessage(holder) {
   const bound = (keyword) => (isObject(holder) && typeof holder[keyword] === 'number'
-    ? numberText(holder[keyword])
+    ? codeSpan(numberText(holder[keyword]))
     : null);
-  const minimum = bound('minContains') || '1';
+  const minimum = bound('minContains') || codeSpan('1');
   const maximum = bound('maxContains');
   return maximum === null
     ? `must contain at least ${minimum} valid item(s)`
@@ -212,8 +217,9 @@ function containsMessage(holder) {
 
 module.exports = {
   fieldName,
+  codeSpan,
   numberText,
-  describedForm,
+  definitionDescription,
   dependencyOf,
   dependencyMessage,
   duplicateItems,

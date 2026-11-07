@@ -8,7 +8,7 @@ Each language reads the standard through packages: the core, which every languag
 2. The definition reader: a `yaml-dsl.yml`'s DSL definitions, validated, or every problem at its field.
 3. The DSL definition model.
 4. The YAML reader: a node tree with positions, YAML tags read as keys.
-5. Diagnostics: a problem's position, message, label, rule and help.
+5. Diagnostics: a problem's position, message, label, rule, schema and help.
 6. Paths: the JSONPath subset, parsed, matched and selected.
 7. The function table: functions and macros read from a document schema, and call keys.
 8. Resolved values: a document value that may hold a reference, a call or a template.
@@ -51,7 +51,7 @@ Each entry is named in each language's own case. A version is a minor, such as `
 
 | Entry | Rust | JavaScript | Gives |
 |---|---|---|---|
-| a problem | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule and help |
+| a problem | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule, schema and help |
 | a position | `Position` | `Position` | a file, a line and a column, each from 1 |
 
 ### Paths
@@ -124,30 +124,34 @@ A field's `description` may open with a requirement marker:
 
 A problem is placed at the value it is about; a missing field at its map's key, and an unknown field, a key that is not valid, and a key whose dependency is not met at that key. A problem names its field by the field's key, then `[<index>]` for each list index below the key, such as `` `tags[1]` ``; the root is `the document`.
 
-| Failure | Message |
-|---|---|
-| a missing field | `` `name` is required `` |
-| an unknown field | `` `name` is not a field of <field> `` |
-| a key `propertyNames` refuses | `` `key` is not a valid key of <field> `` |
-| `type` | `<field> must be boolean`, the types the schema lists, in its order, joined by `or` |
-| `enum` | `` <field> must be one of `"a"`, `"b"` ``, each value as JSON |
-| `const` | `<field> must be equal to constant` |
-| `anyOf` or `oneOf`, no form holds | `<field> must be <form>`, where the alternatives are those of a definition, `#/$defs/<name>` or `#/definitions/<name>`, and `<form>` is the first sentence of its description, lowercased unless it opens with an acronym; else `<field> matches none of its allowed forms` |
-| `oneOf`, several forms hold | `<field> matches more than one of its allowed forms` |
-| a dependency not met | `` `key` needs <what> ``: the fields it needs, joined by `and`, a forbidden one as `` `x` must not be set `` |
-| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | `<field> must be >= 1`, with `<=`, `>` and `<` |
-| `multipleOf` | `<field> must be multiple of 5` |
-| `minLength`, `maxLength` | `<field> must NOT have fewer than 3 characters`, or `more than` |
-| `minItems`, `maxItems` | `<field> must NOT have fewer than 3 items`, or `more than` |
-| `minProperties`, `maxProperties` | `<field> must NOT have fewer than 3 properties`, or `more than` |
-| items beyond a tuple that allows none | `<field> must NOT have more than 2 items`, the tuple's length |
-| `unevaluatedItems` | `<field> must NOT have more than 2 items`, the items evaluated |
-| `pattern` | `<field> must match pattern "^x"` |
-| `uniqueItems` | `<field> must NOT have duplicate items (items ## 2 and 0 are identical)`: from the last item back, the first equal to an item after it, and the nearest such item |
-| `contains` | `<field> must contain at least 1 valid item(s)`, with `and no more than 2` where `maxContains` bounds it |
-| `not` | `<field> must NOT be valid` |
-| a `false` schema | `<field> boolean schema is false` |
-| any other keyword | `` <field> breaks `keyword` `` |
+A message is the package's own sentence. Every key and value it names is fenced, so a reader tells them from its prose; an item number, a position the package counts, is not. A schema's own words never enter a message: a description the problem reports is its schema note, as written, and a reader shows it apart from the message, prefixed `[schema]`.
+
+| Failure | Message | Schema note |
+|---|---|---|
+| a missing field | `` `name` is required `` | |
+| an unknown field | `` `name` is not a field of <field> `` | |
+| a key `propertyNames` refuses | `` `key` is not a valid key of <field> `` | |
+| `type` | `` <field> must be `boolean` ``, the types the schema lists, in its order, joined by `or` | |
+| `enum` | `` <field> must be one of `"a"`, `"b"` ``, each value as JSON | |
+| `const` | `` <field> must be `"a"` ``, the value as JSON | |
+| `anyOf` or `oneOf`, no form holds | `<field> matches none of its allowed forms` | where the alternatives are those of a definition, `#/$defs/<name>` or `#/definitions/<name>`, the definition's description |
+| `oneOf`, several forms hold | `<field> matches more than one of its allowed forms` | |
+| a dependency not met | `` `key` needs <what> ``: the fields it needs, joined by `and`, a forbidden one as `` `x` must not be set `` | |
+| `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | `` <field> must be >= `1` ``, with `<=`, `>` and `<` | |
+| `multipleOf` | `` <field> must be multiple of `5` `` | |
+| `minLength`, `maxLength` | `` <field> must NOT have fewer than `3` characters ``, or `more than` | |
+| `minItems`, `maxItems` | `` <field> must NOT have fewer than `3` items ``, or `more than` | |
+| `minProperties`, `maxProperties` | `` <field> must NOT have fewer than `3` properties ``, or `more than` | |
+| items beyond a tuple that allows none | `` <field> must NOT have more than `2` items ``, the tuple's length | |
+| `unevaluatedItems` | `` <field> must NOT have more than `2` items ``, the items evaluated | |
+| `pattern` | `` <field> must match pattern `^x` `` | |
+| `uniqueItems` | `<field> must NOT have duplicate items (items ## 2 and 0 are identical)`: from the last item back, the first equal to an item after it, and the nearest such item | |
+| `contains` | `` <field> must contain at least `1` valid item(s) ``, with `` and no more than `2` `` where `maxContains` bounds it | |
+| `not` | `<field> matches a form that is not allowed` | the description of the schema `not` holds |
+| a `false` schema | `<field> boolean schema is false` | |
+| any other keyword | `` <field> breaks `keyword` `` | |
+
+A value is fenced in the fewest backticks it does not hold, padded with a space where it begins or ends with one.
 
 - An `anyOf`, `oneOf` or `contains` problem stands for the failures inside it, which are not reported.
 - A key `propertyNames` refuses is one problem, whatever checks it fails.

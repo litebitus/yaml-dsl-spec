@@ -3,16 +3,18 @@
     {
       "line": 1,
       "column": 7,
-      "message": "`size` must be a literal number, or a `ref` resolving to one",
+      "message": "`size` matches none of its allowed forms",
       "label": "breaks `oneOf`",
-      "rule": "oneOf, at schema.json#/$defs/number_or_ref/oneOf"
+      "rule": "oneOf, at schema.json#/$defs/number_or_ref/oneOf",
+      "schema": "A literal number, or a `ref` resolving to one. More words."
     },
     {
       "line": 2,
       "column": 7,
-      "message": "`role` must be ARN of a role",
+      "message": "`role` matches none of its allowed forms",
       "label": "breaks `anyOf`",
-      "rule": "anyOf, at schema.json#/$defs/role_arn/anyOf"
+      "rule": "anyOf, at schema.json#/$defs/role_arn/anyOf",
+      "schema": "ARN of a role.\nOr a ref to one."
     },
     {
       "line": 3,

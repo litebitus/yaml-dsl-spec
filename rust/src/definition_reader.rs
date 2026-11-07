@@ -418,7 +418,7 @@ impl<'b> BlockChecks<'b> {
             if !*named_by_parent_key && has_group {
                 self.report(
                     group.unwrap_or(rule),
-                    "`scope_group` must be null",
+                    "`scope_group` must be `null`",
                     format!("scope `{name}` is not named by a parent key"),
                 );
             }

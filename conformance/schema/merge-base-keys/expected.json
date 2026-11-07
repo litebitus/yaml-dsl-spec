@@ -3,7 +3,7 @@
     {
       "line": 4,
       "column": 16,
-      "message": "`retention` must be integer",
+      "message": "`retention` must be `integer`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/queue/additionalProperties/properties/retention/type"
     },
@@ -17,7 +17,7 @@
     {
       "line": 14,
       "column": 17,
-      "message": "`visibility` must be integer",
+      "message": "`visibility` must be `integer`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/queue/additionalProperties/properties/visibility/type"
     }

@@ -3,14 +3,14 @@
     {
       "line": 4,
       "column": 3,
-      "message": "`name` must match pattern \"^[a-z-]+$\"",
+      "message": "`name` must match pattern `^[a-z-]+$`",
       "label": "breaks `pattern`",
       "rule": "pattern, at schema.json#/properties/queue/additionalProperties/properties/name/pattern"
     },
     {
       "line": 7,
       "column": 11,
-      "message": "`name` must match pattern \"^[a-z-]+$\"",
+      "message": "`name` must match pattern `^[a-z-]+$`",
       "label": "breaks `pattern`",
       "rule": "pattern, at schema.json#/properties/queue/additionalProperties/properties/name/pattern"
     },

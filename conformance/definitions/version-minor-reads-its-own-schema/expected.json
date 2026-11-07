@@ -3,14 +3,14 @@
     {
       "line": 43,
       "column": 15,
-      "message": "`path` must match pattern \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\])*(\\.\\.\\*)?$\"",
+      "message": "`path` must match pattern `^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\])*(\\.\\.\\*)?$`",
       "label": "breaks `pattern`",
       "rule": "pattern, at yaml-dsl-v1.0.schema.json#/$defs/path/pattern"
     },
     {
       "line": 52,
       "column": 15,
-      "message": "`path` must match pattern \"^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\])*(\\.\\.\\*)?$\"",
+      "message": "`path` must match pattern `^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\])*(\\.\\.\\*)?$`",
       "label": "breaks `pattern`",
       "rule": "pattern, at yaml-dsl-v1.0.schema.json#/$defs/path/pattern"
     }

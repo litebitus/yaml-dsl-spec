@@ -77,6 +77,7 @@ fn problem_json(problem: &Diagnostic) -> Value {
         for (name, note) in [
             ("label", &notes.label),
             ("rule", &notes.rule),
+            ("schema", &notes.schema),
             ("help", &notes.help),
         ] {
             if let Some(note) = note {

@@ -6,6 +6,11 @@
   - A schema URL is read without credentials; `yaml_dsl_machine_credentials=true` opts in to the machine's credentials, tried only when the read without them is refused.
   - A GitHub link under `<owner>/<repo>/releases/`, `latest` included, is read through GitHub's API with a token, and a link no credential reads is reported by what is known.
   - An overlay directory holding no documents is an overlay of its stack, folding to the common layer alone; a common layer with no overlay files is a stack of its own.
+- Packages
+  - A problem's notes gain `schema`: the schema's own words it reports, as written.
+  - Schema validation fences every key and value a message names, and a schema's description moves from the message to the schema note.
+- Conformance
+  - A problem is compared with its schema note too; a case of `not` with and without a described schema.
 
 ## v0.1.4 — 2026-11-01
 

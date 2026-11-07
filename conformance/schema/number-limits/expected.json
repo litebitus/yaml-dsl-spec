@@ -3,42 +3,42 @@
     {
       "line": 1,
       "column": 6,
-      "message": "`low` must be >= 10",
+      "message": "`low` must be >= `10`",
       "label": "breaks `minimum`",
       "rule": "minimum, at schema.json#/properties/low/minimum"
     },
     {
       "line": 2,
       "column": 7,
-      "message": "`high` must be <= 10",
+      "message": "`high` must be <= `10`",
       "label": "breaks `maximum`",
       "rule": "maximum, at schema.json#/properties/high/maximum"
     },
     {
       "line": 3,
       "column": 16,
-      "message": "`exclusive_low` must be > 0",
+      "message": "`exclusive_low` must be > `0`",
       "label": "breaks `exclusiveMinimum`",
       "rule": "exclusiveMinimum, at schema.json#/properties/exclusive_low/exclusiveMinimum"
     },
     {
       "line": 4,
       "column": 17,
-      "message": "`exclusive_high` must be < 1.5",
+      "message": "`exclusive_high` must be < `1.5`",
       "label": "breaks `exclusiveMaximum`",
       "rule": "exclusiveMaximum, at schema.json#/properties/exclusive_high/exclusiveMaximum"
     },
     {
       "line": 5,
       "column": 7,
-      "message": "`step` must be multiple of 5",
+      "message": "`step` must be multiple of `5`",
       "label": "breaks `multipleOf`",
       "rule": "multipleOf, at schema.json#/properties/step/multipleOf"
     },
     {
       "line": 6,
       "column": 16,
-      "message": "`fraction_step` must be multiple of 0.5",
+      "message": "`fraction_step` must be multiple of `0.5`",
       "label": "breaks `multipleOf`",
       "rule": "multipleOf, at schema.json#/properties/fraction_step/multipleOf"
     }

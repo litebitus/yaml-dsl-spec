@@ -3,35 +3,35 @@
     {
       "line": 1,
       "column": 8,
-      "message": "`short` must NOT have fewer than 3 characters",
+      "message": "`short` must NOT have fewer than `3` characters",
       "label": "breaks `minLength`",
       "rule": "minLength, at schema.json#/properties/short/minLength"
     },
     {
       "line": 2,
       "column": 6,
-      "message": "`one` must NOT have fewer than 1 characters",
+      "message": "`one` must NOT have fewer than `1` characters",
       "label": "breaks `minLength`",
       "rule": "minLength, at schema.json#/properties/one/minLength"
     },
     {
       "line": 3,
       "column": 7,
-      "message": "`long` must NOT have more than 2 characters",
+      "message": "`long` must NOT have more than `2` characters",
       "label": "breaks `maxLength`",
       "rule": "maxLength, at schema.json#/properties/long/maxLength"
     },
     {
       "line": 4,
       "column": 9,
-      "message": "`single` must NOT have more than 1 characters",
+      "message": "`single` must NOT have more than `1` characters",
       "label": "breaks `maxLength`",
       "rule": "maxLength, at schema.json#/properties/single/maxLength"
     },
     {
       "line": 5,
       "column": 5,
-      "message": "`id` must match pattern \"^[a-z]+-[0-9]+$\"",
+      "message": "`id` must match pattern `^[a-z]+-[0-9]+$`",
       "label": "breaks `pattern`",
       "rule": "pattern, at schema.json#/properties/id/pattern"
     }

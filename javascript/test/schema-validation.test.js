@@ -54,7 +54,7 @@ test('a merge base key supplies its siblings and a quoted value reads as its typ
   });
   const messages = queueSchema().validate(document, rules)
     .map((diagnostic) => diagnostic.message);
-  assert.deepStrictEqual(messages, ['`encrypted` must be boolean']);
+  assert.deepStrictEqual(messages, ['`encrypted` must be `boolean`']);
 });
 
 test('a call is not checked and a wrong type is', () => {
@@ -64,7 +64,7 @@ test('a call is not checked and a wrong type is', () => {
   ])]])]]);
   const diagnostics = queueSchema().validate(document, noRules);
   assert.strictEqual(diagnostics.length, 1);
-  assert.strictEqual(diagnostics[0].message, '`visibility` must be integer');
+  assert.strictEqual(diagnostics[0].message, '`visibility` must be `integer`');
   assert.strictEqual(diagnostics[0].notes.label, 'is a string');
   assert.strictEqual(
     diagnostics[0].notes.rule,
@@ -103,7 +103,26 @@ test('a local reference is validated as the value it reads', () => {
   const diagnostics = queueSchema().validate(document, noRules);
   assert.deepStrictEqual(
     diagnostics.map((diagnostic) => diagnostic.message),
-    ['`visibility` must be integer'],
+    ['`visibility` must be `integer`'],
+  );
+});
+
+test('a value holding backticks is fenced in more backticks than it holds in a row', () => {
+  const schema = LoadedSchema.parse('mock.schema.json', JSON.stringify({
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    type: 'object',
+    properties: {
+      quoted: { const: 'mock`on' },
+      wrapped: { pattern: '`[a-z]+`' },
+    },
+  }));
+  const document = map([
+    ['quoted', Value.string('off', position)],
+    ['wrapped', Value.string('plain', position)],
+  ]);
+  assert.deepStrictEqual(
+    schema.validate(document, noRules).map((diagnostic) => diagnostic.message),
+    ['`quoted` must be ``"mock`on"``', '`wrapped` must match pattern `` `[a-z]+` ``'],
   );
 });
 

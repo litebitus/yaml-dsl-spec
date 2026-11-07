@@ -7,11 +7,12 @@ const AjvDraft202012 = require('ajv/dist/2020').default;
 const { Diagnostic } = require('./diagnostic-report');
 const { FunctionTable } = require('./function-table');
 const { numberJson, integerOfText } = require('./yaml-node');
-const { markedSchema } = require('./requirement-markers');
+const { descriptionText, markedSchema } = require('./requirement-markers');
 const {
   fieldName,
+  codeSpan,
   numberText,
-  describedForm,
+  definitionDescription,
   dependencyOf,
   dependencyMessage,
   duplicateItems,
@@ -224,20 +225,22 @@ class LoadedSchema {
           instance.position(subject),
           dependencyMessage(this.marked, dependency.keywordPointer, dependency.key),
         )
-          .withLabel(`breaks \`${dependencyKeyword}\``)
+          .withLabel(`breaks ${codeSpan(dependencyKeyword)}`)
           .withRule(ruleAt(dependencyKeyword, at)),
       }];
     }
     const suggestion = (name, candidates) => {
       const closest = closestName(name, candidates);
-      return closest === null ? null : `did you mean \`${closest}\`?`;
+      return closest === null ? null : `did you mean ${codeSpan(closest)}?`;
     };
-    const atValue = (message) => [{
+    const atValue = (message, schemaNote = null) => [{
       subject: pointer,
       diagnostic: Diagnostic.at(instance.valuePosition(pointer), message)
-        .withLabel(`breaks \`${keyword}\``)
-        .withRule(rule),
+        .withLabel(`breaks ${codeSpan(keyword)}`)
+        .withRule(rule)
+        .withSchema(schemaNote),
     }];
+    const limitText = (limit) => codeSpan(String(limit));
     if (error.propertyName !== undefined) {
       const subject = `${pointer}/${escapePointer(error.propertyName)}`;
       if (reported.propertyNames.has(subject)) return [];
@@ -246,7 +249,7 @@ class LoadedSchema {
         subject,
         diagnostic: Diagnostic.at(
           instance.position(subject),
-          `\`${error.propertyName}\` is not a valid key of ${field}`,
+          `${codeSpan(error.propertyName)} is not a valid key of ${field}`,
         )
           .withLabel('breaks `propertyNames`')
           .withRule(rule),
@@ -262,9 +265,9 @@ class LoadedSchema {
         subject: pointer,
         diagnostic: Diagnostic.at(
           instance.valuePosition(pointer),
-          `${field} must NOT have more than ${error.params.limit} items`,
+          `${field} must NOT have more than ${limitText(error.params.limit)} items`,
         )
-          .withLabel(`breaks \`${listKeyword}\``)
+          .withLabel(`breaks ${codeSpan(listKeyword)}`)
           .withRule(ruleAt(listKeyword, schemaPointer)),
       }];
     }
@@ -278,9 +281,9 @@ class LoadedSchema {
         subject,
         diagnostic: Diagnostic.at(
           instance.position(subject),
-          `\`${name}\` is not a field of ${field}`,
+          `${codeSpan(name)} is not a field of ${field}`,
         )
-          .withLabel(`${field} has no field \`${name}\``)
+          .withLabel(`${field} has no field ${codeSpan(name)}`)
           .withRule(rule)
           .withHelp(suggestion(name, allowed)),
       }];
@@ -288,7 +291,7 @@ class LoadedSchema {
     if (error.keyword === 'enum') {
       const options = Array.isArray(error.schema) ? error.schema : [];
       const allowed = options.filter((option) => typeof option === 'string');
-      const shown = options.map((option) => `\`${jsonText(option)}\``).join(', ');
+      const shown = options.map((option) => codeSpan(jsonText(option))).join(', ');
       return [{
         subject: pointer,
         diagnostic: Diagnostic.at(
@@ -301,7 +304,7 @@ class LoadedSchema {
       }];
     }
     if (error.keyword === 'type') {
-      const expected = [].concat(error.schema);
+      const expected = [].concat(error.schema).map(codeSpan);
       return [{
         subject: pointer,
         diagnostic: Diagnostic.at(
@@ -316,8 +319,8 @@ class LoadedSchema {
       const name = error.params.missingProperty;
       return [{
         subject: pointer,
-        diagnostic: Diagnostic.at(instance.position(pointer), `\`${name}\` is required`)
-          .withLabel(`${field} has no field \`${name}\``)
+        diagnostic: Diagnostic.at(instance.position(pointer), `${codeSpan(name)} is required`)
+          .withLabel(`${field} has no field ${codeSpan(name)}`)
           .withRule(rule),
       }];
     }
@@ -326,24 +329,27 @@ class LoadedSchema {
         return atValue(`${field} matches more than one of its allowed forms`);
       }
       const holderPointer = schemaPointer.slice(0, schemaPointer.lastIndexOf('/'));
-      const form = describedForm(this.schema, holderPointer);
-      return atValue(form === null
-        ? `${field} matches none of its allowed forms`
-        : `${field} must be ${form}`);
+      return atValue(
+        `${field} matches none of its allowed forms`,
+        definitionDescription(this.schema, holderPointer),
+      );
     }
     if (hasOwn(BOUND_COMPARISONS, error.keyword)) {
       const comparison = BOUND_COMPARISONS[error.keyword];
-      return atValue(`${field} must be ${comparison} ${numberText(error.schema)}`);
+      return atValue(`${field} must be ${comparison} ${codeSpan(numberText(error.schema))}`);
     }
     if (hasOwn(LENGTH_LIMITS, error.keyword)) {
       const [comparison, unit] = LENGTH_LIMITS[error.keyword];
-      return atValue(`${field} must NOT have ${comparison} than ${error.params.limit} ${unit}`);
+      return atValue(
+        `${field} must NOT have ${comparison} than ${limitText(error.params.limit)} ${unit}`,
+      );
     }
     switch (error.keyword) {
-      case 'const': return atValue(`${field} must be equal to constant`);
+      case 'const': return atValue(`${field} must be ${codeSpan(jsonText(error.schema))}`);
       case 'multipleOf':
-        return atValue(`${field} must be multiple of ${numberText(error.schema)}`);
-      case 'pattern': return atValue(`${field} must match pattern "${error.params.pattern}"`);
+        return atValue(`${field} must be multiple of ${codeSpan(numberText(error.schema))}`);
+      case 'pattern':
+        return atValue(`${field} must match pattern ${codeSpan(error.params.pattern)}`);
       case 'uniqueItems': {
         const items = Array.isArray(error.data) ? error.data : [];
         const [later, earlier] = duplicateItems(items) || [0, 0];
@@ -352,11 +358,15 @@ class LoadedSchema {
         );
       }
       case 'contains': return atValue(`${field} ${containsMessage(error.parentSchema)}`);
-      case 'not': return atValue(`${field} must NOT be valid`);
+      case 'not':
+        return atValue(
+          `${field} matches a form that is not allowed`,
+          descriptionText(schemaNodeAt(this.schema, schemaPointer)),
+        );
       case 'false schema': return atValue(`${field} boolean schema is false`);
       case 'unevaluatedItems':
-        return atValue(`${field} must NOT have more than ${error.params.len} items`);
-      default: return atValue(`${field} breaks \`${keyword}\``);
+        return atValue(`${field} must NOT have more than ${limitText(error.params.len)} items`);
+      default: return atValue(`${field} breaks ${codeSpan(keyword)}`);
     }
   }
 }

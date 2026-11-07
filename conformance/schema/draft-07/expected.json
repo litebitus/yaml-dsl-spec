@@ -3,14 +3,14 @@
     {
       "line": 1,
       "column": 7,
-      "message": "`port` must be <= 65535",
+      "message": "`port` must be <= `65535`",
       "label": "breaks `maximum`",
       "rule": "maximum, at schema.json#/definitions/port/maximum"
     },
     {
       "line": 2,
       "column": 8,
-      "message": "`tuple` must NOT have more than 1 items",
+      "message": "`tuple` must NOT have more than `1` items",
       "label": "breaks `additionalItems`",
       "rule": "additionalItems, at schema.json#/properties/tuple/additionalItems"
     },

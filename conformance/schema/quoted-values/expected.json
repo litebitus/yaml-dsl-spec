@@ -3,21 +3,21 @@
     {
       "line": 3,
       "column": 28,
-      "message": "`count_written_as_fraction` must be integer",
+      "message": "`count_written_as_fraction` must be `integer`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/count_written_as_fraction/type"
     },
     {
       "line": 4,
       "column": 8,
-      "message": "`ratio` must be number",
+      "message": "`ratio` must be `number`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/ratio/type"
     },
     {
       "line": 6,
       "column": 20,
-      "message": "`spelled_otherwise` must be boolean",
+      "message": "`spelled_otherwise` must be `boolean`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/spelled_otherwise/type"
     }

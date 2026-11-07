@@ -3,7 +3,7 @@
     {
       "line": 1,
       "column": 1,
-      "message": "the document must be object",
+      "message": "the document must be `object`",
       "label": "is an array",
       "rule": "type, at schema.json#/type"
     }

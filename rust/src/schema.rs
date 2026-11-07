@@ -15,10 +15,10 @@ use crate::function_table::FunctionTable;
 use crate::node::number_json;
 use crate::position::Position;
 use crate::problem_wording::{
-    contains_message, dependency_message, dependency_of, described_form, duplicate_items,
-    field_name, number_text,
+    code_span, contains_message, definition_description, dependency_message, dependency_of,
+    duplicate_items, field_name, number_text,
 };
-use crate::requirement_markers::marked_schema;
+use crate::requirement_markers::{description_text, marked_schema};
 use crate::resolved::{Value, ValueKind};
 pub use crate::validation_rules::child_value;
 use crate::validation_rules::{ValidationRules, copied_pointers, escape_pointer, merged_over};
@@ -231,7 +231,7 @@ impl LoadedSchema {
                 instance.position(&subject),
                 dependency_message(&self.marked, &keyword_at, &key),
             )
-            .with_label(format!("breaks `{keyword}`"))
+            .with_label(format!("breaks {}", code_span(&keyword)))
             .with_rule(rule_at(
                 &keyword,
                 &format!("{keyword_at}/{}", escape_pointer(&key)),
@@ -242,17 +242,26 @@ impl LoadedSchema {
             }];
         }
         let suggestion = |name: &str, candidates: Vec<String>| {
-            closest_name(name, &candidates).map(|candidate| format!("did you mean `{candidate}`?"))
+            closest_name(name, &candidates)
+                .map(|candidate| format!("did you mean {}?", code_span(&candidate)))
         };
-        let at_value = |message: String| {
+        let at_value_with_schema = |message: String, schema_note: Option<String>| {
             vec![SchemaProblem {
                 subject: pointer.to_owned(),
                 diagnostic: Diagnostic::at(instance.value_position(pointer), message)
-                    .with_label(format!("breaks `{}`", error.kind().keyword()))
-                    .with_rule(rule.clone()),
+                    .with_label(format!("breaks {}", code_span(error.kind().keyword())))
+                    .with_rule(rule.clone())
+                    .with_schema(schema_note),
             }]
         };
-        let list_limit = |limit: usize| format!("{field} must NOT have more than {limit} items");
+        let at_value = |message: String| at_value_with_schema(message, None);
+        let list_limit = |limit: usize| {
+            format!(
+                "{field} must NOT have more than {} items",
+                code_span(&limit.to_string())
+            )
+        };
+        let limit_text = |limit: &u64| code_span(&limit.to_string());
         match error.kind() {
             ValidationErrorKind::AdditionalProperties { unexpected }
             | ValidationErrorKind::UnevaluatedProperties { unexpected } => {
@@ -263,9 +272,9 @@ impl LoadedSchema {
                         let subject = format!("{pointer}/{}", escape_pointer(name));
                         let diagnostic = Diagnostic::at(
                             instance.position(&subject),
-                            format!("`{name}` is not a field of {field}"),
+                            format!("{} is not a field of {field}", code_span(name)),
                         )
-                        .with_label(format!("{field} has no field `{name}`"))
+                        .with_label(format!("{field} has no field {}", code_span(name)))
                         .with_rule(rule.clone())
                         .with_help(suggestion(name, allowed.clone()));
                         SchemaProblem {
@@ -280,7 +289,7 @@ impl LoadedSchema {
                 let subject = format!("{pointer}/{}", escape_pointer(name));
                 let diagnostic = Diagnostic::at(
                     instance.position(&subject),
-                    format!("`{name}` is not a valid key of {field}"),
+                    format!("{} is not a valid key of {field}", code_span(name)),
                 )
                 .with_label("breaks `propertyNames`")
                 .with_rule(rule);
@@ -295,8 +304,10 @@ impl LoadedSchema {
                     .iter()
                     .filter_map(|option| option.as_str().map(str::to_owned))
                     .collect();
-                let shown: Vec<String> =
-                    listed.iter().map(|option| format!("`{option}`")).collect();
+                let shown: Vec<String> = listed
+                    .iter()
+                    .map(|option| code_span(&option.to_string()))
+                    .collect();
                 let help = error
                     .instance()
                     .as_str()
@@ -317,7 +328,11 @@ impl LoadedSchema {
                 }]
             }
             ValidationErrorKind::Type { .. } => {
-                let expected = self.expected_types(error);
+                let expected: Vec<String> = self
+                    .expected_types(error)
+                    .iter()
+                    .map(|expected_type| code_span(expected_type))
+                    .collect();
                 let diagnostic = Diagnostic::at(
                     instance.value_position(pointer),
                     format!("{field} must be {}", expected.join(" or ")),
@@ -331,10 +346,12 @@ impl LoadedSchema {
             }
             ValidationErrorKind::Required { property } => {
                 let name = property.as_str().unwrap_or_default();
-                let diagnostic =
-                    Diagnostic::at(instance.position(pointer), format!("`{name}` is required"))
-                        .with_label(format!("{field} has no field `{name}`"))
-                        .with_rule(rule);
+                let diagnostic = Diagnostic::at(
+                    instance.position(pointer),
+                    format!("{} is required", code_span(name)),
+                )
+                .with_label(format!("{field} has no field {}", code_span(name)))
+                .with_rule(rule);
                 vec![SchemaProblem {
                     subject: pointer.to_owned(),
                     diagnostic,
@@ -344,51 +361,61 @@ impl LoadedSchema {
                 let holder = schema_path
                     .rsplit_once('/')
                     .map_or("", |(holder, _)| holder);
-                at_value(match described_form(&self.schema, holder) {
-                    Some(form) => format!("{field} must be {form}"),
-                    None => format!("{field} matches none of its allowed forms"),
-                })
+                at_value_with_schema(
+                    format!("{field} matches none of its allowed forms"),
+                    definition_description(&self.schema, holder),
+                )
             }
             ValidationErrorKind::OneOfMultipleValid { .. } => at_value(format!(
                 "{field} matches more than one of its allowed forms"
             )),
-            ValidationErrorKind::Constant { .. } => {
-                at_value(format!("{field} must be equal to constant"))
-            }
-            ValidationErrorKind::Minimum { limit } => {
-                at_value(format!("{field} must be >= {}", number_text(limit)))
-            }
-            ValidationErrorKind::Maximum { limit } => {
-                at_value(format!("{field} must be <= {}", number_text(limit)))
-            }
-            ValidationErrorKind::ExclusiveMinimum { limit } => {
-                at_value(format!("{field} must be > {}", number_text(limit)))
-            }
-            ValidationErrorKind::ExclusiveMaximum { limit } => {
-                at_value(format!("{field} must be < {}", number_text(limit)))
-            }
+            ValidationErrorKind::Constant { expected_value } => at_value(format!(
+                "{field} must be {}",
+                code_span(&expected_value.to_string())
+            )),
+            ValidationErrorKind::Minimum { limit } => at_value(format!(
+                "{field} must be >= {}",
+                code_span(&number_text(limit))
+            )),
+            ValidationErrorKind::Maximum { limit } => at_value(format!(
+                "{field} must be <= {}",
+                code_span(&number_text(limit))
+            )),
+            ValidationErrorKind::ExclusiveMinimum { limit } => at_value(format!(
+                "{field} must be > {}",
+                code_span(&number_text(limit))
+            )),
+            ValidationErrorKind::ExclusiveMaximum { limit } => at_value(format!(
+                "{field} must be < {}",
+                code_span(&number_text(limit))
+            )),
             ValidationErrorKind::MultipleOf { multiple_of } => at_value(format!(
                 "{field} must be multiple of {}",
-                number_text(&JsonValue::from(*multiple_of))
+                code_span(&number_text(&JsonValue::from(*multiple_of)))
             )),
             ValidationErrorKind::MinLength { limit } => at_value(format!(
-                "{field} must NOT have fewer than {limit} characters"
+                "{field} must NOT have fewer than {} characters",
+                limit_text(limit)
             )),
             ValidationErrorKind::MaxLength { limit } => at_value(format!(
-                "{field} must NOT have more than {limit} characters"
+                "{field} must NOT have more than {} characters",
+                limit_text(limit)
             )),
-            ValidationErrorKind::MinItems { limit } => {
-                at_value(format!("{field} must NOT have fewer than {limit} items"))
-            }
+            ValidationErrorKind::MinItems { limit } => at_value(format!(
+                "{field} must NOT have fewer than {} items",
+                limit_text(limit)
+            )),
             ValidationErrorKind::MaxItems { limit } => at_value(list_limit(*limit as usize)),
             ValidationErrorKind::MinProperties { limit } => at_value(format!(
-                "{field} must NOT have fewer than {limit} properties"
+                "{field} must NOT have fewer than {} properties",
+                limit_text(limit)
             )),
             ValidationErrorKind::MaxProperties { limit } => at_value(format!(
-                "{field} must NOT have more than {limit} properties"
+                "{field} must NOT have more than {} properties",
+                limit_text(limit)
             )),
             ValidationErrorKind::Pattern { pattern } => {
-                at_value(format!("{field} must match pattern \"{pattern}\""))
+                at_value(format!("{field} must match pattern {}", code_span(pattern)))
             }
             ValidationErrorKind::UniqueItems => {
                 let items = error
@@ -414,7 +441,10 @@ impl LoadedSchema {
                         .with_rule(rule_at("contains", &format!("{holder}/contains"))),
                 }]
             }
-            ValidationErrorKind::Not { .. } => at_value(format!("{field} must NOT be valid")),
+            ValidationErrorKind::Not { .. } => at_value_with_schema(
+                format!("{field} matches a form that is not allowed"),
+                self.schema.pointer(schema_path).and_then(description_text),
+            ),
             ValidationErrorKind::AdditionalItems { limit } => at_value(list_limit(*limit)),
             ValidationErrorKind::UnevaluatedItems { unexpected } => {
                 let length = error.instance().as_array().map_or(0, Vec::len);
@@ -441,9 +471,12 @@ impl LoadedSchema {
                 let list_field = field_name(json, list);
                 let diagnostic = Diagnostic::at(
                     instance.value_position(list),
-                    format!("{list_field} must NOT have more than {limit} items"),
+                    format!(
+                        "{list_field} must NOT have more than {} items",
+                        code_span(&limit.to_string())
+                    ),
                 )
-                .with_label(format!("breaks `{keyword}`"))
+                .with_label(format!("breaks {}", code_span(keyword)))
                 .with_rule(rule_at(keyword, schema_path));
                 vec![SchemaProblem {
                     subject: list.to_owned(),
@@ -453,7 +486,10 @@ impl LoadedSchema {
             ValidationErrorKind::FalseSchema => {
                 at_value(format!("{field} boolean schema is false"))
             }
-            _ => at_value(format!("{field} breaks `{}`", error.kind().keyword())),
+            _ => at_value(format!(
+                "{field} breaks {}",
+                code_span(error.kind().keyword())
+            )),
         }
     }
 }
@@ -863,7 +899,7 @@ mod tests {
         };
         assert_eq!(
             messages(&schema().validate(&document, &rules)),
-            ["`encrypted` must be boolean"]
+            ["`encrypted` must be `boolean`"]
         );
     }
 
@@ -881,7 +917,7 @@ mod tests {
             )]),
         )]);
         let diagnostics = schema().validate(&document, &ValidationRules::default());
-        assert_eq!(messages(&diagnostics), ["`visibility` must be integer"]);
+        assert_eq!(messages(&diagnostics), ["`visibility` must be `integer`"]);
         let notes = diagnostics[0].notes.as_deref().unwrap();
         assert_eq!(notes.label.as_deref(), Some("is a string"));
         assert_eq!(

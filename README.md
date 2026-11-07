@@ -33,7 +33,7 @@ What each package implements is designed in [docs/package-design.md](docs/packag
 
 ## Conformance
 
-[`conformance/`](conformance) holds the cases every package reads alike. A package's tests run every case, and a problem is compared with its line, column, message, label, rule and help.
+[`conformance/`](conformance) holds the cases every package reads alike. A package's tests run every case, and a problem is compared with its line, column, message, label, rule, schema and help.
 
 | Cases | Each case | Reads to |
 |---|---|---|

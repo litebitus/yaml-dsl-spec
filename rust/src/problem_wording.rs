@@ -40,7 +40,23 @@ pub fn field_name(document: &JsonValue, pointer: &str) -> String {
         .iter()
         .map(|(index, _)| format!("[{index}]"))
         .collect();
-    format!("`{key}{indexes}`")
+    code_span(&format!("{key}{indexes}"))
+}
+
+/// `text` fenced in the fewest backticks it does not hold, padded with a space
+/// where it begins or ends with a backtick.
+pub fn code_span(text: &str) -> String {
+    let longest_run = text
+        .split(|character| character != '`')
+        .map(str::len)
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest_run + 1);
+    if text.starts_with('`') || text.ends_with('`') {
+        format!("{fence} {text} {fence}")
+    } else {
+        format!("{fence}{text}{fence}")
+    }
 }
 
 pub fn unescape_pointer(step: &str) -> String {
@@ -57,10 +73,9 @@ pub fn number_text(number: &JsonValue) -> String {
     }
 }
 
-/// The sentence of an alternative none of whose forms holds: the first sentence of
-/// the definition holding the alternatives, where they are a described
-/// definition's, `#/$defs/<name>` or `#/definitions/<name>`.
-pub fn described_form(schema: &JsonValue, holder_pointer: &str) -> Option<String> {
+/// The description of the definition holding alternatives none of whose forms
+/// holds, where they are a definition's, `#/$defs/<name>` or `#/definitions/<name>`.
+pub fn definition_description(schema: &JsonValue, holder_pointer: &str) -> Option<String> {
     let mut steps = holder_pointer.strip_prefix('/')?.split('/');
     let (Some(container), Some(_), None) = (steps.next(), steps.next(), steps.next()) else {
         return None;
@@ -68,28 +83,7 @@ pub fn described_form(schema: &JsonValue, holder_pointer: &str) -> Option<String
     if !DEFINITION_KEYWORDS.contains(&container) {
         return None;
     }
-    let description = description_text(schema.pointer(holder_pointer)?)?;
-    let sentence_end = description
-        .char_indices()
-        .zip(description.chars().skip(1))
-        .find(|((_, character), next)| *character == '.' && next.is_whitespace())
-        .map_or(description.len(), |((at, _), _)| at);
-    let sentence = &description[..sentence_end];
-    let first_sentence = sentence.strip_suffix('.').unwrap_or(sentence);
-    let leading_word: String = first_sentence
-        .chars()
-        .take_while(char::is_ascii_alphanumeric)
-        .collect();
-    let acronym = leading_word.chars().count() >= 2
-        && leading_word
-            .chars()
-            .all(|character| character.is_ascii_uppercase());
-    if acronym {
-        return Some(first_sentence.to_owned());
-    }
-    let mut characters = first_sentence.chars();
-    let first = characters.next()?;
-    Some(first.to_lowercase().chain(characters).collect())
+    description_text(schema.pointer(holder_pointer)?)
 }
 
 /// The key a dependency names, where `keyword_pointer` lies inside one: the
@@ -156,7 +150,7 @@ pub fn dependency_message(schema: &JsonValue, keyword_pointer: &str, key: &str) 
     } else {
         needed_texts.join("; ")
     };
-    format!("`{key}` needs {needed}")
+    format!("{} needs {needed}", code_span(key))
 }
 
 fn needed_text(needed: &JsonValue) -> String {
@@ -186,7 +180,11 @@ fn consequence_text(node: &JsonValue) -> Option<String> {
         .flatten()
     {
         if let Some(reference) = field_schema.get("$ref").and_then(JsonValue::as_str) {
-            parts.push(format!("`{field}` is a `{}`", reference_name(reference)));
+            parts.push(format!(
+                "{} is a {}",
+                code_span(field),
+                code_span(reference_name(reference))
+            ));
         }
     }
     for part in fields
@@ -211,7 +209,7 @@ fn consequence_text(node: &JsonValue) -> Option<String> {
     if parts.is_empty()
         && let Some(reference) = fields.get("$ref").and_then(JsonValue::as_str)
     {
-        parts.push(format!("a `{}`", reference_name(reference)));
+        parts.push(format!("a {}", code_span(reference_name(reference))));
     }
     (!parts.is_empty()).then(|| parts.join("; "))
 }
@@ -224,12 +222,7 @@ fn reference_name(reference: &str) -> &str {
 fn key_list(keys: &[JsonValue]) -> String {
     let spans: Vec<String> = keys
         .iter()
-        .map(|key| {
-            format!(
-                "`{}`",
-                key.as_str().map_or_else(|| key.to_string(), str::to_owned)
-            )
-        })
+        .map(|key| code_span(&key.as_str().map_or_else(|| key.to_string(), str::to_owned)))
         .collect();
     match spans.split_last() {
         Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
@@ -270,8 +263,12 @@ fn json_equal(first: &JsonValue, second: &JsonValue) -> bool {
 /// `must contain at least <min> valid item(s)`, with `and no more than <max>`
 /// where the node holding `contains` bounds it.
 pub fn contains_message(holder: Option<&JsonValue>) -> String {
-    let bound = |keyword: &str| holder.and_then(|node| node.get(keyword)).map(number_text);
-    let minimum = bound("minContains").unwrap_or_else(|| "1".to_owned());
+    let bound = |keyword: &str| {
+        holder
+            .and_then(|node| node.get(keyword))
+            .map(|number| code_span(&number_text(number)))
+    };
+    let minimum = bound("minContains").unwrap_or_else(|| code_span("1"));
     match bound("maxContains") {
         Some(maximum) => {
             format!("must contain at least {minimum} and no more than {maximum} valid item(s)")
@@ -332,19 +329,31 @@ mod tests {
     }
 
     #[test]
-    fn alternatives_of_a_described_definition_read_as_its_first_sentence() {
-        let schema = json!({"$defs": {
-            "size": {"description": "[optional] A literal number, or a ref. More."},
-            "arn": {"description": "ARN of a role."}
-        }});
+    fn alternatives_of_a_definition_report_its_description_as_written() {
+        let schema = json!({
+            "$defs": {
+                "size": {"description": "[optional] A literal number, or a ref. More."},
+                "arn": {"description": "ARN of a role.\nOr a ref to one."}
+            },
+            "properties": {"size": {"description": "A literal number."}}
+        });
         assert_eq!(
-            described_form(&schema, "/$defs/size").as_deref(),
-            Some("a literal number, or a ref")
+            definition_description(&schema, "/$defs/size").as_deref(),
+            Some("A literal number, or a ref. More.")
         );
         assert_eq!(
-            described_form(&schema, "/$defs/arn").as_deref(),
-            Some("ARN of a role")
+            definition_description(&schema, "/$defs/arn").as_deref(),
+            Some("ARN of a role.\nOr a ref to one.")
         );
-        assert_eq!(described_form(&schema, "/properties/size"), None);
+        assert_eq!(definition_description(&schema, "/properties/size"), None);
+    }
+
+    #[test]
+    fn a_value_is_fenced_in_more_backticks_than_it_holds_in_a_row() {
+        assert_eq!(code_span("on"), "`on`");
+        assert_eq!(code_span("a`b"), "``a`b``");
+        assert_eq!(code_span("a``b`c"), "```a``b`c```");
+        assert_eq!(code_span("`on"), "`` `on ``");
+        assert_eq!(code_span("on`"), "`` on` ``");
     }
 }

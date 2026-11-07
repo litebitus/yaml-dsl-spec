@@ -1,0 +1,19 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 12,
+      "message": "`described` matches a form that is not allowed",
+      "label": "breaks `not`",
+      "rule": "not, at schema.json#/properties/described/not",
+      "schema": "A mock value no longer read."
+    },
+    {
+      "line": 2,
+      "column": 14,
+      "message": "`undescribed` matches a form that is not allowed",
+      "label": "breaks `not`",
+      "rule": "not, at schema.json#/properties/undescribed/not"
+    }
+  ]
+}

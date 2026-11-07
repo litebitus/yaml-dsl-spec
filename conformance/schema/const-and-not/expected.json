@@ -3,28 +3,28 @@
     {
       "line": 1,
       "column": 8,
-      "message": "`fixed` must be equal to constant",
+      "message": "`fixed` must be `\"on\"`",
       "label": "breaks `const`",
       "rule": "const, at schema.json#/properties/fixed/const"
     },
     {
       "line": 2,
       "column": 12,
-      "message": "`fixed_map` must be equal to constant",
+      "message": "`fixed_map` must be `{\"a\":1}`",
       "label": "breaks `const`",
       "rule": "const, at schema.json#/properties/fixed_map/const"
     },
     {
       "line": 3,
       "column": 12,
-      "message": "`not_empty` must NOT be valid",
+      "message": "`not_empty` matches a form that is not allowed",
       "label": "breaks `not`",
       "rule": "not, at schema.json#/properties/not_empty/not"
     },
     {
       "line": 4,
       "column": 13,
-      "message": "`not_string` must NOT be valid",
+      "message": "`not_string` matches a form that is not allowed",
       "label": "breaks `not`",
       "rule": "not, at schema.json#/properties/not_string/not"
     }

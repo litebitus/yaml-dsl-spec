@@ -3,7 +3,7 @@
     {
       "line": 69,
       "column": 22,
-      "message": "`scope_group` must be null",
+      "message": "`scope_group` must be `null`",
       "label": "scope `GLOBAL` is not named by a parent key"
     }
   ]

@@ -17,6 +17,8 @@ pub struct DiagnosticNotes {
     pub label: Option<String>,
     /// The schema rule the document breaks: its keyword and where the schema holds it.
     pub rule: Option<String>,
+    /// The schema's own words a problem reports, as written.
+    pub schema: Option<String>,
     /// How the problem may be fixed, such as the allowed name closest to a misspelt one.
     pub help: Option<String>,
 }
@@ -44,6 +46,13 @@ impl Diagnostic {
 
     pub fn with_rule(mut self, rule: impl Into<String>) -> Self {
         self.notes_mut().rule = Some(rule.into());
+        self
+    }
+
+    pub fn with_schema(mut self, schema: Option<String>) -> Self {
+        if schema.is_some() {
+            self.notes_mut().schema = schema;
+        }
         self
     }
 

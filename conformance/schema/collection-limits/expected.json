@@ -3,14 +3,14 @@
     {
       "line": 1,
       "column": 6,
-      "message": "`few` must NOT have fewer than 2 items",
+      "message": "`few` must NOT have fewer than `2` items",
       "label": "breaks `minItems`",
       "rule": "minItems, at schema.json#/properties/few/minItems"
     },
     {
       "line": 2,
       "column": 11,
-      "message": "`one_item` must NOT have more than 1 items",
+      "message": "`one_item` must NOT have more than `1` items",
       "label": "breaks `maxItems`",
       "rule": "maxItems, at schema.json#/properties/one_item/maxItems"
     },
@@ -24,21 +24,21 @@
     {
       "line": 4,
       "column": 8,
-      "message": "`small` must NOT have more than 1 properties",
+      "message": "`small` must NOT have more than `1` properties",
       "label": "breaks `maxProperties`",
       "rule": "maxProperties, at schema.json#/properties/small/maxProperties"
     },
     {
       "line": 5,
       "column": 15,
-      "message": "`one_property` must NOT have fewer than 1 properties",
+      "message": "`one_property` must NOT have fewer than `1` properties",
       "label": "breaks `minProperties`",
       "rule": "minProperties, at schema.json#/properties/one_property/minProperties"
     },
     {
       "line": 6,
       "column": 18,
-      "message": "`many_properties` must NOT have fewer than 2 properties",
+      "message": "`many_properties` must NOT have fewer than `2` properties",
       "label": "breaks `minProperties`",
       "rule": "minProperties, at schema.json#/properties/many_properties/minProperties"
     }

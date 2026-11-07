@@ -3,14 +3,14 @@
     {
       "line": 2,
       "column": 8,
-      "message": "`a/b` must be integer",
+      "message": "`a/b` must be `integer`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/paths/properties/a~1b/type"
     },
     {
       "line": 3,
       "column": 8,
-      "message": "`c~d` must be integer",
+      "message": "`c~d` must be `integer`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/paths/properties/c~0d/type"
     },

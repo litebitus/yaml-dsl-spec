@@ -3,63 +3,63 @@
     {
       "line": 1,
       "column": 8,
-      "message": "`count` must be integer",
+      "message": "`count` must be `integer`",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/count/type"
     },
     {
       "line": 2,
       "column": 8,
-      "message": "`ratio` must be number",
+      "message": "`ratio` must be `number`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/ratio/type"
     },
     {
       "line": 3,
       "column": 8,
-      "message": "`label` must be string",
+      "message": "`label` must be `string`",
       "label": "is an integer",
       "rule": "type, at schema.json#/properties/label/type"
     },
     {
       "line": 4,
       "column": 7,
-      "message": "`flag` must be boolean",
+      "message": "`flag` must be `boolean`",
       "label": "is a string",
       "rule": "type, at schema.json#/properties/flag/type"
     },
     {
       "line": 5,
       "column": 8,
-      "message": "`items` must be array",
+      "message": "`items` must be `array`",
       "label": "is an object",
       "rule": "type, at schema.json#/properties/items/type"
     },
     {
       "line": 6,
       "column": 11,
-      "message": "`settings` must be object",
+      "message": "`settings` must be `object`",
       "label": "is an array",
       "rule": "type, at schema.json#/properties/settings/type"
     },
     {
       "line": 7,
       "column": 10,
-      "message": "`nothing` must be null",
+      "message": "`nothing` must be `null`",
       "label": "is an integer",
       "rule": "type, at schema.json#/properties/nothing/type"
     },
     {
       "line": 8,
       "column": 9,
-      "message": "`either` must be string or null",
+      "message": "`either` must be `string` or `null`",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/either/type"
     },
     {
       "line": 9,
       "column": 10,
-      "message": "`several` must be object or array or string",
+      "message": "`several` must be `object` or `array` or `string`",
       "label": "is a number",
       "rule": "type, at schema.json#/properties/several/type"
     }

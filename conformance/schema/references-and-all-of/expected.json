@@ -3,7 +3,7 @@
     {
       "line": 3,
       "column": 11,
-      "message": "`fifo` must be boolean",
+      "message": "`fifo` must be `boolean`",
       "label": "is a string",
       "rule": "type, at schema.json#/$defs/queue/properties/fifo/type"
     },

@@ -3,7 +3,7 @@
     {
       "line": 4,
       "column": 20,
-      "message": "`file_includes` must be array",
+      "message": "`file_includes` must be `array`",
       "label": "is a string",
       "rule": "type, at yaml-dsl-v1.2.schema.json#/$defs/globs/type"
     },

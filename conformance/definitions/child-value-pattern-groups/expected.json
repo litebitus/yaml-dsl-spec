@@ -3,7 +3,7 @@
     {
       "line": 73,
       "column": 20,
-      "message": "`pattern` must match pattern \"\\(\\?<field>[\\s\\S]*\\(\\?<value>|\\(\\?<value>[\\s\\S]*\\(\\?<field>\"",
+      "message": "`pattern` must match pattern `\\(\\?<field>[\\s\\S]*\\(\\?<value>|\\(\\?<value>[\\s\\S]*\\(\\?<field>`",
       "label": "breaks `pattern`",
       "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/validator/properties/child_values_from_parent_key/items/properties/pattern/pattern"
     }
