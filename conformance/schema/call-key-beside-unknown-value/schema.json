@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "routes": { "type": "object", "additionalProperties": { "$ref": "#/$defs/route" } }
+  },
+  "$defs": {
+    "function_key_fields": { "patternProperties": { "^(\\S+ )?fn\\.[a-z0-9_]+\\*?$": true } },
+    "route": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "$ref": "#/$defs/function_key_fields",
+      "properties": {
+        "priority": { "type": "integer" },
+        "vpc_id": { "type": "string" }
+      }
+    }
+  }
+}

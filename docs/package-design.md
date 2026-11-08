@@ -103,8 +103,14 @@ In order, each by the DSL's `validator` block:
 3. A quoted value that spells a type `allow_quoted_values` lists, where the schema expects that type, is validated as that type: `true` and `false` a boolean, `-?(0|[1-9][0-9]*)` an integer, and a number a fraction and an exponent beside. One that spells none stays a string.
 
 - A value not known until the document compiles, a call, a reference or a template, is not checked, nor a check that reads a value below it through a subschema or compares the values below it.
+- An unknown field or item of a map or list holding such a value is reported unless the schema could read it by a keyword below, reached through `$ref`, `allOf`, `anyOf`, `oneOf`, `if`, `then`, `else` or `dependentSchemas`. A field or item the schema could read depends on a branch that reads the unknown value, and is not checked.
 - A problem on a value an entry has only from a merge base key is not reported.
 - Formats are not validated.
+
+| Unknown | Read by |
+|---|---|
+| a field | a `properties` entry, a matching `patternProperties` pattern, an `additionalProperties` other than `false`, or a nested `unevaluatedProperties` other than `false` |
+| an item | a `prefixItems` entry at its index, an `items` other than `false`, a `contains`, or a nested `unevaluatedItems` other than `false` |
 
 ### Requirement markers
 

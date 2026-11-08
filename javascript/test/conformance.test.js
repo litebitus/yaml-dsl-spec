@@ -94,7 +94,36 @@ function schemaReading(folder) {
   } catch (error) {
     return { error: error.message };
   }
-  return { problems: loaded.validate(resolved.Value.fromNode(node), rules).map(problemJson) };
+  const unknownPointers = readJson(path.join(folder, 'unknown-values.json')) || [];
+  const documentValue = withUnknownValues(resolved.Value.fromNode(node), '', unknownPointers);
+  return { problems: loaded.validate(documentValue, rules).map(problemJson) };
+}
+
+function withUnknownValues(value, pointer, unknownPointers) {
+  if (unknownPointers.includes(pointer)) {
+    const reference = resolved.reference({
+      scope: 'mock',
+      name: 'mock',
+      path: '',
+      text: value.scalarText() || '',
+      target: { kind: 'declaration', position: value.position },
+    });
+    return new resolved.Value('reference', reference, value.position);
+  }
+  if (value.kind === 'map') {
+    const entries = value.value.map((entry) => {
+      const child = `${pointer}/${entry.key.replace(/~/gu, '~0').replace(/\//gu, '~1')}`;
+      return { ...entry, value: withUnknownValues(entry.value, child, unknownPointers) };
+    });
+    return new resolved.Value('map', entries, value.position);
+  }
+  if (value.kind === 'list') {
+    const items = value.value.map(
+      (item, index) => withUnknownValues(item, `${pointer}/${index}`, unknownPointers),
+    );
+    return new resolved.Value('list', items, value.position);
+  }
+  return value;
 }
 
 function patternReading(entry) {

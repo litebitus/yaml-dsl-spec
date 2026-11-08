@@ -8,6 +8,7 @@ const { Diagnostic } = require('./diagnostic-report');
 const { FunctionTable } = require('./function-table');
 const { numberJson, integerOfText } = require('./yaml-node');
 const { descriptionText, markedSchema } = require('./requirement-markers');
+const { compilePattern } = require('./pattern-dialect');
 const {
   fieldName,
   codeSpan,
@@ -63,8 +64,6 @@ const READS_BELOW_KEYWORDS = new Set([
   'oneOf',
   'not',
   'contains',
-  'unevaluatedItems',
-  'unevaluatedProperties',
   'uniqueItems',
 ]);
 const REQUIRED_KEYWORDS = new Set(['required', 'dependentRequired', 'dependencies']);
@@ -275,6 +274,9 @@ class LoadedSchema {
       const name = error.keyword === 'additionalProperties'
         ? error.params.additionalProperty
         : error.params.unevaluatedProperty;
+      const couldAccept = () => fieldCouldBeAccepted(this.schema, schemaPointer, name);
+      const isUnevaluated = error.keyword === 'unevaluatedProperties';
+      if (isUnevaluated && instance.memberReadsUnknown(pointer, couldAccept)) return [];
       const allowed = allowedFields(this.schema, schemaPointer);
       const subject = `${pointer}/${escapePointer(name)}`;
       return [{
@@ -364,8 +366,16 @@ class LoadedSchema {
           descriptionText(schemaNodeAt(this.schema, schemaPointer)),
         );
       case 'false schema': return atValue(`${field} boolean schema is false`);
-      case 'unevaluatedItems':
-        return atValue(`${field} must NOT have more than ${limitText(error.params.len)} items`);
+      case 'unevaluatedItems': {
+        const length = (valueAt(json, pointer) || []).length;
+        let beyond = 0;
+        for (let index = error.params.limit; index < length; index += 1) {
+          const couldEvaluate = () => itemCouldBeEvaluated(this.schema, schemaPointer, index);
+          if (!instance.memberReadsUnknown(pointer, couldEvaluate)) beyond += 1;
+        }
+        if (beyond === 0) return [];
+        return atValue(`${field} must NOT have more than ${limitText(length - beyond)} items`);
+      }
       default: return atValue(`${field} breaks ${codeSpan(keyword)}`);
     }
   }
@@ -496,6 +506,66 @@ function collectFields(schema, node, fields, visited) {
       collectFields(schema, branch, fields, visited);
     }
   }
+}
+
+function fieldCouldBeAccepted(schema, keywordPointer, name) {
+  const patternAccepts = (pattern) => {
+    const compiled = compilePattern(pattern);
+    return compiled === null || compiled.test(name);
+  };
+  return schemaCouldRead(schema, keywordPointer, (node, isHolder) => {
+    const patterns = isObject(node.patternProperties) ? Object.keys(node.patternProperties) : [];
+    return (isObject(node.properties) && Object.hasOwn(node.properties, name))
+      || patterns.some(patternAccepts)
+      || isNotFalse(node, 'additionalProperties')
+      || (!isHolder && isNotFalse(node, 'unevaluatedProperties'));
+  });
+}
+
+function itemCouldBeEvaluated(schema, keywordPointer, index) {
+  return schemaCouldRead(schema, keywordPointer, (node, isHolder) => (
+    (Array.isArray(node.prefixItems) && node.prefixItems.length > index)
+      || isNotFalse(node, 'items')
+      || node.contains !== undefined
+      || (!isHolder && isNotFalse(node, 'unevaluatedItems'))
+  ));
+}
+
+function isNotFalse(node, keyword) {
+  return node[keyword] !== undefined && node[keyword] !== false;
+}
+
+function schemaCouldRead(schema, keywordPointer, readsMember) {
+  const holderPointer = keywordPointer.includes('/')
+    ? keywordPointer.slice(0, keywordPointer.lastIndexOf('/'))
+    : '';
+  const holder = schemaNodeAt(schema, holderPointer);
+  return holder === undefined || nodeCouldRead(schema, holder, true, readsMember, new Set());
+}
+
+function nodeCouldRead(schema, node, isHolder, readsMember, visited) {
+  if (!isObject(node)) return false;
+  if (readsMember(node, isHolder)) return true;
+  if (typeof node.$ref === 'string') {
+    if (!node.$ref.startsWith('#')) return true;
+    const pointer = node.$ref.slice(1);
+    if (!visited.has(pointer)) {
+      visited.add(pointer);
+      const target = schemaNodeAt(schema, pointer);
+      if (target !== undefined && nodeCouldRead(schema, target, false, readsMember, visited)) {
+        return true;
+      }
+    }
+  }
+  const branches = [
+    ...['allOf', 'anyOf', 'oneOf']
+      .flatMap((combinator) => (Array.isArray(node[combinator]) ? node[combinator] : [])),
+    ...['if', 'then', 'else']
+      .filter((keyword) => node[keyword] !== undefined)
+      .map((keyword) => node[keyword]),
+    ...(isObject(node.dependentSchemas) ? Object.values(node.dependentSchemas) : []),
+  ];
+  return branches.some((branch) => nodeCouldRead(schema, branch, false, readsMember, visited));
 }
 
 /**
@@ -686,8 +756,16 @@ class InstanceRecord {
    */
   readsUnknown(pointer, keyword) {
     if (this.isUnknown(pointer)) return true;
+    return READS_BELOW_KEYWORDS.has(keyword) && this.holdsUnknownBelow(pointer);
+  }
+
+  memberReadsUnknown(pointer, schemaCouldRead) {
+    return this.holdsUnknownBelow(pointer) && schemaCouldRead();
+  }
+
+  holdsUnknownBelow(pointer) {
     const below = `${pointer}/`;
-    return READS_BELOW_KEYWORDS.has(keyword) && this.unknown.some((unknown) => unknown.startsWith(below));
+    return this.unknown.some((unknown) => unknown.startsWith(below));
   }
 
   isUnknown(pointer) {

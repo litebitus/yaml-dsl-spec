@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
+	"strconv"
 	"testing"
 )
 
@@ -200,7 +202,44 @@ func schemaReading(testingContext *testing.T, caseFolder string) any {
 	if loadError != nil {
 		return map[string]any{"error": loadError.Error()}
 	}
-	return map[string]any{"problems": problemsJSON(loadedSchema.Validate(ResolvedValueFromNode(rootNode), validationRules))}
+	var unknownPointers []string
+	if pointersValue, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "unknown-values.json")); isPresent {
+		for _, pointerValue := range pointersValue.([]any) {
+			unknownPointers = append(unknownPointers, pointerValue.(string))
+		}
+	}
+	documentValue := withUnknownValues(ResolvedValueFromNode(rootNode), "", unknownPointers)
+	return map[string]any{"problems": problemsJSON(loadedSchema.Validate(documentValue, validationRules))}
+}
+
+func withUnknownValues(documentValue ResolvedValue, valuePointer string, unknownPointers []string) ResolvedValue {
+	if slices.Contains(unknownPointers, valuePointer) {
+		referenceText, _ := documentValue.ScalarText()
+		declarationPosition := documentValue.Position
+		return ResolvedValue{
+			Kind:     ResolvedReference,
+			Position: documentValue.Position,
+			Reference: &Reference{
+				Scope:  "mock",
+				Name:   "mock",
+				Text:   referenceText,
+				Target: ReferenceTarget{Kind: TargetDeclaration, DeclarationPosition: &declarationPosition},
+			},
+		}
+	}
+	readValue := documentValue
+	readValue.Entries = nil
+	for _, mapEntry := range documentValue.Entries {
+		entryPointer := valuePointer + "/" + escapePointer(mapEntry.Key)
+		mapEntry.Value = withUnknownValues(mapEntry.Value, entryPointer, unknownPointers)
+		readValue.Entries = append(readValue.Entries, mapEntry)
+	}
+	readValue.Items = nil
+	for itemIndex, listItem := range documentValue.Items {
+		itemPointer := valuePointer + "/" + strconv.Itoa(itemIndex)
+		readValue.Items = append(readValue.Items, withUnknownValues(listItem, itemPointer, unknownPointers))
+	}
+	return readValue
 }
 
 func patternReading(patternCase map[string]any) map[string]any {

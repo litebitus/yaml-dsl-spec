@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 8,
+      "message": "`ports` must NOT have more than `2` items",
+      "label": "breaks `unevaluatedItems`",
+      "rule": "unevaluatedItems, at schema.json#/properties/ports/unevaluatedItems"
+    }
+  ]
+}

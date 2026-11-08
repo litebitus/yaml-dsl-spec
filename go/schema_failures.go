@@ -11,7 +11,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 )
 
-var readsBelowKeywords = []string{"anyOf", "oneOf", "not", "contains", "unevaluatedItems", "unevaluatedProperties", "uniqueItems"}
+var readsBelowKeywords = []string{"anyOf", "oneOf", "not", "contains", "uniqueItems"}
 
 type failedCheck struct {
 	failedKeyword   string

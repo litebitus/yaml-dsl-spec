@@ -75,8 +75,15 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 	switch checkFailure.failedKeyword {
 	case "additionalProperties", "unevaluatedProperties":
 		allowedNames := allowedFields(loadedSchema.originalSchema, checkFailure.schemaPointer)
+		isUnevaluated := checkFailure.failedKeyword == "unevaluatedProperties"
 		var unknownProblems []schemaProblem
 		for _, unexpectedName := range checkFailure.fieldNames {
+			couldAccept := func() bool {
+				return fieldCouldBeAccepted(loadedSchema.originalSchema, checkFailure.schemaPointer, unexpectedName)
+			}
+			if isUnevaluated && documentRecord.memberReadsUnknown(valuePointer, couldAccept) {
+				continue
+			}
 			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
 			unknownMessage := CodeSpan(unexpectedName) + " is not a field of " + namedField
 			unknownProblem := DiagnosticAt(documentRecord.keyPosition(subjectPointer), unknownMessage).
@@ -147,7 +154,20 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 		return problemBuilder.tupleProblems(checkFailure, namedField, checkRule)
 	case "unevaluatedItems":
 		listItems, _ := holderValue.([]any)
-		return atValue(listLimitMessage(namedField, max(len(listItems)-checkFailure.itemCount, 0)), nil)
+		beyondCount := 0
+		firstUnevaluated := max(len(listItems)-checkFailure.itemCount, 0)
+		for itemIndex := firstUnevaluated; itemIndex < len(listItems); itemIndex++ {
+			couldEvaluate := func() bool {
+				return itemCouldBeEvaluated(loadedSchema.originalSchema, checkFailure.schemaPointer, itemIndex)
+			}
+			if !documentRecord.memberReadsUnknown(valuePointer, couldEvaluate) {
+				beyondCount++
+			}
+		}
+		if beyondCount == 0 {
+			return nil
+		}
+		return atValue(listLimitMessage(namedField, len(listItems)-beyondCount), nil)
 	case "falseSchema":
 		return atValue(namedField+" boolean schema is false", nil)
 	}

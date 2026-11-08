@@ -1,0 +1,5 @@
+routes:
+  mock-route:
+    vpc_id: ref data_source.mock_vpc.id
+    priorty: 140
+    port: 8080

@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock};
 
+use fancy_regex::Regex;
 use jsonschema::error::{TypeKind, ValidationErrorKind};
 use jsonschema::{Draft, ValidationError};
 use serde_json::{Map, Value as JsonValue};
@@ -266,8 +267,18 @@ impl LoadedSchema {
             ValidationErrorKind::AdditionalProperties { unexpected }
             | ValidationErrorKind::UnevaluatedProperties { unexpected } => {
                 let allowed = allowed_fields(&self.schema, schema_path);
+                let is_unevaluated = matches!(
+                    error.kind(),
+                    ValidationErrorKind::UnevaluatedProperties { .. }
+                );
                 unexpected
                     .iter()
+                    .filter(|name| {
+                        !is_unevaluated
+                            || !instance.member_reads_unknown(pointer, || {
+                                field_could_be_accepted(&self.schema, schema_path, name)
+                            })
+                    })
                     .map(|name| {
                         let subject = format!("{pointer}/{}", escape_pointer(name));
                         let diagnostic = Diagnostic::at(
@@ -448,7 +459,18 @@ impl LoadedSchema {
             ValidationErrorKind::AdditionalItems { limit } => at_value(list_limit(*limit)),
             ValidationErrorKind::UnevaluatedItems { unexpected } => {
                 let length = error.instance().as_array().map_or(0, Vec::len);
-                at_value(list_limit(length.saturating_sub(unexpected.len())))
+                let evaluated = length.saturating_sub(unexpected.len());
+                let beyond = (evaluated..length)
+                    .filter(|index| {
+                        !instance.member_reads_unknown(pointer, || {
+                            item_could_be_evaluated(&self.schema, schema_path, *index)
+                        })
+                    })
+                    .count();
+                if beyond == 0 {
+                    return Vec::new();
+                }
+                at_value(list_limit(length - beyond))
             }
             ValidationErrorKind::FalseSchema
                 if schema_path.ends_with("/items") || schema_path.ends_with("/additionalItems") =>
@@ -588,6 +610,99 @@ fn collect_fields(
             collect_fields(schema, branch, fields, visited);
         }
     }
+}
+
+fn field_could_be_accepted(schema: &JsonValue, keyword_pointer: &str, name: &str) -> bool {
+    schema_could_read(schema, keyword_pointer, &|keywords, is_holder| {
+        keywords
+            .get("properties")
+            .and_then(JsonValue::as_object)
+            .is_some_and(|properties| properties.contains_key(name))
+            || keywords
+                .get("patternProperties")
+                .and_then(JsonValue::as_object)
+                .is_some_and(|patterns| {
+                    patterns.keys().any(|pattern| {
+                        Regex::new(pattern)
+                            .map_or(true, |compiled| compiled.is_match(name).unwrap_or(true))
+                    })
+                })
+            || is_not_false(keywords, "additionalProperties")
+            || (!is_holder && is_not_false(keywords, "unevaluatedProperties"))
+    })
+}
+
+fn item_could_be_evaluated(schema: &JsonValue, keyword_pointer: &str, index: usize) -> bool {
+    schema_could_read(schema, keyword_pointer, &|keywords, is_holder| {
+        keywords
+            .get("prefixItems")
+            .and_then(JsonValue::as_array)
+            .is_some_and(|prefix| prefix.len() > index)
+            || is_not_false(keywords, "items")
+            || keywords.contains_key("contains")
+            || (!is_holder && is_not_false(keywords, "unevaluatedItems"))
+    })
+}
+
+fn is_not_false(keywords: &Map<String, JsonValue>, keyword: &str) -> bool {
+    keywords
+        .get(keyword)
+        .is_some_and(|value| value != &JsonValue::Bool(false))
+}
+
+fn schema_could_read(
+    schema: &JsonValue,
+    keyword_pointer: &str,
+    reads_member: &dyn Fn(&Map<String, JsonValue>, bool) -> bool,
+) -> bool {
+    let holder_pointer = keyword_pointer
+        .rsplit_once('/')
+        .map_or("", |(holder, _)| holder);
+    schema.pointer(holder_pointer).is_none_or(|holder| {
+        node_could_read(schema, holder, true, reads_member, &mut BTreeSet::new())
+    })
+}
+
+fn node_could_read(
+    schema: &JsonValue,
+    node: &JsonValue,
+    is_holder: bool,
+    reads_member: &dyn Fn(&Map<String, JsonValue>, bool) -> bool,
+    visited: &mut BTreeSet<String>,
+) -> bool {
+    let Some(keywords) = node.as_object() else {
+        return false;
+    };
+    if reads_member(keywords, is_holder) {
+        return true;
+    }
+    if let Some(reference) = keywords.get("$ref").and_then(JsonValue::as_str) {
+        let Some(pointer) = reference.strip_prefix('#') else {
+            return true;
+        };
+        if visited.insert(pointer.to_owned())
+            && let Some(target) = schema.pointer(pointer)
+            && node_could_read(schema, target, false, reads_member, visited)
+        {
+            return true;
+        }
+    }
+    let listed_branches = ["allOf", "anyOf", "oneOf"]
+        .into_iter()
+        .filter_map(|combinator| keywords.get(combinator).and_then(JsonValue::as_array))
+        .flatten();
+    let conditional_branches = ["if", "then", "else"]
+        .into_iter()
+        .filter_map(|keyword| keywords.get(keyword));
+    let dependent_branches = keywords
+        .get("dependentSchemas")
+        .and_then(JsonValue::as_object)
+        .into_iter()
+        .flat_map(|dependents| dependents.values());
+    listed_branches
+        .chain(conditional_branches)
+        .chain(dependent_branches)
+        .any(|branch| node_could_read(schema, branch, false, reads_member, visited))
 }
 
 /// The candidate closest in spelling to `name`, where one is close enough to be a
@@ -760,16 +875,20 @@ impl Instance<'_> {
                 | ValidationErrorKind::OneOfMultipleValid { .. }
                 | ValidationErrorKind::Not { .. }
                 | ValidationErrorKind::Contains
-                | ValidationErrorKind::UnevaluatedItems { .. }
-                | ValidationErrorKind::UnevaluatedProperties { .. }
                 | ValidationErrorKind::UniqueItems
         );
+        reads_below && self.holds_unknown_below(pointer)
+    }
+
+    fn member_reads_unknown(&self, pointer: &str, schema_could_read: impl Fn() -> bool) -> bool {
+        self.holds_unknown_below(pointer) && schema_could_read()
+    }
+
+    fn holds_unknown_below(&self, pointer: &str) -> bool {
         let below = format!("{pointer}/");
-        reads_below
-            && self
-                .unknown
-                .iter()
-                .any(|unknown| unknown.starts_with(&below))
+        self.unknown
+            .iter()
+            .any(|unknown| unknown.starts_with(&below))
     }
 
     fn is_unknown(&self, pointer: &str) -> bool {

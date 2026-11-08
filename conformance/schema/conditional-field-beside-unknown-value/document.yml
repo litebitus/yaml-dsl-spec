@@ -1,0 +1,4 @@
+listener:
+  kind: ref local.mock_kind
+  port: 443
+  certificate: mock-certificate

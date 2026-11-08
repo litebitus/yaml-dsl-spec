@@ -5,8 +5,9 @@
 //! - `conformance/yaml/`: an `input.yml`, read with the tag keys of an optional
 //!   `tag-keys.json`, to its node tree or its problem;
 //! - `conformance/schema/`: a `document.yml` validated against a `schema.json`, read
-//!   by the DSL `validator` block of an optional `validator.json`, to its problems,
-//!   or to why the schema is not read;
+//!   by the DSL `validator` block of an optional `validator.json`, each value at a
+//!   pointer of an optional `unknown-values.json` read as a reference, to its
+//!   problems, or to why the schema is not read;
 //! - `conformance/patterns/cases.json`: each pattern, to its named groups and the
 //!   captures of each text, or to not compiling.
 
@@ -17,7 +18,7 @@ use std::sync::Arc;
 use fancy_regex::Regex;
 use serde_json::{Map, Value, json};
 use yaml_dsl_spec::definition::{TagKey, Validator};
-use yaml_dsl_spec::resolved::Value as ResolvedValue;
+use yaml_dsl_spec::resolved::{MapEntry, Reference, Target, Value as ResolvedValue, ValueKind};
 use yaml_dsl_spec::schema::SchemaCache;
 use yaml_dsl_spec::{
     Diagnostic, Node, NodeKind, ValidationRules, read_dsl_definitions, yaml_reader,
@@ -173,8 +174,61 @@ fn schema_reading(folder: &Path) -> Value {
         Ok(loaded) => loaded,
         Err(message) => return json!({ "error": message }),
     };
-    let problems = loaded.validate(&ResolvedValue::from_node(&root), &rules);
+    let unknown_pointers: Vec<String> = optional_json(&folder.join("unknown-values.json"))
+        .map(|pointers| serde_json::from_value(pointers).unwrap())
+        .unwrap_or_default();
+    let document = with_unknown_values(ResolvedValue::from_node(&root), "", &unknown_pointers);
+    let problems = loaded.validate(&document, &rules);
     json!({ "problems": problems.iter().map(problem_json).collect::<Vec<_>>() })
+}
+
+fn with_unknown_values(
+    value: ResolvedValue,
+    pointer: &str,
+    unknown_pointers: &[String],
+) -> ResolvedValue {
+    if unknown_pointers.iter().any(|unknown| unknown == pointer) {
+        let reference = Reference {
+            scope: "mock".to_owned(),
+            scope_key: None,
+            name: "mock".to_owned(),
+            path: String::new(),
+            text: value.scalar_text().unwrap_or_default(),
+            target: Target::Declaration {
+                position: value.position.clone(),
+            },
+        };
+        return ResolvedValue::new(ValueKind::Reference(reference), value.position);
+    }
+    let position = value.position.clone();
+    let kind = match value.kind {
+        ValueKind::Map(entries) => ValueKind::Map(
+            entries
+                .into_iter()
+                .map(|entry| {
+                    let child = format!(
+                        "{pointer}/{}",
+                        entry.key.replace('~', "~0").replace('/', "~1")
+                    );
+                    MapEntry {
+                        value: with_unknown_values(entry.value, &child, unknown_pointers),
+                        ..entry
+                    }
+                })
+                .collect(),
+        ),
+        ValueKind::List(items) => ValueKind::List(
+            items
+                .into_iter()
+                .enumerate()
+                .map(|(index, item)| {
+                    with_unknown_values(item, &format!("{pointer}/{index}"), unknown_pointers)
+                })
+                .collect(),
+        ),
+        other => other,
+    };
+    ResolvedValue::new(kind, position)
 }
 
 fn pattern_reading(case: &Value) -> Value {

@@ -1,0 +1,5 @@
+routes:
+  mock-route:
+    vpc_id: ref data_source.mock_vpc.id
+    tags fn.mock_merge: [mock-a, mock-b]
+    priority: 140

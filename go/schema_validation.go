@@ -267,6 +267,94 @@ func collectFields(schemaValue, schemaNode any, fieldNames *[]string, visitedPoi
 	}
 }
 
+func fieldCouldBeAccepted(schemaValue any, keywordPointer, fieldName string) bool {
+	return schemaCouldRead(schemaValue, keywordPointer, func(schemaNode any, isHolder bool) bool {
+		propertiesValue, _ := objectField(schemaNode, "properties")
+		if slices.Contains(objectKeys(propertiesValue), fieldName) {
+			return true
+		}
+		patternsValue, _ := objectField(schemaNode, "patternProperties")
+		for _, patternText := range objectKeys(patternsValue) {
+			compiledPattern, compileError := CompilePattern(patternText)
+			if compileError != nil || compiledPattern.MatchString(fieldName) {
+				return true
+			}
+		}
+		return isNotFalse(schemaNode, "additionalProperties") ||
+			(!isHolder && isNotFalse(schemaNode, "unevaluatedProperties"))
+	})
+}
+
+func itemCouldBeEvaluated(schemaValue any, keywordPointer string, itemIndex int) bool {
+	return schemaCouldRead(schemaValue, keywordPointer, func(schemaNode any, isHolder bool) bool {
+		prefixValue, _ := objectField(schemaNode, "prefixItems")
+		prefixSchemas, _ := prefixValue.([]any)
+		_, hasContains := objectField(schemaNode, "contains")
+		return len(prefixSchemas) > itemIndex ||
+			isNotFalse(schemaNode, "items") ||
+			hasContains ||
+			(!isHolder && isNotFalse(schemaNode, "unevaluatedItems"))
+	})
+}
+
+func isNotFalse(schemaNode any, keywordName string) bool {
+	keywordValue, isPresent := objectField(schemaNode, keywordName)
+	return isPresent && keywordValue != false
+}
+
+func schemaCouldRead(schemaValue any, keywordPointer string, readsMember func(any, bool) bool) bool {
+	holderPointer := keywordPointer[:max(strings.LastIndexByte(keywordPointer, '/'), 0)]
+	holderNode, isFound := jsonPointerValue(schemaValue, holderPointer)
+	return !isFound || nodeCouldRead(schemaValue, holderNode, true, readsMember, map[string]bool{})
+}
+
+func nodeCouldRead(
+	schemaValue, schemaNode any,
+	isHolder bool,
+	readsMember func(any, bool) bool,
+	visitedPointers map[string]bool,
+) bool {
+	if readsMember(schemaNode, isHolder) {
+		return true
+	}
+	referenceValue, _ := objectField(schemaNode, "$ref")
+	if referenceText, isText := referenceValue.(string); isText {
+		referencePointer, isLocal := strings.CutPrefix(referenceText, "#")
+		if !isLocal {
+			return true
+		}
+		if !visitedPointers[referencePointer] {
+			visitedPointers[referencePointer] = true
+			targetNode, isFound := jsonPointerValue(schemaValue, referencePointer)
+			if isFound && nodeCouldRead(schemaValue, targetNode, false, readsMember, visitedPointers) {
+				return true
+			}
+		}
+	}
+	var branchSchemas []any
+	for _, combinatorKeyword := range []string{"allOf", "anyOf", "oneOf"} {
+		branchesValue, _ := objectField(schemaNode, combinatorKeyword)
+		listedBranches, _ := branchesValue.([]any)
+		branchSchemas = append(branchSchemas, listedBranches...)
+	}
+	for _, conditionKeyword := range []string{"if", "then", "else"} {
+		if conditionSchema, isPresent := objectField(schemaNode, conditionKeyword); isPresent {
+			branchSchemas = append(branchSchemas, conditionSchema)
+		}
+	}
+	dependentsValue, _ := objectField(schemaNode, "dependentSchemas")
+	for _, dependentKey := range objectKeys(dependentsValue) {
+		dependentSchema, _ := objectField(dependentsValue, dependentKey)
+		branchSchemas = append(branchSchemas, dependentSchema)
+	}
+	for _, branchSchema := range branchSchemas {
+		if nodeCouldRead(schemaValue, branchSchema, false, readsMember, visitedPointers) {
+			return true
+		}
+	}
+	return false
+}
+
 // ClosestName is the candidate a misspelt name most likely means, where one is close enough and no other is as close.
 func ClosestName(misspeltName string, candidateNames []string) (string, bool) {
 	type rankedCandidate struct {

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "ports": {
+      "type": "array",
+      "unevaluatedItems": false,
+      "allOf": [{ "prefixItems": [{ "type": "string" }], "items": { "type": "integer" } }]
+    }
+  }
+}

@@ -114,9 +114,14 @@ func (documentRecord *instanceRecord) readsUnknown(valuePointer, failedKeyword s
 	if documentRecord.isUnknown(valuePointer) {
 		return true
 	}
-	if !slices.Contains(readsBelowKeywords, failedKeyword) {
-		return false
-	}
+	return slices.Contains(readsBelowKeywords, failedKeyword) && documentRecord.holdsUnknownBelow(valuePointer)
+}
+
+func (documentRecord *instanceRecord) memberReadsUnknown(valuePointer string, schemaCouldRead func() bool) bool {
+	return documentRecord.holdsUnknownBelow(valuePointer) && schemaCouldRead()
+}
+
+func (documentRecord *instanceRecord) holdsUnknownBelow(valuePointer string) bool {
 	for unknownPointer := range documentRecord.unknownValues {
 		if strings.HasPrefix(unknownPointer, valuePointer+"/") {
 			return true
