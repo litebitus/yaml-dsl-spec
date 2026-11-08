@@ -96,7 +96,7 @@ version: "1.0"
 
 | Target | Does |
 |---|---|
-| `make test` | the crate's format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests |
+| `make test` | the crate's format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests; each package's tests fail under 90% line coverage |
 | `make build` | `make test`, then builds every package with the schemas of the checkout |
 | `make promote-npm STAGE_ID=<stage id>` | shows a version the `Release` or `Snapshot` workflow staged on npm, then promotes it, asking for two-factor authentication; without `STAGE_ID`, lists the staged versions |
 

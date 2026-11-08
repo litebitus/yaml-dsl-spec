@@ -30,6 +30,17 @@ jobs:
       - name: Set up Rust
         run: rustup toolchain install
 
+      - name: Install cargo-llvm-cov
+        env:
+          ARCHIVE: ${{ runner.temp }}/cargo-llvm-cov.tar.gz
+        run: |
+          set -euo pipefail
+          source .github/cargo-llvm-cov.env
+          curl -fsSL -o "$ARCHIVE" \
+            "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v${CARGO_LLVM_COV_VERSION}/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${CARGO_LLVM_COV_X86_64_LINUX_SHA256}  $ARCHIVE" | sha256sum -c -
+          tar -xzf "$ARCHIVE" -C "$HOME/.cargo/bin"
+
       - name: Set up Node
         uses: actions/setup-node@v7.1.0
         with:
