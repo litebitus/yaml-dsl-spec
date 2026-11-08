@@ -14,7 +14,7 @@ pub mod json_path;
 mod node;
 mod position;
 mod problem_wording;
-mod requirement_markers;
+mod requiredness_markers;
 pub mod resolved;
 pub mod schema;
 pub mod validation_rules;

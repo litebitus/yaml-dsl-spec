@@ -17,7 +17,7 @@ const (
 const requiredMarker = "[required]"
 
 var (
-	requirementMarkers         = []string{requiredMarker, "[~required]", "[optional]"}
+	requirednessMarkers        = []string{requiredMarker, "[~required]", "[optional]"}
 	conditionKeywords          = []string{"if", "not"}
 	formSelectingKeywords      = []string{"anyOf", "oneOf"}
 	sameInstanceSchemaKeywords = []string{"else", "if", "not", "then"}
@@ -66,14 +66,14 @@ type fieldMarker struct {
 	markerText string
 }
 
-func requirementMarker(schemaNode any) (string, bool) {
+func requirednessMarker(schemaNode any) (string, bool) {
 	descriptionValue, _ := objectField(schemaNode, "description")
 	writtenDescription, isText := descriptionValue.(string)
 	if !isText {
 		return "", false
 	}
 	writtenDescription = strings.TrimLeftFunc(writtenDescription, unicode.IsSpace)
-	for _, markerText := range requirementMarkers {
+	for _, markerText := range requirednessMarkers {
 		if strings.HasPrefix(writtenDescription, markerText) {
 			return markerText, true
 		}
@@ -88,7 +88,7 @@ func descriptionText(schemaNode any) *string {
 		return nil
 	}
 	unmarkedText := writtenText
-	if markerText, isMarked := requirementMarker(schemaNode); isMarked {
+	if markerText, isMarked := requirednessMarker(schemaNode); isMarked {
 		unmarkedText = strings.TrimLeftFunc(writtenText, unicode.IsSpace)[len(markerText):]
 	}
 	unmarkedText = strings.TrimSpace(unmarkedText)
@@ -106,7 +106,7 @@ func markersOfFields(propertiesValue any) []fieldMarker {
 	fieldMarkers := []fieldMarker{}
 	for _, fieldKey := range objectKeys(propertiesValue) {
 		fieldSchema, _ := objectField(propertiesValue, fieldKey)
-		if markerText, isMarked := requirementMarker(fieldSchema); isMarked {
+		if markerText, isMarked := requirednessMarker(fieldSchema); isMarked {
 			fieldMarkers = append(fieldMarkers, fieldMarker{fieldKey: fieldKey, markerText: markerText})
 		}
 	}

@@ -2,7 +2,7 @@
 
 /* How a schema problem is worded: the field it names and the sentence about it. */
 
-const { descriptionText } = require('./requirement-markers');
+const { descriptionText } = require('./requiredness-markers');
 
 const DEPENDENCY_KEYWORDS = ['dependencies', 'dependentRequired', 'dependentSchemas'];
 const SCHEMA_MAP_KEYWORDS = [

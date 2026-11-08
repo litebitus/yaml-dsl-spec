@@ -1,13 +1,13 @@
 'use strict';
 
 /*
- * Requirement markers: a field's `description` opening with `[required]`,
+ * Requiredness markers: a field's `description` opening with `[required]`,
  * `[~required]` or `[optional]` decides whether the field is required, over its
  * parent's `required` array.
  */
 
 const REQUIRED_MARKER = '[required]';
-const REQUIREMENT_MARKERS = [REQUIRED_MARKER, '[~required]', '[optional]'];
+const REQUIREDNESS_MARKERS = [REQUIRED_MARKER, '[~required]', '[optional]'];
 const CONDITION_KEYWORDS = new Set(['if', 'not']);
 const FORM_SELECTING_KEYWORDS = new Set(['anyOf', 'oneOf']);
 const SAME_INSTANCE_SCHEMA_KEYWORDS = new Set(['else', 'if', 'not', 'then']);
@@ -67,16 +67,16 @@ const DRAFT_KEYWORDS = {
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** The marker a schema node's `description` opens with, or `null`. */
-function requirementMarker(node) {
+function requirednessMarker(node) {
   if (!isObject(node) || typeof node.description !== 'string') return null;
   const description = node.description.trimStart();
-  return REQUIREMENT_MARKERS.find((marker) => description.startsWith(marker)) || null;
+  return REQUIREDNESS_MARKERS.find((marker) => description.startsWith(marker)) || null;
 }
 
 /** A node's description without the marker it opens with, or `null`. */
 function descriptionText(node) {
   if (!isObject(node) || typeof node.description !== 'string') return null;
-  const marker = requirementMarker(node);
+  const marker = requirednessMarker(node);
   const text = marker ? node.description.trimStart().slice(marker.length) : node.description;
   return text.trim() || null;
 }
@@ -89,7 +89,7 @@ function markedSchema(schema, draftName) {
 function markersOfFields(properties) {
   const markers = new Map();
   for (const [key, field] of Object.entries(properties)) {
-    const marker = requirementMarker(field);
+    const marker = requirednessMarker(field);
     if (marker) markers.set(key, marker);
   }
   return markers;
@@ -125,4 +125,4 @@ function markedNode(node, inheritedMarkers, keywords) {
   return marked;
 }
 
-module.exports = { requirementMarker, descriptionText, markedSchema };
+module.exports = { requirednessMarker, descriptionText, markedSchema };

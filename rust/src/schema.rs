@@ -19,7 +19,7 @@ use crate::problem_wording::{
     code_span, contains_message, definition_description, dependency_message, dependency_of,
     duplicate_items, field_name, number_text,
 };
-use crate::requirement_markers::{description_text, marked_schema};
+use crate::requiredness_markers::{description_text, marked_schema};
 use crate::resolved::{Value, ValueKind};
 pub use crate::validation_rules::child_value;
 use crate::validation_rules::{ValidationRules, copied_pointers, escape_pointer, merged_over};
@@ -28,7 +28,7 @@ pub struct LoadedSchema {
     pub table: FunctionTable,
     validator: jsonschema::Validator,
     schema: JsonValue,
-    /// The schema with its requirement markers read: what a document is validated against.
+    /// The schema with its requiredness markers read: what a document is validated against.
     marked: JsonValue,
     /// The schema as a report names it, such as its file's name or its URL.
     name: String,

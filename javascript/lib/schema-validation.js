@@ -7,7 +7,7 @@ const AjvDraft202012 = require('ajv/dist/2020').default;
 const { Diagnostic } = require('./diagnostic-report');
 const { FunctionTable } = require('./function-table');
 const { numberJson, integerOfText } = require('./yaml-node');
-const { descriptionText, markedSchema } = require('./requirement-markers');
+const { descriptionText, markedSchema } = require('./requiredness-markers');
 const { compilePattern } = require('./pattern-dialect');
 const {
   fieldName,

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Packages
+  - The `[required]`, `[optional]` and `[~required]` a description opens with are requiredness markers, in the package design and the code; the JavaScript module is `lib/requiredness-markers.js`.
+
 ## v0.2.0 — 2026-11-08
 
 - Specification
@@ -30,13 +33,13 @@
 - Packages
   - A function table's deprecated forms are read until the next major: an entry written as its argument list, and `loop_variable`.
   - A path is read only in the subset the schema states, so `$abc`, `$*` and `$.a.['b']` are refused.
-  - Schema validation reads a document as the package design states: `merge_base_keys`, `allow_quoted_values` and requirement markers, and each problem worded as the YAML DSL editor words it.
+  - Schema validation reads a document as the package design states: `merge_base_keys`, `allow_quoted_values` and requiredness markers, and each problem worded as the YAML DSL editor words it.
   - `ValidationRules`, a DSL's `validator` block, is what a document is validated by.
   - Formats are not validated, in any draft.
 - Documentation
   - The package design: the core every language implements, its API, and what schema validation reads and reports.
 - Conformance
-  - A schema case reads its DSL `validator` block from `validator.json`; cases of requirement markers, merge base keys, quoted values, described alternatives and `contains` bounds.
+  - A schema case reads its DSL `validator` block from `validator.json`; cases of requiredness markers, merge base keys, quoted values, described alternatives and `contains` bounds.
 
 ## v0.1.2 — 2026-11-01
 

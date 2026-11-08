@@ -1,4 +1,4 @@
-//! Requirement markers: a field's `description` opening with `[required]`,
+//! Requiredness markers: a field's `description` opening with `[required]`,
 //! `[~required]` or `[optional]` decides whether the field is required, over its
 //! parent's `required` array.
 
@@ -6,7 +6,7 @@ use jsonschema::Draft;
 use serde_json::{Map, Value as JsonValue};
 
 const REQUIRED_MARKER: &str = "[required]";
-const REQUIREMENT_MARKERS: [&str; 3] = [REQUIRED_MARKER, "[~required]", "[optional]"];
+const REQUIREDNESS_MARKERS: [&str; 3] = [REQUIRED_MARKER, "[~required]", "[optional]"];
 const CONDITION_KEYWORDS: [&str; 2] = ["if", "not"];
 const FORM_SELECTING_KEYWORDS: [&str; 2] = ["anyOf", "oneOf"];
 const SAME_INSTANCE_SCHEMA_KEYWORDS: [&str; 4] = ["else", "if", "not", "then"];
@@ -80,9 +80,9 @@ impl DraftKeywords {
 }
 
 /// The marker a schema node's `description` opens with.
-pub fn requirement_marker(node: &JsonValue) -> Option<&'static str> {
+pub fn requiredness_marker(node: &JsonValue) -> Option<&'static str> {
     let description = node.get("description")?.as_str()?.trim_start();
-    REQUIREMENT_MARKERS
+    REQUIREDNESS_MARKERS
         .into_iter()
         .find(|marker| description.starts_with(marker))
 }
@@ -90,7 +90,7 @@ pub fn requirement_marker(node: &JsonValue) -> Option<&'static str> {
 /// A node's description without the marker it opens with.
 pub fn description_text(node: &JsonValue) -> Option<String> {
     let description = node.get("description")?.as_str()?;
-    let text = match requirement_marker(node) {
+    let text = match requiredness_marker(node) {
         Some(marker) => &description.trim_start()[marker.len()..],
         None => description,
     };
@@ -108,7 +108,7 @@ type FieldMarkers = Vec<(String, &'static str)>;
 fn markers_of_fields(properties: &Map<String, JsonValue>) -> FieldMarkers {
     properties
         .iter()
-        .filter_map(|(key, field)| requirement_marker(field).map(|marker| (key.clone(), marker)))
+        .filter_map(|(key, field)| requiredness_marker(field).map(|marker| (key.clone(), marker)))
         .collect()
 }
 

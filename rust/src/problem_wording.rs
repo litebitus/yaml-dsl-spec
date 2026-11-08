@@ -2,7 +2,7 @@
 
 use serde_json::Value as JsonValue;
 
-use crate::requirement_markers::description_text;
+use crate::requiredness_markers::description_text;
 
 const DEPENDENCY_KEYWORDS: [&str; 3] = ["dependencies", "dependentRequired", "dependentSchemas"];
 const SCHEMA_MAP_KEYWORDS: [&str; 6] = [
