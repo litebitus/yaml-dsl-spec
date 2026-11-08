@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.1 — 2026-11-08
+
 - Packages
   - The `[required]`, `[optional]` and `[~required]` a description opens with are requiredness markers, in the package design and the code; the JavaScript module is `lib/requiredness-markers.js`.
 

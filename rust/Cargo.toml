@@ -21,7 +21,7 @@ serde_json = { version = "1.0.154", features = ["preserve_order"] }
 members = ["diagnostic-renderer"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 
 [workspace.dependencies]
-yaml-dsl-spec = { path = ".", version = "=0.2.0" }
+yaml-dsl-spec = { path = ".", version = "=0.2.1" }
