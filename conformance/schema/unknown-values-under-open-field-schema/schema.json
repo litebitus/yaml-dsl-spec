@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "object",
+      "unevaluatedProperties": { "type": "string" },
+      "$ref": "#/$defs/function_key_fields"
+    },
+    "route": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "properties": { "priority": { "type": "integer" } }
+    }
+  },
+  "$defs": {
+    "function_key_fields": { "patternProperties": { "^(\\S+ )?fn\\.[a-z0-9_]+\\*?$": true } }
+  }
+}

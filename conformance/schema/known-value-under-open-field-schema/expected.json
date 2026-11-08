@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 3,
+      "column": 23,
+      "message": "`/etc/mock/port.txt` must be `string`",
+      "label": "is an integer",
+      "rule": "type, at schema.json#/properties/files/additionalProperties/type"
+    }
+  ]
+}

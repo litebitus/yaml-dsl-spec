@@ -32,6 +32,26 @@ pub struct LoadedSchema {
     marked: JsonValue,
     /// The schema as a report names it, such as its file's name or its URL.
     name: String,
+    draft: Draft,
+    subschema_validators: OnceLock<Option<jsonschema::ValidatorMap>>,
+}
+
+struct SchemaFailure<'v> {
+    error: ValidationError<'v>,
+    pointer: String,
+    schema_path: String,
+    failing_members: Vec<String>,
+}
+
+impl<'v> SchemaFailure<'v> {
+    fn of(error: ValidationError<'v>) -> Self {
+        Self {
+            pointer: error.instance_path().as_str().to_owned(),
+            schema_path: error.schema_path().as_str().to_owned(),
+            error,
+            failing_members: Vec::new(),
+        }
+    }
 }
 
 /// A schema parsed once, by the first unit that reads it, or why it did not parse.
@@ -93,6 +113,8 @@ impl LoadedSchema {
             schema,
             marked,
             name: name.to_owned(),
+            draft,
+            subschema_validators: OnceLock::new(),
         })
     }
 
@@ -109,11 +131,11 @@ impl LoadedSchema {
         let mut json = instance.json(document, String::new(), &document.position);
         self.read_quoted_values(&mut json, rules);
         let mut reported = ReportedSubjects::default();
-        let mut diagnostics: Vec<Diagnostic> = self
-            .validator
-            .iter_errors(&json)
-            .filter(|error| !instance.reads_unknown(error.instance_path().as_str(), error.kind()))
-            .flat_map(|error| self.error_problems(&error, &json, &instance, &mut reported))
+        let failures = self.schema_failures(&json);
+        let mut diagnostics: Vec<Diagnostic> = failures
+            .iter()
+            .filter(|failure| !instance.reads_unknown(&failure.pointer, failure.error.kind()))
+            .flat_map(|failure| self.error_problems(failure, &json, &instance, &mut reported))
             .filter(|problem| !instance.is_copied(&problem.subject))
             .map(|problem| problem.diagnostic)
             .collect();
@@ -124,6 +146,99 @@ impl LoadedSchema {
         });
         diagnostics.dedup();
         diagnostics
+    }
+
+    fn schema_failures<'v>(&'v self, json: &'v JsonValue) -> Vec<SchemaFailure<'v>> {
+        let mut failing_units: Option<Vec<(String, String)>> = None;
+        let mut failures = Vec::new();
+        for error in self.validator.iter_errors(json) {
+            let is_unevaluated = matches!(
+                error.kind(),
+                ValidationErrorKind::UnevaluatedProperties { .. }
+                    | ValidationErrorKind::UnevaluatedItems { .. }
+            );
+            if !is_unevaluated {
+                failures.push(SchemaFailure::of(error));
+                continue;
+            }
+            let mut failure = SchemaFailure::of(error);
+            let units = failing_units.get_or_insert_with(|| self.failing_units(json));
+            let members = failing_members(units, &failure.pointer, &failure.schema_path);
+            let is_open = self
+                .marked
+                .pointer(&failure.schema_path)
+                .is_some_and(|keyword| keyword != &JsonValue::Bool(false));
+            match self.subschema_validator(&failure.schema_path) {
+                Some(validator) if is_open => {
+                    failures.extend(self.member_failures(json, &members, &failure, validator));
+                }
+                _ => {
+                    failure.failing_members = members;
+                    failures.push(failure);
+                }
+            }
+        }
+        failures
+    }
+
+    fn failing_units(&self, json: &JsonValue) -> Vec<(String, String)> {
+        let listed = serde_json::to_value(self.validator.evaluate(json).list()).unwrap_or_default();
+        listed["details"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|unit| unit["valid"] == JsonValue::Bool(false))
+            .filter_map(|unit| {
+                Some((
+                    unit["schemaLocation"].as_str()?.to_owned(),
+                    unit["instanceLocation"].as_str()?.to_owned(),
+                ))
+            })
+            .collect()
+    }
+
+    fn subschema_validator(&self, keyword_pointer: &str) -> Option<&jsonschema::Validator> {
+        self.subschema_validators
+            .get_or_init(|| {
+                jsonschema::options()
+                    .with_draft(self.draft)
+                    .should_validate_formats(false)
+                    .build_map(&self.marked)
+                    .ok()
+            })
+            .as_ref()?
+            .get(&format!("#{keyword_pointer}"))
+    }
+
+    fn member_failures<'v>(
+        &self,
+        json: &'v JsonValue,
+        members: &[String],
+        unevaluated: &SchemaFailure<'_>,
+        validator: &'v jsonschema::Validator,
+    ) -> Vec<SchemaFailure<'v>> {
+        let mut failures = Vec::new();
+        for member in members {
+            let Some(value) = json.pointer(member) else {
+                continue;
+            };
+            for error in validator.iter_errors(value) {
+                let pointer = format!("{member}{}", error.instance_path().as_str());
+                let below_keyword = format!("{}{}", unevaluated.schema_path, error.schema_path());
+                let schema_path = if self.marked.pointer(&below_keyword).is_some() {
+                    below_keyword
+                } else {
+                    error.schema_path().as_str().to_owned()
+                };
+                failures.push(SchemaFailure {
+                    error,
+                    pointer,
+                    schema_path,
+                    failing_members: Vec::new(),
+                });
+            }
+        }
+        failures
     }
 
     /// Reads each quoted value that spells a type the schema expects of it, and
@@ -159,7 +274,7 @@ impl LoadedSchema {
                 let Some(text) = error.instance().as_str() else {
                     return;
                 };
-                let expected = self.expected_types(error);
+                let expected = self.expected_types(error.schema_path().as_str(), error);
                 if let Some(value) = rules.quoted_value(text, &expected) {
                     readings
                         .entry(error.instance_path().as_str().to_owned())
@@ -177,8 +292,8 @@ impl LoadedSchema {
     }
 
     /// The types a `type` error's schema lists, in the order it lists them.
-    fn expected_types(&self, error: &ValidationError<'_>) -> Vec<String> {
-        match self.marked.pointer(error.schema_path().as_str()) {
+    fn expected_types(&self, schema_path: &str, error: &ValidationError<'_>) -> Vec<String> {
+        match self.marked.pointer(schema_path) {
             Some(JsonValue::String(single)) => vec![single.clone()],
             Some(JsonValue::Array(listed)) => listed
                 .iter()
@@ -205,13 +320,14 @@ impl LoadedSchema {
     /// misspelt one.
     fn error_problems(
         &self,
-        error: &ValidationError<'_>,
+        failure: &SchemaFailure<'_>,
         json: &JsonValue,
         instance: &Instance<'_>,
         reported: &mut ReportedSubjects,
     ) -> Vec<SchemaProblem> {
-        let pointer = error.instance_path().as_str();
-        let schema_path = error.schema_path().as_str();
+        let error = &failure.error;
+        let pointer = failure.pointer.as_str();
+        let schema_path = failure.schema_path.as_str();
         let rule_at = |keyword: &str, at: &str| format!("{keyword}, at {}#{at}", self.name);
         let rule = rule_at(error.kind().keyword(), schema_path);
         let field = field_name(json, pointer);
@@ -340,7 +456,7 @@ impl LoadedSchema {
             }
             ValidationErrorKind::Type { .. } => {
                 let expected: Vec<String> = self
-                    .expected_types(error)
+                    .expected_types(schema_path, error)
                     .iter()
                     .map(|expected_type| code_span(expected_type))
                     .collect();
@@ -457,10 +573,12 @@ impl LoadedSchema {
                 self.schema.pointer(schema_path).and_then(description_text),
             ),
             ValidationErrorKind::AdditionalItems { limit } => at_value(list_limit(*limit)),
-            ValidationErrorKind::UnevaluatedItems { unexpected } => {
+            ValidationErrorKind::UnevaluatedItems { .. } => {
                 let length = error.instance().as_array().map_or(0, Vec::len);
-                let evaluated = length.saturating_sub(unexpected.len());
-                let beyond = (evaluated..length)
+                let beyond = failure
+                    .failing_members
+                    .iter()
+                    .filter_map(|member| member.rsplit('/').next()?.parse::<usize>().ok())
                     .filter(|index| {
                         !instance.member_reads_unknown(pointer, || {
                             item_could_be_evaluated(&self.schema, schema_path, *index)
@@ -620,6 +738,24 @@ fn item_could_be_evaluated(schema: &JsonValue, keyword_pointer: &str, index: usi
             || keywords.contains_key("contains")
             || (!is_holder && is_not_false(keywords, "unevaluatedItems"))
     })
+}
+
+fn failing_members(
+    failing_units: &[(String, String)],
+    holder_pointer: &str,
+    keyword_pointer: &str,
+) -> Vec<String> {
+    let below_holder = format!("{holder_pointer}/");
+    let mut members: Vec<String> = Vec::new();
+    for (schema_location, instance_location) in failing_units {
+        let is_member = instance_location
+            .strip_prefix(&below_holder)
+            .is_some_and(|step| !step.is_empty() && !step.contains('/'));
+        if schema_location == keyword_pointer && is_member && !members.contains(instance_location) {
+            members.push(instance_location.clone());
+        }
+    }
+    members
 }
 
 fn is_not_false(keywords: &Map<String, JsonValue>, keyword: &str) -> bool {

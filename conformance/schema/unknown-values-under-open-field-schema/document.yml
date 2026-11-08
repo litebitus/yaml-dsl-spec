@@ -1,0 +1,6 @@
+files:
+  /etc/mock/datasources.yml: fn.templatefile ../files/datasources.yml
+  /etc/mock/ca.pem: ref local.mock_certificate
+  /etc/mock/static.txt: mock-content
+route:
+  priorty: 140

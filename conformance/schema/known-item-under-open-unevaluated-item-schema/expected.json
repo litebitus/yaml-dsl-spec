@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 52,
+      "message": "`paths[2]` must be `string`",
+      "label": "is an integer",
+      "rule": "type, at schema.json#/properties/paths/unevaluatedItems/type"
+    }
+  ]
+}

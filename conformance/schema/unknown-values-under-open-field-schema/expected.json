@@ -1,0 +1,12 @@
+{
+  "problems": [
+    {
+      "line": 6,
+      "column": 3,
+      "message": "`priorty` is not a field of `route`",
+      "label": "`route` has no field `priorty`",
+      "rule": "unevaluatedProperties, at schema.json#/properties/route/unevaluatedProperties",
+      "help": "did you mean `priority`?"
+    }
+  ]
+}

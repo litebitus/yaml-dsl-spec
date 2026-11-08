@@ -1,0 +1,3 @@
+files:
+  /etc/mock/ca.pem: ref local.mock_certificate
+  /etc/mock/port.txt: 8080

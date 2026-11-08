@@ -136,7 +136,7 @@ A message is the package's own sentence. Every key and value it names is fenced,
 | Failure | Message | Schema note |
 |---|---|---|
 | a missing field | `` `name` is required `` | |
-| an unknown field | `` `name` is not a field of <field> `` | |
+| an unknown field, by an `additionalProperties` or `unevaluatedProperties` that is `false` | `` `name` is not a field of <field> `` | |
 | a key `propertyNames` refuses | `` `key` is not a valid key of <field> `` | |
 | `type` | `` <field> must be `boolean` ``, the types the schema lists, in its order, joined by `or` | |
 | `enum` | `` <field> must be one of `"a"`, `"b"` ``, each value as JSON | |
@@ -150,7 +150,7 @@ A message is the package's own sentence. Every key and value it names is fenced,
 | `minItems`, `maxItems` | `` <field> must NOT have fewer than `3` items ``, or `more than` | |
 | `minProperties`, `maxProperties` | `` <field> must NOT have fewer than `3` properties ``, or `more than` | |
 | items beyond a tuple that allows none | `` <field> must NOT have more than `2` items ``, the tuple's length | |
-| `unevaluatedItems` | `` <field> must NOT have more than `2` items ``, the items evaluated | |
+| `unevaluatedItems` that is `false` | `` <field> must NOT have more than `2` items ``, the items evaluated | |
 | `pattern` | `` <field> must match pattern `^x` `` | |
 | `uniqueItems` | `<field> must NOT have duplicate items (items ## 2 and 0 are identical)`: from the last item back, the first equal to an item after it, and the nearest such item | |
 | `contains` | `` <field> must contain at least `1` valid item(s) ``, with `` and no more than `2` `` where `maxContains` bounds it | |
@@ -164,6 +164,7 @@ A value is fenced in the fewest backticks it does not hold, padded with a space 
 - A key `propertyNames` refuses is one problem, whatever checks it fails.
 - A dependency is one problem per key.
 - A `then` or `else` that fails reports its own failures.
+- A field or item an `additionalProperties`, `unevaluatedProperties` or `unevaluatedItems` schema other than `false` reads reports that schema's failures as its own, at its value.
 - A problem's rule names the keyword and where the schema holds it; its label says what is wrong where it is placed.
 
 ## Beyond the core

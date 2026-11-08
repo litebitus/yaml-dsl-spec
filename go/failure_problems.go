@@ -78,13 +78,13 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 		isUnevaluated := checkFailure.failedKeyword == "unevaluatedProperties"
 		var unknownProblems []schemaProblem
 		for _, unexpectedName := range checkFailure.fieldNames {
+			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
 			couldAccept := func() bool {
 				return fieldCouldBeAccepted(loadedSchema.originalSchema, checkFailure.schemaPointer, unexpectedName)
 			}
 			if isUnevaluated && documentRecord.memberReadsUnknown(valuePointer, couldAccept) {
 				continue
 			}
-			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
 			unknownMessage := CodeSpan(unexpectedName) + " is not a field of " + namedField
 			unknownProblem := DiagnosticAt(documentRecord.keyPosition(subjectPointer), unknownMessage).
 				WithLabel(namedField + " has no field " + CodeSpan(unexpectedName)).
@@ -155,8 +155,8 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 	case "unevaluatedItems":
 		listItems, _ := holderValue.([]any)
 		beyondCount := 0
-		firstUnevaluated := max(len(listItems)-checkFailure.itemCount, 0)
-		for itemIndex := firstUnevaluated; itemIndex < len(listItems); itemIndex++ {
+		for _, indexText := range checkFailure.fieldNames {
+			itemIndex, _ := strconv.Atoi(indexText)
 			couldEvaluate := func() bool {
 				return itemCouldBeEvaluated(loadedSchema.originalSchema, checkFailure.schemaPointer, itemIndex)
 			}

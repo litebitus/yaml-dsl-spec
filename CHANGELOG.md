@@ -11,6 +11,7 @@
   - Schema validation fences every key and value a message names, and a schema's description moves from the message to the schema note.
   - An unknown field or item of a map or list holding a reference, a call or a template is reported, unless the schema could read it through a branch that reads that value.
   - A misspelt field's help also names a field the schema accepts through `if`, `then`, `else` or `dependentSchemas`.
+  - A wrong value under an `unevaluatedProperties` or `unevaluatedItems` schema is reported as the value's own problem, as under `additionalProperties`.
   - The Go package, `github.com/litebitus/yaml-dsl-spec/go`: the whole core, passing every conformance case.
   - The fence a message puts around a value is public: `code_span`, `codeSpan` and `CodeSpan`.
   - The diagnostic renderer, `yaml-dsl-spec-diagnostic-renderer` and `github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer`: a diagnostic written as a compiler writes an error, alike in both for the subset of text the package design defines it for, by the cases of `conformance/diagnostic-rendering/`.

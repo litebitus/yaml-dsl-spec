@@ -20,7 +20,6 @@ type failedCheck struct {
 	errorKind       jsonschema.ErrorKind
 	missingField    *string
 	fieldNames      []string
-	itemCount       int
 }
 
 type failureCollector struct {
@@ -164,7 +163,6 @@ func (loadedSchema *LoadedSchema) failuresOf(documentJSON any, documentRecord *i
 			unevaluatedCheck.fieldNames = append(unevaluatedCheck.fieldNames, unexpectedName)
 		}
 		slices.Sort(unevaluatedCheck.fieldNames)
-		unevaluatedCheck.itemCount = len(unevaluatedCheck.fieldNames)
 		checkCollector.failedChecks = append(checkCollector.failedChecks, unevaluatedCheck)
 	}
 	return checkCollector.failedChecks
@@ -251,6 +249,10 @@ func (checkCollector *failureCollector) collectFalseSchema(nodeCheck failedCheck
 func (checkCollector *failureCollector) collectUnevaluated(errorNode *jsonschema.ValidationError) bool {
 	unevaluatedKeyword, holderPointer, stepsBelow, isFound := unevaluatedStep(checkCollector.loadedSchema.nodePointer(errorNode))
 	if !isFound || len(errorNode.InstanceLocation) < stepsBelow+1 {
+		return false
+	}
+	keywordValue, _ := jsonPointerValue(checkCollector.loadedSchema.originalSchema, holderPointer+"/"+unevaluatedKeyword)
+	if keywordValue != false {
 		return false
 	}
 	holderDepth := len(errorNode.InstanceLocation) - stepsBelow - 1

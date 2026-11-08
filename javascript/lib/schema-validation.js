@@ -274,15 +274,15 @@ class LoadedSchema {
       const name = error.keyword === 'additionalProperties'
         ? error.params.additionalProperty
         : error.params.unevaluatedProperty;
+      const fieldPointer = `${pointer}/${escapePointer(name)}`;
       const couldAccept = () => fieldCouldBeAccepted(this.schema, schemaPointer, name);
       const isUnevaluated = error.keyword === 'unevaluatedProperties';
       if (isUnevaluated && instance.memberReadsUnknown(pointer, couldAccept)) return [];
       const allowed = allowedFields(this.schema, schemaPointer);
-      const subject = `${pointer}/${escapePointer(name)}`;
       return [{
-        subject,
+        subject: fieldPointer,
         diagnostic: Diagnostic.at(
-          instance.position(subject),
+          instance.position(fieldPointer),
           `${codeSpan(name)} is not a field of ${field}`,
         )
           .withLabel(`${field} has no field ${codeSpan(name)}`)

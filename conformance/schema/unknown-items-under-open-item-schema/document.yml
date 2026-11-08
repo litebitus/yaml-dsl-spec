@@ -1,0 +1,1 @@
+paths: [ref local.mock_path, /etc/mock/static.txt, fn.file ../files/mock.txt]
