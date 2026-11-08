@@ -53,6 +53,7 @@ Each entry is named in each language's own case. A version is a minor, such as `
 |---|---|---|---|---|
 | a problem | `Diagnostic` | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule, schema and help |
 | a position | `Position` | `Position` | `Position` | a file, a line and a column, each from 1 |
+| a fenced value | `code_span(value)` | `codeSpan(value)` | `CodeSpan(value)` | the value in the fewest backticks it does not hold, padded with a space where it begins or ends with one |
 
 ### Paths
 
@@ -158,6 +159,103 @@ A value is fenced in the fewest backticks it does not hold, padded with a space 
 - A dependency is one problem per key.
 - A `then` or `else` that fails reports its own failures.
 - A problem's rule names the keyword and where the schema holds it; its label says what is wrong where it is placed.
+
+## Beyond the core
+
+A package beyond the core is built in the languages its readers use, and carries the core's version.
+
+| Package | Rust | Go |
+|---|---|---|
+| the diagnostic renderer | `yaml-dsl-spec-diagnostic-renderer` | `github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer` |
+
+### Diagnostic renderer
+
+A diagnostic written as a compiler writes an error, for a terminal or a log. Every language renders the same text for the same input within the subset "Division to width" states; `conformance/diagnostic-rendering/` holds the cases.
+
+| Entry | Rust | Go | Gives |
+|---|---|---|---|
+| render a diagnostic | `render_diagnostic(diagnostic, severity, source, style)` | `RenderDiagnostic(diagnostic, severity, source, style)` | the diagnostic's text |
+| the severity | `Severity::Error`, `Severity::Warning` | `SeverityError`, `SeverityWarning` | the headline's word: `error` or `warning` |
+| the source | `DiagnosticSource { name, text }` | `DiagnosticSource{Name, Text}` | the name the `-->` line shows, such as a path or `dashboard:"Mock Service"`, and the text the position counts lines and columns in |
+| the style | `RenderStyle { color, width }` | `RenderStyle{Color, Width}` | whether the text is painted for a terminal, and the terminal width its lines divide to: none, `0` in Go, for output that is not a terminal |
+
+```
+error: `brnch` is not a field of `publish`
+  --> services/mock-api/mock-dsl.yml:57:5
+   |
+52 | workflow:
+53 |   publish:
+...
+55 |     tags: [mock]
+56 |     branch: main
+57 |     brnch: main
+   |     ^^^^^ `publish` has no field `brnch`
+58 |     triggers:
+59 |       push:
+   |
+   = rule: unevaluatedProperties, at mock.schema.json#/$defs/workflow/unevaluatedProperties
+   = [schema] Where and when a workflow publishes.
+   = help: did you mean `branch`?
+```
+
+#### Lines shown
+
+- The `-->` line names the source, then the position's line and column; the diagnostic's own file is not shown.
+- The source shows two lines on each side of the wrong one, and above them each line it is nested under: each line indented less than the lines below it, blank lines and comments passed over. `...` marks a gap.
+- Carets underline the wrong text: a `{{...}}` template, a quoted string, a key up to its colon, or a value up to a comment or the line's end. The label stands beside them.
+- A source with empty text, or a position outside it, shows the `-->` line and no source lines.
+- A diagnostic with no position is the headline and its notes.
+
+#### Notes
+
+In order, each where the diagnostic carries it:
+
+1. `= rule: <rule>`
+2. `= [schema] <schema note>`
+3. `= help: <help>`
+
+Each further line of a note's text continues one level in.
+
+#### Division to width
+
+- Nothing is cut. A line divides where the Unicode line breaking rules allow and after a machine string's separator, never inside a comparison operator.
+- What wraps continues one level in. Where a row has no room for its next word, its indentation gives first, a level at a time.
+- Widths are display columns, East Asian wide characters two.
+- A wrapped source line is underlined once, under the row the wrong text ends on. A label that does not fit beside the carets takes its own rows under them.
+- Output that is not a terminal is never divided.
+
+Where a line divides, and how wide it is, is defined for a line made of these characters:
+
+| Characters | Code points |
+|---|---|
+| ASCII | `U+0020`–`U+007E` |
+| Latin, Greek and Cyrillic letters | the letters of `U+00C0`–`U+017F`, `U+0391`–`U+03C9` and `U+0410`–`U+044F` |
+| CJK unified ideographs | `U+4E00`–`U+9FFF` |
+| Hiragana and katakana | `U+3041`–`U+3096`, `U+30A1`–`U+30FA` |
+| Hangul syllables | `U+AC00`–`U+D7A3` |
+| Emoticons | `U+1F600`–`U+1F64F` |
+
+and holding none of:
+
+1. `$`, `%`, `+` or `\` before `(`, `[` or `{`
+2. `"` or `'`, then two or more spaces, then `(`, `[` or `{`
+3. a space, then `-`, then a digit
+4. `)`, `]` or `}`, then two or more spaces, then a small kana
+
+A line is each line the renderer divides: the headline, a source line, a label, or a note with its prefix. Outside the subset, where a line divides is undefined.
+
+#### Color
+
+| Part | Color |
+|---|---|
+| `error` | red, `91` |
+| `warning` | yellow, `33` |
+| the message | bold |
+| the gutter, `-->`, `...` and a note's `=` | dim, `90` |
+| the carets and the label | red, `91` |
+| `rule:` and `help:` | cyan, `36` |
+| `[schema]` | bold purple, `#A6ABF2` |
+| the schema note's text | purple, `#A6ABF2` |
 
 ## TODO
 

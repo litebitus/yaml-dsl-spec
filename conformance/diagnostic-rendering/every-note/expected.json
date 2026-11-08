@@ -1,0 +1,19 @@
+{
+  "lines": [
+    "error: `brnch` is not a field of `name mock-orders`",
+    " --> mock-dsl.yml:6:5",
+    "  |",
+    "1 | queue:",
+    "2 |   name mock-orders:",
+    "...",
+    "4 |     retention: 7",
+    "5 |     tags: {}",
+    "6 |     brnch: main",
+    "  |     ^^^^^ `name mock-orders` has no field `brnch`",
+    "7 |     tier: gold",
+    "  |",
+    "  = rule: unevaluatedProperties, at mock.schema.json#/$defs/queue/unevaluatedProperties",
+    "  = [schema] A mock queue's settings.",
+    "  = help: did you mean `branch`?"
+  ]
+}

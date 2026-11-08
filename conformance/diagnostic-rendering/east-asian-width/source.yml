@@ -1,0 +1,4 @@
+queue:
+  name mock-orders:
+    description: 这个队列保存每个模拟订单直到它被处理为止
+    tier: 金

@@ -347,13 +347,4 @@ mod tests {
         );
         assert_eq!(definition_description(&schema, "/properties/size"), None);
     }
-
-    #[test]
-    fn a_value_is_fenced_in_more_backticks_than_it_holds_in_a_row() {
-        assert_eq!(code_span("on"), "`on`");
-        assert_eq!(code_span("a`b"), "``a`b``");
-        assert_eq!(code_span("a``b`c"), "```a``b`c```");
-        assert_eq!(code_span("`on"), "`` `on ``");
-        assert_eq!(code_span("on`"), "`` on` ``");
-    }
 }

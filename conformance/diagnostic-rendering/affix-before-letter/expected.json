@@ -1,0 +1,24 @@
+{
+  "lines": [
+    "error: `command`",
+    "  uses $env %name",
+    "  +flag \\path and",
+    "  a(b) c[d] e{f}",
+    " --> mock-dsl.yml:2:12",
+    "  |",
+    "1 | env:",
+    "2 |   command:",
+    "  |     echo $env",
+    "  |     %name",
+    "  |     +flag",
+    "  |     \\path a(b)",
+    "  |     c[d] e{f}",
+    "  | $HOME%PATH+x\\y",
+    "  | ^^^^^^^^^^^^^^",
+    "  | $env %name",
+    "  |   +flag \\path",
+    "  |   a(b) c[d] e{",
+    "  |   f}",
+    "  |"
+  ]
+}

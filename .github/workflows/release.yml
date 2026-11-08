@@ -101,7 +101,7 @@ jobs:
             { echo "CHANGELOG.md has nothing under '## Unreleased' to release as $NEXT" >&2; exit 1; }
           mkdir -p rust/schemas
           cp schemas/*.schema.json rust/schemas/
-          cargo publish --manifest-path rust/Cargo.toml --dry-run --allow-dirty
+          cargo publish --workspace --manifest-path rust/Cargo.toml --dry-run --allow-dirty
 
       - name: Check the package before changing anything
         working-directory: javascript
@@ -116,6 +116,7 @@ jobs:
           awk '/^## Unreleased$/ { inside = 1; next } /^## / { inside = 0 } inside' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
           sed -i "s/^## Unreleased$/## Unreleased\n\n## ${NEXT} — $(date -u +%Y-%m-%d)/" CHANGELOG.md
           sed -i "0,/^version = \".*\"$/s//version = \"${NEXT#v}\"/" rust/Cargo.toml
+          sed -i "s/^yaml-dsl-spec = { path = \"\.\", version = \"=.*\" }$/yaml-dsl-spec = { path = \".\", version = \"=${NEXT#v}\" }/" rust/Cargo.toml
           cargo update --workspace --manifest-path rust/Cargo.toml
           jq --arg version "${NEXT#v}" '.version = $version' javascript/package.json > "$RUNNER_TEMP/package.json"
           mv "$RUNNER_TEMP/package.json" javascript/package.json
@@ -130,11 +131,11 @@ jobs:
           git tag -a "go/${NEXT}" -m "Release go/${NEXT}"
           git push --atomic origin "${NEXT}^{commit}:refs/heads/${GITHUB_REF_NAME}" "$NEXT" "go/${NEXT}"
 
-      - name: Publish the crate
+      - name: Publish the crates
         if: ${{ !inputs.dry_run }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --manifest-path rust/Cargo.toml --allow-dirty
+        run: cargo publish --workspace --manifest-path rust/Cargo.toml --allow-dirty
 
       - name: Stage the JS package
         if: ${{ !inputs.dry_run }}

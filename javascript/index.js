@@ -15,6 +15,7 @@ const { readDslDefinitions } = require('./lib/definition-reader');
 const { Diagnostic } = require('./lib/diagnostic-report');
 const { Position } = require('./lib/source-position');
 const { Node, numberJson } = require('./lib/yaml-node');
+const { codeSpan } = require('./lib/problem-wording');
 const functionTable = require('./lib/function-table');
 const dslDefinition = require('./lib/dsl-definition');
 const jsonPath = require('./lib/json-path');
@@ -37,6 +38,7 @@ module.exports = {
   numberJson,
   parseCallKey: functionTable.parseCallKey,
   closestName: schemaValidation.closestName,
+  codeSpan,
   yamlReader: { parseYaml: yamlReader.parseYaml },
   dslDefinition: { dslDefinitionFromJson: dslDefinition.dslDefinitionFromJson },
   jsonPath: { PathPattern: jsonPath.PathPattern, PathSet: jsonPath.PathSet },

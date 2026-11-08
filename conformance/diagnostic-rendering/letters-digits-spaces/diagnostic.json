@@ -1,0 +1,6 @@
+{
+  "line": 2,
+  "column": 16,
+  "message": "`description` must NOT have more than `40` characters",
+  "label": "holds 72 characters in 14 words of mock text"
+}

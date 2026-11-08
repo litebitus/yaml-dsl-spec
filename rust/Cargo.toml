@@ -1,6 +1,6 @@
 [package]
 name = "yaml-dsl-spec"
-version = "0.1.4"
+version.workspace = true
 edition = "2024"
 license = "MIT"
 description = "The YAML DSL standard: the JSON Schemas of yaml-dsl.yml and of a DSL's function table, and the types of a DSL's definition."
@@ -16,3 +16,12 @@ jsonschema = { version = "0.60.2", default-features = false }
 saphyr-parser = "0.3.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
+
+[workspace]
+members = ["diagnostic-renderer"]
+
+[workspace.package]
+version = "0.1.4"
+
+[workspace.dependencies]
+yaml-dsl-spec = { path = ".", version = "=0.1.4" }

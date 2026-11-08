@@ -1,0 +1,20 @@
+{
+  "lines": [
+    "error: `visibility` must be >= `60`",
+    " --> mock-dsl.yml:3:17",
+    "  |",
+    "1 | queue:",
+    "2 |   name mock-orders:",
+    "3 |     visibility: 30",
+    "  |                 ^^",
+    "  |                 is less than the",
+    "  |                   mock queue's",
+    "  |                   processing time,",
+    "  |                   which is 60",
+    "  |                   seconds",
+    "  |",
+    "  = rule: minimum, at mock.schema.json#/",
+    "    $defs/queue/properties/visibility/",
+    "    minimum"
+  ]
+}

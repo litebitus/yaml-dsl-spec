@@ -1,0 +1,6 @@
+{
+  "line": 3,
+  "column": 11,
+  "message": "`tier` must be one of `\"gold\"`, `\"silver\"`",
+  "help": "did you mean `gold`?"
+}

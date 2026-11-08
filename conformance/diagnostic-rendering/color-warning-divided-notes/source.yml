@@ -1,0 +1,4 @@
+dashboard:
+  panels:
+    - title: Mock requests
+      unit: reqps

@@ -1,0 +1,16 @@
+workflows:
+  publish:
+    branch: main
+    triggers:
+      push:
+        paths:
+          - mock/a
+          - mock/b
+
+        # mock comment
+        tags:
+          - v1
+          - v2
+          - 3.0
+      pull: {}
+    tier: gold

@@ -57,10 +57,11 @@ func fieldName(documentValue any, valuePointer string) string {
 		nameBuilder.WriteString(indexStep.stepKey)
 		nameBuilder.WriteByte(']')
 	}
-	return codeSpan(nameBuilder.String())
+	return CodeSpan(nameBuilder.String())
 }
 
-func codeSpan(spanText string) string {
+// CodeSpan is a value fenced in the fewest backticks it does not hold, padded with a space where it begins or ends with one.
+func CodeSpan(spanText string) string {
 	longestRun, currentRun := 0, 0
 	for _, textRune := range spanText {
 		if textRune == '`' {
@@ -158,7 +159,7 @@ func dependencyMessage(schemaValue any, keywordPointer, dependencyKey string) st
 	if len(neededTexts) > 0 {
 		neededSummary = strings.Join(neededTexts, "; ")
 	}
-	return codeSpan(dependencyKey) + " needs " + neededSummary
+	return CodeSpan(dependencyKey) + " needs " + neededSummary
 }
 
 func neededText(neededValue any) string {
@@ -189,7 +190,7 @@ func consequenceText(schemaNode any) (string, bool) {
 		propertySchema, _ := objectField(propertiesValue, propertyName)
 		referenceValue, _ := objectField(propertySchema, "$ref")
 		if referenceText, isText := referenceValue.(string); isText {
-			consequenceParts = append(consequenceParts, codeSpan(propertyName)+" is a "+codeSpan(referenceName(referenceText)))
+			consequenceParts = append(consequenceParts, CodeSpan(propertyName)+" is a "+CodeSpan(referenceName(referenceText)))
 		}
 	}
 	allOfValue, _ := objectField(schemaNode, "allOf")
@@ -217,7 +218,7 @@ func consequenceText(schemaNode any) (string, bool) {
 	if len(consequenceParts) == 0 {
 		referenceValue, _ := objectField(schemaNode, "$ref")
 		if referenceText, isText := referenceValue.(string); isText {
-			consequenceParts = append(consequenceParts, "a "+codeSpan(referenceName(referenceText)))
+			consequenceParts = append(consequenceParts, "a "+CodeSpan(referenceName(referenceText)))
 		}
 	}
 	if len(consequenceParts) == 0 {
@@ -238,7 +239,7 @@ func keyList(keyValues []any) string {
 		if !isText {
 			keyText = jsonText(keyValue)
 		}
-		keySpans = append(keySpans, codeSpan(keyText))
+		keySpans = append(keySpans, CodeSpan(keyText))
 	}
 	if len(keySpans) < 2 {
 		return strings.Join(keySpans, "")
@@ -263,11 +264,11 @@ func containsMessage(holderNode any) string {
 		if !isBounded {
 			return "", false
 		}
-		return codeSpan(numberText(boundValue)), true
+		return CodeSpan(numberText(boundValue)), true
 	}
 	minimumText, hasMinimum := boundText("minContains")
 	if !hasMinimum {
-		minimumText = codeSpan("1")
+		minimumText = CodeSpan("1")
 	}
 	if maximumText, hasMaximum := boundText("maxContains"); hasMaximum {
 		return "must contain at least " + minimumText + " and no more than " + maximumText + " valid item(s)"

@@ -1,0 +1,7 @@
+{
+  "line": 3,
+  "column": 5,
+  "message": "`tier` must be `string`",
+  "label": "is an integer",
+  "rule": "type, at mock.schema.json#/properties/tier/type"
+}

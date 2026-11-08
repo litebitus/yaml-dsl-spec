@@ -1,0 +1,20 @@
+{
+  "lines": [
+    "\u001b[33mwarning\u001b[0m: \u001b[1m`unit` is deprecated in favor of the\u001b[0m",
+    "  \u001b[1mpanel's `field_config.defaults.unit`\u001b[0m",
+    " \u001b[90m-->\u001b[0m dashboard:\"Mock Service\":4:7",
+    "\u001b[90m  |\u001b[0m",
+    "\u001b[90m1 |\u001b[0m dashboard:",
+    "\u001b[90m2 |\u001b[0m   panels:",
+    "\u001b[90m3 |\u001b[0m     - title: Mock requests",
+    "\u001b[90m4 |\u001b[0m       unit: reqps",
+    "\u001b[90m  |\u001b[0m       \u001b[91m^^^^ deprecated\u001b[0m",
+    "\u001b[90m  |\u001b[0m",
+    "\u001b[90m  =\u001b[0m \u001b[36mrule:\u001b[0m deprecated, at mock-dashboard.schema.",
+    "    json#/$defs/panel/properties/unit/deprecated",
+    "\u001b[90m  =\u001b[0m \u001b[1;38;2;166;171;242m[schema]\u001b[0m \u001b[38;2;166;171;242mThe unit a panel's values are shown\u001b[0m",
+    "    \u001b[38;2;166;171;242min, such as requests per second.\u001b[0m",
+    "\u001b[90m  =\u001b[0m \u001b[36mhelp:\u001b[0m move the value to `field_config.",
+    "    defaults.unit`"
+  ]
+}

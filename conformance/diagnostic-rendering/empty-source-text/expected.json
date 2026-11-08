@@ -1,0 +1,7 @@
+{
+  "lines": [
+    "error: `tier` must be `string`",
+    " --> mock-unreadable.yml:3:5",
+    "  = rule: type, at mock.schema.json#/properties/tier/type"
+  ]
+}

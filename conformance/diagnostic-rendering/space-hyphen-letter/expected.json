@@ -1,0 +1,29 @@
+{
+  "lines": [
+    "error: `flags`",
+    "  holds run -v",
+    "  -x --mock -",
+    "  name a -b",
+    " --> mock-dsl.yml:2:10",
+    "  |",
+    "1 | args:",
+    "2 |   flags:",
+    "  |     run -v",
+    "  |     -x --",
+    "  |     mock -",
+    "  |     name a",
+    "  |     -b c -",
+    "  |     mock-",
+    "  |     flag",
+    "  |     ^^^^",
+    "  |     -v -x",
+    "  |       --",
+    "  |       mock",
+    "  |       -",
+    "  |       name",
+    "  |       -b -",
+    "  |     mock-",
+    "  |       flag",
+    "  |"
+  ]
+}

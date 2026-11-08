@@ -1,0 +1,22 @@
+{
+  "lines": [
+    "error: `tags[2]` must be `string`",
+    "  --> services/mock-api/mock-dsl.yml:14:13",
+    "   |",
+    " 1 | workflows:",
+    " 2 |   publish:",
+    "...",
+    " 4 |     triggers:",
+    " 5 |       push:",
+    "...",
+    "11 |         tags:",
+    "12 |           - v1",
+    "13 |           - v2",
+    "14 |           - 3.0",
+    "   |             ^^^ is a number",
+    "15 |       pull: {}",
+    "16 |     tier: gold",
+    "   |",
+    "   = rule: type, at mock.schema.json#/$defs/tag/type"
+  ]
+}

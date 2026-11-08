@@ -1,0 +1,22 @@
+[package]
+name = "yaml-dsl-spec-diagnostic-renderer"
+version.workspace = true
+edition = "2024"
+license = "MIT"
+description = "A YAML DSL standard diagnostic written as a compiler writes an error, for a terminal or a log."
+readme = "README.md"
+repository = "https://github.com/litebitus/yaml-dsl-spec"
+keywords = ["yaml", "dsl", "diagnostic", "spec"]
+categories = ["development-tools", "command-line-interface"]
+include = ["/README.md", "/src/**", "/tests/**"]
+
+[lib]
+name = "yaml_dsl_spec_diagnostic_renderer"
+
+[dependencies]
+unicode-linebreak = "0.1.5"
+unicode-width = "0.2.3"
+yaml-dsl-spec.workspace = true
+
+[dev-dependencies]
+serde_json = "1.0.154"

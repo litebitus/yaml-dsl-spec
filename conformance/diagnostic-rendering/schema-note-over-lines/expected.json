@@ -1,0 +1,15 @@
+{
+  "lines": [
+    "error: `arn` matches none of its",
+    "  allowed forms",
+    " --> mock-dsl.yml:2:8",
+    "  |",
+    "1 | role:",
+    "2 |   arn: 42",
+    "  |        ^^ is an integer",
+    "  |",
+    "  = [schema] ARN of a mock role.",
+    "    Or a ref to one, such as",
+    "      `role.mock-reader.arn`."
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "line": 4,
+  "column": 7,
+  "message": "`unit` is deprecated in favor of the panel's `field_config.defaults.unit`",
+  "label": "deprecated",
+  "rule": "deprecated, at mock-dashboard.schema.json#/$defs/panel/properties/unit/deprecated",
+  "schema": "The unit a panel's values are shown in, such as requests per second.",
+  "help": "move the value to `field_config.defaults.unit`"
+}

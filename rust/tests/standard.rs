@@ -1,7 +1,7 @@
 use serde_json::Value;
 use yaml_dsl_spec::definition::{CommonLayerDiscovery, NameSpelling};
 use yaml_dsl_spec::{
-    DslDefinition, FUNCTION_TABLE_VERSIONS, YAML_DSL_VERSIONS, function_table_schema,
+    DslDefinition, FUNCTION_TABLE_VERSIONS, YAML_DSL_VERSIONS, code_span, function_table_schema,
     yaml_dsl_schema,
 };
 
@@ -97,4 +97,13 @@ fn a_function_table_the_schema_accepts() {
         ),
         Vec::<String>::new()
     );
+}
+
+#[test]
+fn a_value_is_fenced_in_more_backticks_than_it_holds_in_a_row() {
+    assert_eq!(code_span("on"), "`on`");
+    assert_eq!(code_span("a`b"), "``a`b``");
+    assert_eq!(code_span("a``b`c"), "```a``b`c```");
+    assert_eq!(code_span("`on"), "`` `on ``");
+    assert_eq!(code_span("on`"), "`` on` ``");
 }

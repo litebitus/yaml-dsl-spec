@@ -1,0 +1,4 @@
+generators:
+  resource:
+    schema:
+      - "s3://mock-bucket/schemas/{{stack.mock_version}}/mock.schema.json"

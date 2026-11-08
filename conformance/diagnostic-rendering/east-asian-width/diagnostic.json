@@ -1,0 +1,7 @@
+{
+  "line": 3,
+  "column": 18,
+  "message": "`description` must NOT have more than `10` characters",
+  "label": "値が長すぎます十文字以内にしてください",
+  "schema": "队列的说明最多十个字符"
+}

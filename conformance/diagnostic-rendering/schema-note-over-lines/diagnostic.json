@@ -1,0 +1,7 @@
+{
+  "line": 2,
+  "column": 8,
+  "message": "`arn` matches none of its allowed forms",
+  "label": "is an integer",
+  "schema": "ARN of a mock role.\nOr a ref to one, such as `role.mock-reader.arn`."
+}

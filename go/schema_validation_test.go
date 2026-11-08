@@ -195,8 +195,8 @@ func TestAValueIsFencedInMoreBackticksThanItHoldsInARow(testingContext *testing.
 		"on`":    "`` on` ``",
 	}
 	for plainText, fencedText := range fencedValues {
-		if codeSpan(plainText) != fencedText {
-			testingContext.Errorf("%q fences as %q", plainText, codeSpan(plainText))
+		if CodeSpan(plainText) != fencedText {
+			testingContext.Errorf("%q fences as %q", plainText, CodeSpan(plainText))
 		}
 	}
 }

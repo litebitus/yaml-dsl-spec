@@ -1,0 +1,6 @@
+{
+  "line": 2,
+  "column": 11,
+  "message": "`script` holds \"mock\" (a) 'x' [b] \"y\" {c} \"z\"(d)",
+  "label": "\"mock\" (a) 'x' [b] \"y\" {c}"
+}

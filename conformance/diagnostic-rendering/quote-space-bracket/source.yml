@@ -1,0 +1,2 @@
+run:
+  script: echo "mock" (a) 'x' [b] "y" {c} "z"(d)

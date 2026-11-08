@@ -1,0 +1,27 @@
+{
+  "lines": [
+    "error: `paths[0]`",
+    "  must match pattern",
+    "  `^mock/[a-z]+$`: /",
+    "  mock/orders/",
+    "  2026, /mock/items;",
+    "  (mock) [mock] {",
+    "  mock}!",
+    " --> mock-dsl.yml:2:5",
+    "  |",
+    "1 | paths:",
+    "2 |   - /mock/",
+    "  |     orders/2026,",
+    "  |     /mock/items;",
+    "  |     (mock)[mock]",
+    "  |     {mock}!?",
+    "  |     ^^^^^^^^",
+    "  |     ends in `!?",
+    "  |       `, starts",
+    "  |       with `/`",
+    "  |",
+    "  = help: drop the",
+    "    `/`, `;` and `!?",
+    "    `."
+  ]
+}

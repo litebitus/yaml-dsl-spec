@@ -1,0 +1,2 @@
+args:
+  flags: run -v -x --mock -name a -b c -mock-flag

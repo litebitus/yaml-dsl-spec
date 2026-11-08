@@ -1,0 +1,13 @@
+{
+  "lines": [
+    "error: `tier` must be one of `\"gold\"`, `\"silver\"`",
+    " --> mock-dsl.yml:3:11",
+    "  |",
+    "1 | queue:",
+    "2 |   name mock-orders:",
+    "3 |     tier: \"gld \\\"x\\\"\" # mock tier",
+    "  |           ^^^^^^^^^^^",
+    "  |",
+    "  = help: did you mean `gold`?"
+  ]
+}

@@ -26,6 +26,7 @@ pub use diagnostic::{Diagnostic, DiagnosticNotes};
 pub use function_table::{CallKey, parse_call_key};
 pub use node::{Entry, Node, NodeKind, number_json};
 pub use position::Position;
+pub use problem_wording::code_span;
 pub use schema::closest_name;
 pub use validation_rules::ValidationRules;
 

@@ -46,7 +46,7 @@ func (problemBuilder failureProblems) closestSuggestion(misspeltName string, can
 	if !isClose {
 		return nil
 	}
-	helpText := "did you mean " + codeSpan(closestCandidate) + "?"
+	helpText := "did you mean " + CodeSpan(closestCandidate) + "?"
 	return &helpText
 }
 
@@ -63,7 +63,7 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 	}
 	atValue := func(problemMessage string, schemaNote *string) []schemaProblem {
 		valueProblem := DiagnosticAt(documentRecord.valuePosition(valuePointer), problemMessage).
-			WithLabel("breaks " + codeSpan(checkFailure.failedKeyword)).
+			WithLabel("breaks " + CodeSpan(checkFailure.failedKeyword)).
 			WithRule(checkRule).
 			WithSchema(schemaNote)
 		return []schemaProblem{{subjectPointer: valuePointer, builtDiagnostic: valueProblem}}
@@ -78,9 +78,9 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 		var unknownProblems []schemaProblem
 		for _, unexpectedName := range checkFailure.fieldNames {
 			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
-			unknownMessage := codeSpan(unexpectedName) + " is not a field of " + namedField
+			unknownMessage := CodeSpan(unexpectedName) + " is not a field of " + namedField
 			unknownProblem := DiagnosticAt(documentRecord.keyPosition(subjectPointer), unknownMessage).
-				WithLabel(namedField + " has no field " + codeSpan(unexpectedName)).
+				WithLabel(namedField + " has no field " + CodeSpan(unexpectedName)).
 				WithRule(checkRule).
 				WithHelp(problemBuilder.closestSuggestion(unexpectedName, allowedNames))
 			unknownProblems = append(unknownProblems, atSubject(subjectPointer, unknownProblem)...)
@@ -89,7 +89,7 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 	case "propertyNames":
 		propertyName := checkFailure.fieldNames[0]
 		subjectPointer := valuePointer + "/" + escapePointer(propertyName)
-		keyMessage := codeSpan(propertyName) + " is not a valid key of " + namedField
+		keyMessage := CodeSpan(propertyName) + " is not a valid key of " + namedField
 		keyProblem := DiagnosticAt(documentRecord.keyPosition(subjectPointer), keyMessage).
 			WithLabel("breaks `propertyNames`").
 			WithRule(checkRule)
@@ -99,7 +99,7 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 	case "type":
 		var expectedSpans []string
 		for _, expectedType := range loadedSchema.expectedTypes(checkFailure.schemaPointer) {
-			expectedSpans = append(expectedSpans, codeSpan(expectedType))
+			expectedSpans = append(expectedSpans, CodeSpan(expectedType))
 		}
 		typeMessage := namedField + " must be " + strings.Join(expectedSpans, " or ")
 		typeProblem := DiagnosticAt(documentRecord.valuePosition(valuePointer), typeMessage).
@@ -111,8 +111,8 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 		if checkFailure.missingField != nil {
 			missingName = *checkFailure.missingField
 		}
-		missingProblem := DiagnosticAt(documentRecord.keyPosition(valuePointer), codeSpan(missingName)+" is required").
-			WithLabel(namedField + " has no field " + codeSpan(missingName)).
+		missingProblem := DiagnosticAt(documentRecord.keyPosition(valuePointer), CodeSpan(missingName)+" is required").
+			WithLabel(namedField + " has no field " + CodeSpan(missingName)).
 			WithRule(checkRule)
 		return atSubject(valuePointer, missingProblem)
 	case "anyOf", "oneOf":
@@ -123,13 +123,13 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 		definitionNote := definitionDescription(loadedSchema.originalSchema, holderSchemaPointer)
 		return atValue(namedField+" matches none of its allowed forms", definitionNote)
 	case "const":
-		return atValue(namedField+" must be "+codeSpan(jsonText(schemaValue)), nil)
+		return atValue(namedField+" must be "+CodeSpan(jsonText(schemaValue)), nil)
 	case "multipleOf":
 		multipleFloat, _ := jsonNumberFloat(schemaValue)
-		return atValue(namedField+" must be multiple of "+codeSpan(floatNumberText(multipleFloat)), nil)
+		return atValue(namedField+" must be multiple of "+CodeSpan(floatNumberText(multipleFloat)), nil)
 	case "pattern":
 		patternText, _ := schemaValue.(string)
-		return atValue(namedField+" must match pattern "+codeSpan(patternText), nil)
+		return atValue(namedField+" must match pattern "+CodeSpan(patternText), nil)
 	case "uniqueItems":
 		listItems, _ := holderValue.([]any)
 		laterIndex, earlierIndex, _ := duplicateItems(listItems)
@@ -152,12 +152,12 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 		return atValue(namedField+" boolean schema is false", nil)
 	}
 	if boundComparison, isBound := boundComparisons[checkFailure.failedKeyword]; isBound {
-		return atValue(namedField+" must be "+boundComparison+" "+codeSpan(numberText(schemaValue)), nil)
+		return atValue(namedField+" must be "+boundComparison+" "+CodeSpan(numberText(schemaValue)), nil)
 	}
 	if limitWords, isLimit := lengthLimits[checkFailure.failedKeyword]; isLimit {
-		return atValue(namedField+" must NOT have "+limitWords[0]+" than "+codeSpan(numberText(schemaValue))+" "+limitWords[1], nil)
+		return atValue(namedField+" must NOT have "+limitWords[0]+" than "+CodeSpan(numberText(schemaValue))+" "+limitWords[1], nil)
 	}
-	return atValue(namedField+" breaks "+codeSpan(checkFailure.failedKeyword), nil)
+	return atValue(namedField+" breaks "+CodeSpan(checkFailure.failedKeyword), nil)
 }
 
 func (problemBuilder failureProblems) dependencyProblems(checkFailure failedCheck, holderValue any) ([]schemaProblem, bool) {
@@ -175,7 +175,7 @@ func (problemBuilder failureProblems) dependencyProblems(checkFailure failedChec
 	dependencyKeyword := dependencyPointer[strings.LastIndexByte(dependencyPointer, '/')+1:]
 	dependencyMessageText := dependencyMessage(markedSchema, dependencyPointer, dependencyKey)
 	dependencyProblem := DiagnosticAt(problemBuilder.documentRecord.keyPosition(subjectPointer), dependencyMessageText).
-		WithLabel("breaks " + codeSpan(dependencyKeyword)).
+		WithLabel("breaks " + CodeSpan(dependencyKeyword)).
 		WithRule(problemBuilder.ruleAt(dependencyKeyword, dependencyPointer+"/"+escapePointer(dependencyKey)))
 	return []schemaProblem{{subjectPointer: subjectPointer, builtDiagnostic: dependencyProblem}}, true
 }
@@ -191,7 +191,7 @@ func (problemBuilder failureProblems) enumProblems(
 		if optionText, isText := listedOption.(string); isText {
 			allowedTexts = append(allowedTexts, optionText)
 		}
-		shownOptions = append(shownOptions, codeSpan(jsonText(listedOption)))
+		shownOptions = append(shownOptions, CodeSpan(jsonText(listedOption)))
 	}
 	var enumHelp *string
 	if instanceText, isText := holderValue.(string); isText {
@@ -220,13 +220,13 @@ func (problemBuilder failureProblems) tupleProblems(checkFailure failedCheck, na
 	tupleSchemas, _ := tupleValue.([]any)
 	listPosition := problemBuilder.documentRecord.valuePosition(listPointer)
 	tupleProblem := DiagnosticAt(listPosition, listLimitMessage(namedField, len(tupleSchemas))).
-		WithLabel("breaks " + codeSpan(checkFailure.failedKeyword)).
+		WithLabel("breaks " + CodeSpan(checkFailure.failedKeyword)).
 		WithRule(checkRule)
 	return []schemaProblem{{subjectPointer: listPointer, builtDiagnostic: tupleProblem}}
 }
 
 func listLimitMessage(namedField string, itemLimit int) string {
-	return namedField + " must NOT have more than " + codeSpan(strconv.Itoa(itemLimit)) + " items"
+	return namedField + " must NOT have more than " + CodeSpan(strconv.Itoa(itemLimit)) + " items"
 }
 
 func jsonTypeName(jsonValue any) string {

@@ -1,0 +1,7 @@
+{
+  "line": 3,
+  "column": 17,
+  "message": "`visibility` must be >= `60`",
+  "label": "is less than the mock queue's processing time, which is 60 seconds",
+  "rule": "minimum, at mock.schema.json#/$defs/queue/properties/visibility/minimum"
+}

@@ -24,13 +24,38 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 
 ## Packages
 
-| Language | Package | Folder |
-|---|---|---|
-| Rust | [`yaml-dsl-spec`](https://crates.io/crates/yaml-dsl-spec) | [`rust/`](rust) |
-| JavaScript | [`yaml-dsl-spec`](https://www.npmjs.com/package/yaml-dsl-spec) | [`javascript/`](javascript) |
-| Go | [`github.com/litebitus/yaml-dsl-spec/go`](https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go) | [`go/`](go) |
+<table>
+  <tr><th>Package</th><th>Language</th><th>Name</th><th>Folder</th></tr>
+  <tr>
+    <td rowspan="3">core</td>
+    <td>Rust</td>
+    <td><a href="https://crates.io/crates/yaml-dsl-spec"><code>yaml-dsl-spec</code></a></td>
+    <td><a href="rust"><code>rust/</code></a></td>
+  </tr>
+  <tr>
+    <td>JavaScript</td>
+    <td><a href="https://www.npmjs.com/package/yaml-dsl-spec"><code>yaml-dsl-spec</code></a></td>
+    <td><a href="javascript"><code>javascript/</code></a></td>
+  </tr>
+  <tr>
+    <td>Go</td>
+    <td><a href="https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go"><code>github.com/litebitus/yaml-dsl-spec/go</code></a></td>
+    <td><a href="go"><code>go/</code></a></td>
+  </tr>
+  <tr>
+    <td rowspan="2">diagnostic renderer</td>
+    <td>Rust</td>
+    <td><a href="https://crates.io/crates/yaml-dsl-spec-diagnostic-renderer"><code>yaml-dsl-spec-diagnostic-renderer</code></a></td>
+    <td><a href="rust/diagnostic-renderer"><code>rust/diagnostic-renderer/</code></a></td>
+  </tr>
+  <tr>
+    <td>Go</td>
+    <td><a href="https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer"><code>github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer</code></a></td>
+    <td><a href="go/diagnostic_renderer"><code>go/diagnostic_renderer/</code></a></td>
+  </tr>
+</table>
 
-What each package implements is designed in [docs/package-design.md](docs/package-design.md).
+What each package implements is designed in [docs/package-design.md](docs/package-design.md): the core, and the packages beyond it.
 
 ## Conformance
 
@@ -42,6 +67,8 @@ What each package implements is designed in [docs/package-design.md](docs/packag
 | `yaml/<case>/` | an `input.yml`, and the tag keys of an optional `tag-keys.json` | its node tree with every value's line and column, or its problem |
 | `schema/<case>/` | a `document.yml`, its `schema.json`, and the DSL `validator` block of an optional `validator.json` | its problems, or why the schema is not read |
 | `patterns/cases.json` | a pattern of the standard's subset, and texts | whether it compiles, its named groups, and each text's captures |
+| `diagnostic-rendering/<case>/` | a `diagnostic.json`, the severity, source name and style of a `rendering.json`, and the source text of an optional `source.yml`, all within the subset the package design defines rendering for | the diagnostic renderer's text, its lines in `expected.json` |
+| `diagnostic-rendering/subset-corpus.json` | texts drawn from that subset, each an error's message and its source's one line, placed at its start | its text at each style it lists |
 
 Each case's `expected.json` states what it reads to; `patterns/expected.json` states it for every pattern.
 
@@ -96,10 +123,10 @@ version: "1.0"
 
 | Target | Does |
 |---|---|
-| `make test` | the crate's format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests; each package's tests fail under 90% line coverage |
+| `make test` | the crates' format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests; each package's tests fail under 90% line coverage |
 | `make build` | `make test`, then builds every package with the schemas of the checkout |
 | `make promote-npm STAGE_ID=<stage id>` | shows a version the `Release` or `Snapshot` workflow staged on npm, then promotes it, asking for two-factor authentication; without `STAGE_ID`, lists the staged versions |
 
-The `Release` workflow is dispatched by hand: it stamps `CHANGELOG.md` and the version of every package, tags, the Go module as `go/<version>` on a commit of its own that carries the schemas, publishes the crate, stages the npm package, and attaches the schemas to a GitHub release. A maintainer promotes the staged npm version, on npmjs.com or with `make promote-npm`, with two-factor authentication. Every package carries the same version.
+The `Release` workflow is dispatched by hand: it stamps `CHANGELOG.md` and the version of every package, tags, the Go module as `go/<version>` on a commit of its own that carries the schemas, publishes the crates, stages the npm package, and attaches the schemas to a GitHub release. A maintainer promotes the staged npm version, on npmjs.com or with `make promote-npm`, with two-factor authentication. Every package carries the same version.
 
 The `Snapshot` workflow is dispatched by hand: it publishes every package as a pre-release, such as `0.1.5-snapshot.20261107123456`, tagged on its commit, the Go module as `go/<version>` on a commit of its own that carries the schemas, and the npm package staged with the `snapshot` tag. No package manager picks a pre-release on its own, so a consumer names a snapshot by its exact version.

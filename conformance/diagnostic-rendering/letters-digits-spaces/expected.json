@@ -1,0 +1,19 @@
+{
+  "lines": [
+    "error: `description` must NOT",
+    "  have more than `40`",
+    "  characters",
+    " --> mock-dsl.yml:2:16",
+    "  |",
+    "1 | mock:",
+    "2 |   description: mock orders",
+    "  |     2026 queue holds 30",
+    "  |     days of 12 mock orders",
+    "  |     per mock region",
+    "  |     ^^^^^^^^^^^^^^^",
+    "  |     holds 72 characters in",
+    "  |       14 words of mock",
+    "  |       text",
+    "  |"
+  ]
+}

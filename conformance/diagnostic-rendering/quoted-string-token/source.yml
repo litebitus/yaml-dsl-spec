@@ -1,0 +1,3 @@
+queue:
+  name mock-orders:
+    tier: "gld \"x\"" # mock tier

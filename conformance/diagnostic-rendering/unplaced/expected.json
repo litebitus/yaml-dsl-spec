@@ -1,0 +1,7 @@
+{
+  "lines": [
+    "error: `mock-dsl` is not a DSL of `yaml-dsl.yml`",
+    "  = rule: dsls, at the definitions `yaml-dsl.yml` declares",
+    "  = help: did you mean `mock-dsls`?"
+  ]
+}

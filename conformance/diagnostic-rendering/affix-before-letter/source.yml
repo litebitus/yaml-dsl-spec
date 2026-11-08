@@ -1,0 +1,2 @@
+env:
+  command: echo $env %name +flag \path a(b) c[d] e{f} $HOME%PATH+x\y

@@ -1,0 +1,18 @@
+{
+  "lines": [
+    "error: `description` must NOT have",
+    "  more than `10` characters",
+    " --> mock-dsl.yml:3:18",
+    "  |",
+    "1 | queue:",
+    "2 |   name mock-orders:",
+    "3 |     description: 这个队列保存每",
+    "  |       个模拟订单直到它被处理为止",
+    "  |       ^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "  |       値が長すぎます十文字以内に",
+    "  |         してください",
+    "4 |     tier: 金",
+    "  |",
+    "  = [schema] 队列的说明最多十个字符"
+  ]
+}

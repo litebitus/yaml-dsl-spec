@@ -1,0 +1,18 @@
+{
+  "lines": [
+    "error: AWS refused to read s3://mock-bucket/schemas/1.2.3/",
+    "  mock.schema.json",
+    " --> mock-tool.yml:4:9",
+    "  |",
+    "1 | generators:",
+    "2 |   resource:",
+    "3 |     schema:",
+    "4 |       - \"s3://mock-bucket/schemas/{{stack.mock_version}}",
+    "  |         /mock.schema.json\"",
+    "  |         ^^^^^^^^^^^^^^^^^^",
+    "  |         AccessDenied for arn:aws:iam::123456789012:user/",
+    "  |           mock-user",
+    "  |",
+    "  = help: use a profile allowed `s3:GetObject` on it"
+  ]
+}

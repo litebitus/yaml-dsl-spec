@@ -1,0 +1,6 @@
+{
+  "severity": "warning",
+  "source_name": "dashboard:\"Mock Service\"",
+  "color": true,
+  "width": 50
+}

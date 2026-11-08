@@ -1,0 +1,12 @@
+{
+  "lines": [
+    "warning: `retention_days` is deprecated",
+    " --> mock-dsl.yml:3:5",
+    "  |",
+    "1 | queue:",
+    "2 |   name mock-orders:",
+    "3 |     retention_days: 7",
+    "  |     ^^^^^^^^^^^^^^ replaced by `retention`",
+    "  |"
+  ]
+}

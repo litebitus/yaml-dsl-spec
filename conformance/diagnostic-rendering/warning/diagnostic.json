@@ -1,0 +1,6 @@
+{
+  "line": 3,
+  "column": 5,
+  "message": "`retention_days` is deprecated",
+  "label": "replaced by `retention`"
+}

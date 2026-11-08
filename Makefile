@@ -5,7 +5,7 @@ COVERAGE_FLOOR = 90
 .PHONY: build promote-npm test test-go test-javascript test-rust
 
 build: test
-	cargo build $(RUST) --release
+	cargo build $(RUST) --workspace --release
 	npm --prefix javascript run build
 	go -C go generate ./...
 	go -C go build ./...
@@ -13,9 +13,9 @@ build: test
 test: test-rust test-javascript test-go
 
 test-rust:
-	cargo fmt $(RUST) --check
-	cargo clippy $(RUST) --all-targets -- -D warnings
-	cargo llvm-cov $(RUST) --fail-under-lines $(COVERAGE_FLOOR)
+	cargo fmt $(RUST) --all --check
+	cargo clippy $(RUST) --workspace --all-targets -- -D warnings
+	cargo llvm-cov $(RUST) --workspace --fail-under-lines $(COVERAGE_FLOOR)
 
 test-javascript:
 	npm --prefix javascript ci

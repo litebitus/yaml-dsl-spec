@@ -1,0 +1,7 @@
+queue:
+  name mock-orders:
+    visibility: 30
+    retention: 7
+    tags: {}
+    brnch: main
+    tier: gold

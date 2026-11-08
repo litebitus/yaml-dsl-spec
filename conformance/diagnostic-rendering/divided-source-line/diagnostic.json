@@ -1,0 +1,7 @@
+{
+  "line": 4,
+  "column": 9,
+  "message": "AWS refused to read s3://mock-bucket/schemas/1.2.3/mock.schema.json",
+  "label": "AccessDenied for arn:aws:iam::123456789012:user/mock-user",
+  "help": "use a profile allowed `s3:GetObject` on it"
+}

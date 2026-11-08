@@ -1,0 +1,12 @@
+{
+  "lines": [
+    "error: `stack.mock_version` is not a global of the stack",
+    " --> mock-tool.yml:3:30",
+    "  |",
+    "1 | generators:",
+    "2 |   mock:",
+    "3 |     schema: s3://mock-bucket/{{stack.mock_version}}/mock.schema.json",
+    "  |                              ^^^^^^^^^^^^^^^^^^^^^^ names no global",
+    "  |"
+  ]
+}

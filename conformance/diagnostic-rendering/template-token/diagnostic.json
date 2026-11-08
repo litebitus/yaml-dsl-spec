@@ -1,0 +1,6 @@
+{
+  "line": 3,
+  "column": 30,
+  "message": "`stack.mock_version` is not a global of the stack",
+  "label": "names no global"
+}

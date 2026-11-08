@@ -1,0 +1,7 @@
+{
+  "line": 14,
+  "column": 13,
+  "message": "`tags[2]` must be `string`",
+  "label": "is a number",
+  "rule": "type, at mock.schema.json#/$defs/tag/type"
+}

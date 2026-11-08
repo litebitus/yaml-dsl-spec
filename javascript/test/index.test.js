@@ -43,3 +43,11 @@ test('a major is its newest minor, and other families are left out', () => {
     ['2.0', 'mock-v2.0.schema.json'],
   ]);
 });
+
+test('a value is fenced in more backticks than it holds in a row', () => {
+  assert.strictEqual(spec.codeSpan('on'), '`on`');
+  assert.strictEqual(spec.codeSpan('a`b'), '``a`b``');
+  assert.strictEqual(spec.codeSpan('a``b`c'), '```a``b`c```');
+  assert.strictEqual(spec.codeSpan('`on'), '`` `on ``');
+  assert.strictEqual(spec.codeSpan('on`'), '`` on` ``');
+});

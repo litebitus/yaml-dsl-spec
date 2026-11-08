@@ -70,16 +70,17 @@ jobs:
         run: |
           set -euo pipefail
           sed -i "0,/^version = \".*\"$/s//version = \"${VERSION#v}\"/" rust/Cargo.toml
+          sed -i "s/^yaml-dsl-spec = { path = \"\.\", version = \"=.*\" }$/yaml-dsl-spec = { path = \".\", version = \"=${VERSION#v}\" }/" rust/Cargo.toml
           cargo update --workspace --manifest-path rust/Cargo.toml
           jq --arg version "${VERSION#v}" '.version = $version' javascript/package.json > "$RUNNER_TEMP/package.json"
           mv "$RUNNER_TEMP/package.json" javascript/package.json
           mkdir -p rust/schemas
           cp schemas/*.schema.json rust/schemas/
 
-      - name: Publish the snapshot crate
+      - name: Publish the snapshot crates
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --manifest-path rust/Cargo.toml --allow-dirty
+        run: cargo publish --workspace --manifest-path rust/Cargo.toml --allow-dirty
 
       - name: Stage the snapshot JS package
         working-directory: javascript
