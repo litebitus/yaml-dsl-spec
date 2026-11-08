@@ -32,10 +32,9 @@ test-go:
 
 promote-npm:
 	@if [ -z "$(STAGE_ID)" ]; then \
-		npm stage list $(NPM_PACKAGE); \
+		node javascript/scripts/promote-staged.js $(NPM_PACKAGE); \
 		echo "STAGE_ID is required: make promote-npm STAGE_ID=<stage id>" >&2; \
 		exit 1; \
 	fi
 	npm stage view $(STAGE_ID)
-	npm stage approve $(STAGE_ID)
-	@echo "Promoted stage $(STAGE_ID) of $(NPM_PACKAGE) on npm."
+	@node javascript/scripts/promote-staged.js $(NPM_PACKAGE) $(STAGE_ID)

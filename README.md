@@ -125,7 +125,7 @@ version: "1.0"
 |---|---|
 | `make test` | the crates' format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests; each package's tests fail under 90% line coverage |
 | `make build` | `make test`, then builds every package with the schemas of the checkout |
-| `make promote-npm STAGE_ID=<stage id>` | shows a version the `Release` or `Snapshot` workflow staged on npm, then promotes it, asking for two-factor authentication; without `STAGE_ID`, lists the staged versions |
+| `make promote-npm STAGE_ID=<stage id>` | shows a version the `Release` or `Snapshot` workflow staged on npm, then promotes it and rejects every staged snapshot below it, asking once for a one-time password; without `STAGE_ID`, lists the staged versions, newest first |
 
 The `Release` workflow is dispatched by hand: it stamps `CHANGELOG.md` and the version of every package, tags, the Go module as `go/<version>` on a commit of its own that carries the schemas, publishes the crates, stages the npm package, and attaches the schemas to a GitHub release. A maintainer promotes the staged npm version, on npmjs.com or with `make promote-npm`, with two-factor authentication. Every package carries the same version.
 
