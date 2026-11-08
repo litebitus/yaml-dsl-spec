@@ -763,7 +763,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "yaml-dsl-spec"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "fancy-regex 0.20.0",
  "jsonschema",
@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "yaml-dsl-spec-diagnostic-renderer"
-version = "0.1.4"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "unicode-linebreak",
