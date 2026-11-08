@@ -476,36 +476,17 @@ function pointerOfSchemaPath(path) {
 }
 
 /**
- * The fields a schema node allows, by the `properties` of the node holding the
- * keyword at `keywordPointer`, of the schemas it references and of those it
- * combines.
+ * The fields a schema node allows: the `properties` of every schema the node
+ * holding the keyword at `keywordPointer` reaches.
  */
 function allowedFields(schema, keywordPointer) {
-  const holderPointer = keywordPointer.includes('/')
-    ? keywordPointer.slice(0, keywordPointer.lastIndexOf('/'))
-    : '';
   const fields = [];
-  const holder = schemaNodeAt(schema, holderPointer);
-  if (holder !== undefined) collectFields(schema, holder, fields, new Set());
-  return fields;
-}
-
-function collectFields(schema, node, fields, visited) {
-  if (!isObject(node)) return;
-  if (isObject(node.properties)) {
+  const reachable = reachableSchemas(schema, keywordPointer);
+  for (const { node } of reachable === null ? [] : reachable.schemaNodes) {
+    if (!isObject(node.properties)) continue;
     for (const name of Object.keys(node.properties)) if (!fields.includes(name)) fields.push(name);
   }
-  if (typeof node.$ref === 'string' && node.$ref.startsWith('#')) {
-    const pointer = node.$ref.slice(1);
-    const target = visited.has(pointer) ? undefined : schemaNodeAt(schema, pointer);
-    visited.add(pointer);
-    if (target !== undefined) collectFields(schema, target, fields, visited);
-  }
-  for (const combinator of ['allOf', 'anyOf', 'oneOf']) {
-    for (const branch of Array.isArray(node[combinator]) ? node[combinator] : []) {
-      collectFields(schema, branch, fields, visited);
-    }
-  }
+  return fields;
 }
 
 function fieldCouldBeAccepted(schema, keywordPointer, name) {
@@ -523,12 +504,15 @@ function fieldCouldBeAccepted(schema, keywordPointer, name) {
 }
 
 function itemCouldBeEvaluated(schema, keywordPointer, index) {
-  return schemaCouldRead(schema, keywordPointer, (node, isHolder) => (
-    (Array.isArray(node.prefixItems) && node.prefixItems.length > index)
-      || isNotFalse(node, 'items')
+  return schemaCouldRead(schema, keywordPointer, (node, isHolder) => {
+    const itemsEvaluate = Array.isArray(node.items)
+      ? node.items.length > index || isNotFalse(node, 'additionalItems')
+      : isNotFalse(node, 'items');
+    return (Array.isArray(node.prefixItems) && node.prefixItems.length > index)
+      || itemsEvaluate
       || node.contains !== undefined
-      || (!isHolder && isNotFalse(node, 'unevaluatedItems'))
-  ));
+      || (!isHolder && isNotFalse(node, 'unevaluatedItems'));
+  });
 }
 
 function isNotFalse(node, keyword) {
@@ -536,25 +520,33 @@ function isNotFalse(node, keyword) {
 }
 
 function schemaCouldRead(schema, keywordPointer, readsMember) {
+  const reachable = reachableSchemas(schema, keywordPointer);
+  return reachable === null
+    || reachable.reachesOtherDocument
+    || reachable.schemaNodes.some(({ node, isHolder }) => readsMember(node, isHolder));
+}
+
+function reachableSchemas(schema, keywordPointer) {
   const holderPointer = keywordPointer.includes('/')
     ? keywordPointer.slice(0, keywordPointer.lastIndexOf('/'))
     : '';
   const holder = schemaNodeAt(schema, holderPointer);
-  return holder === undefined || nodeCouldRead(schema, holder, true, readsMember, new Set());
+  if (holder === undefined) return null;
+  const reachable = { schemaNodes: [], reachesOtherDocument: false };
+  collectReachable(schema, holder, true, reachable, new Set());
+  return reachable;
 }
 
-function nodeCouldRead(schema, node, isHolder, readsMember, visited) {
-  if (!isObject(node)) return false;
-  if (readsMember(node, isHolder)) return true;
+function collectReachable(schema, node, isHolder, reachable, visited) {
+  if (!isObject(node)) return;
+  reachable.schemaNodes.push({ node, isHolder });
   if (typeof node.$ref === 'string') {
-    if (!node.$ref.startsWith('#')) return true;
-    const pointer = node.$ref.slice(1);
-    if (!visited.has(pointer)) {
+    const pointer = node.$ref.startsWith('#') ? node.$ref.slice(1) : null;
+    if (pointer === null) reachable.reachesOtherDocument = true;
+    else if (!visited.has(pointer)) {
       visited.add(pointer);
       const target = schemaNodeAt(schema, pointer);
-      if (target !== undefined && nodeCouldRead(schema, target, false, readsMember, visited)) {
-        return true;
-      }
+      if (target !== undefined) collectReachable(schema, target, false, reachable, visited);
     }
   }
   const branches = [
@@ -565,7 +557,7 @@ function nodeCouldRead(schema, node, isHolder, readsMember, visited) {
       .map((keyword) => node[keyword]),
     ...(isObject(node.dependentSchemas) ? Object.values(node.dependentSchemas) : []),
   ];
-  return branches.some((branch) => nodeCouldRead(schema, branch, false, readsMember, visited));
+  for (const branch of branches) collectReachable(schema, branch, false, reachable, visited);
 }
 
 /**

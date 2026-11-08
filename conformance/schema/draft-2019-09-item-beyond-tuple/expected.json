@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 7,
+      "message": "`pair` must NOT have more than `2` items",
+      "label": "breaks `unevaluatedItems`",
+      "rule": "unevaluatedItems, at schema.json#/properties/pair/unevaluatedItems"
+    }
+  ]
+}

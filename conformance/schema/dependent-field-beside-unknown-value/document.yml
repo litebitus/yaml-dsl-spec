@@ -1,0 +1,4 @@
+listener:
+  kind: ref local.mock_kind
+  certificate: mock-certificate
+  certficate: mock-certificate

@@ -565,51 +565,26 @@ fn place(diagnostic: &Diagnostic) -> Option<(usize, usize)> {
         .map(|position| (position.line, position.column))
 }
 
-/// The fields a schema node allows, by the `properties` of the node holding the
-/// keyword at `keyword_pointer`, of the schemas it references and of those it
-/// combines.
+/// The fields a schema node allows: the `properties` of every schema the node
+/// holding the keyword at `keyword_pointer` reaches.
 fn allowed_fields(schema: &JsonValue, keyword_pointer: &str) -> Vec<String> {
-    let holder_pointer = keyword_pointer
-        .rsplit_once('/')
-        .map_or("", |(holder, _)| holder);
-    let mut fields = Vec::new();
-    let mut visited = BTreeSet::new();
-    if let Some(holder) = schema.pointer(holder_pointer) {
-        collect_fields(schema, holder, &mut fields, &mut visited);
-    }
-    fields
-}
-
-fn collect_fields(
-    schema: &JsonValue,
-    node: &JsonValue,
-    fields: &mut Vec<String>,
-    visited: &mut BTreeSet<String>,
-) {
-    if let Some(properties) = node.get("properties").and_then(JsonValue::as_object) {
-        for name in properties.keys() {
+    let mut fields: Vec<String> = Vec::new();
+    let Some(reachable) = reachable_schemas(schema, keyword_pointer) else {
+        return fields;
+    };
+    for (keywords, _) in reachable.schema_nodes {
+        for name in keywords
+            .get("properties")
+            .and_then(JsonValue::as_object)
+            .into_iter()
+            .flat_map(Map::keys)
+        {
             if !fields.contains(name) {
                 fields.push(name.clone());
             }
         }
     }
-    if let Some(reference) = node.get("$ref").and_then(JsonValue::as_str)
-        && let Some(pointer) = reference.strip_prefix('#')
-        && visited.insert(pointer.to_owned())
-        && let Some(target) = schema.pointer(pointer)
-    {
-        collect_fields(schema, target, fields, visited);
-    }
-    for combinator in ["allOf", "anyOf", "oneOf"] {
-        for branch in node
-            .get(combinator)
-            .and_then(JsonValue::as_array)
-            .into_iter()
-            .flatten()
-        {
-            collect_fields(schema, branch, fields, visited);
-        }
-    }
+    fields
 }
 
 fn field_could_be_accepted(schema: &JsonValue, keyword_pointer: &str, name: &str) -> bool {
@@ -634,11 +609,14 @@ fn field_could_be_accepted(schema: &JsonValue, keyword_pointer: &str, name: &str
 
 fn item_could_be_evaluated(schema: &JsonValue, keyword_pointer: &str, index: usize) -> bool {
     schema_could_read(schema, keyword_pointer, &|keywords, is_holder| {
+        let item_tuple = keywords.get("items").and_then(JsonValue::as_array);
         keywords
             .get("prefixItems")
             .and_then(JsonValue::as_array)
             .is_some_and(|prefix| prefix.len() > index)
-            || is_not_false(keywords, "items")
+            || item_tuple.map_or(is_not_false(keywords, "items"), |tuple| {
+                tuple.len() > index || is_not_false(keywords, "additionalItems")
+            })
             || keywords.contains_key("contains")
             || (!is_holder && is_not_false(keywords, "unevaluatedItems"))
     })
@@ -655,36 +633,55 @@ fn schema_could_read(
     keyword_pointer: &str,
     reads_member: &dyn Fn(&Map<String, JsonValue>, bool) -> bool,
 ) -> bool {
-    let holder_pointer = keyword_pointer
-        .rsplit_once('/')
-        .map_or("", |(holder, _)| holder);
-    schema.pointer(holder_pointer).is_none_or(|holder| {
-        node_could_read(schema, holder, true, reads_member, &mut BTreeSet::new())
+    reachable_schemas(schema, keyword_pointer).is_none_or(|reachable| {
+        reachable.reaches_other_document
+            || reachable
+                .schema_nodes
+                .iter()
+                .any(|(keywords, is_holder)| reads_member(keywords, *is_holder))
     })
 }
 
-fn node_could_read(
-    schema: &JsonValue,
-    node: &JsonValue,
+#[derive(Default)]
+struct ReachableSchemas<'s> {
+    schema_nodes: Vec<(&'s Map<String, JsonValue>, bool)>,
+    reaches_other_document: bool,
+}
+
+fn reachable_schemas<'s>(
+    schema: &'s JsonValue,
+    keyword_pointer: &str,
+) -> Option<ReachableSchemas<'s>> {
+    let holder_pointer = keyword_pointer
+        .rsplit_once('/')
+        .map_or("", |(holder, _)| holder);
+    let holder = schema.pointer(holder_pointer)?;
+    let mut reachable = ReachableSchemas::default();
+    collect_reachable(schema, holder, true, &mut reachable, &mut BTreeSet::new());
+    Some(reachable)
+}
+
+fn collect_reachable<'s>(
+    schema: &'s JsonValue,
+    node: &'s JsonValue,
     is_holder: bool,
-    reads_member: &dyn Fn(&Map<String, JsonValue>, bool) -> bool,
+    reachable: &mut ReachableSchemas<'s>,
     visited: &mut BTreeSet<String>,
-) -> bool {
+) {
     let Some(keywords) = node.as_object() else {
-        return false;
+        return;
     };
-    if reads_member(keywords, is_holder) {
-        return true;
-    }
+    reachable.schema_nodes.push((keywords, is_holder));
     if let Some(reference) = keywords.get("$ref").and_then(JsonValue::as_str) {
-        let Some(pointer) = reference.strip_prefix('#') else {
-            return true;
-        };
-        if visited.insert(pointer.to_owned())
-            && let Some(target) = schema.pointer(pointer)
-            && node_could_read(schema, target, false, reads_member, visited)
-        {
-            return true;
+        match reference.strip_prefix('#') {
+            Some(pointer) => {
+                if visited.insert(pointer.to_owned())
+                    && let Some(target) = schema.pointer(pointer)
+                {
+                    collect_reachable(schema, target, false, reachable, visited);
+                }
+            }
+            None => reachable.reaches_other_document = true,
         }
     }
     let listed_branches = ["allOf", "anyOf", "oneOf"]
@@ -699,10 +696,12 @@ fn node_could_read(
         .and_then(JsonValue::as_object)
         .into_iter()
         .flat_map(|dependents| dependents.values());
-    listed_branches
+    for branch in listed_branches
         .chain(conditional_branches)
         .chain(dependent_branches)
-        .any(|branch| node_could_read(schema, branch, false, reads_member, visited))
+    {
+        collect_reachable(schema, branch, false, reachable, visited);
+    }
 }
 
 /// The candidate closest in spelling to `name`, where one is close enough to be a

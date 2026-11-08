@@ -233,38 +233,20 @@ func (loadedSchema *LoadedSchema) expectedTypes(typePointer string) []string {
 }
 
 func allowedFields(schemaValue any, keywordPointer string) []string {
-	holderPointer := keywordPointer[:max(strings.LastIndexByte(keywordPointer, '/'), 0)]
 	var fieldNames []string
-	visitedPointers := map[string]bool{}
-	if holderNode, isFound := jsonPointerValue(schemaValue, holderPointer); isFound {
-		collectFields(schemaValue, holderNode, &fieldNames, visitedPointers)
+	reachable, isFound := reachableSchemas(schemaValue, keywordPointer)
+	if !isFound {
+		return fieldNames
 	}
-	return fieldNames
-}
-
-func collectFields(schemaValue, schemaNode any, fieldNames *[]string, visitedPointers map[string]bool) {
-	propertiesValue, _ := objectField(schemaNode, "properties")
-	for _, propertyName := range objectKeys(propertiesValue) {
-		if !slices.Contains(*fieldNames, propertyName) {
-			*fieldNames = append(*fieldNames, propertyName)
-		}
-	}
-	referenceValue, _ := objectField(schemaNode, "$ref")
-	if referenceText, isText := referenceValue.(string); isText {
-		if referencePointer, isLocal := strings.CutPrefix(referenceText, "#"); isLocal && !visitedPointers[referencePointer] {
-			visitedPointers[referencePointer] = true
-			if targetNode, isFound := jsonPointerValue(schemaValue, referencePointer); isFound {
-				collectFields(schemaValue, targetNode, fieldNames, visitedPointers)
+	for _, reachedNode := range reachable.schemaNodes {
+		propertiesValue, _ := objectField(reachedNode.schemaNode, "properties")
+		for _, propertyName := range objectKeys(propertiesValue) {
+			if !slices.Contains(fieldNames, propertyName) {
+				fieldNames = append(fieldNames, propertyName)
 			}
 		}
 	}
-	for _, combinatorKeyword := range []string{"allOf", "anyOf", "oneOf"} {
-		branchesValue, _ := objectField(schemaNode, combinatorKeyword)
-		branchSchemas, _ := branchesValue.([]any)
-		for _, branchSchema := range branchSchemas {
-			collectFields(schemaValue, branchSchema, fieldNames, visitedPointers)
-		}
-	}
+	return fieldNames
 }
 
 func fieldCouldBeAccepted(schemaValue any, keywordPointer, fieldName string) bool {
@@ -290,8 +272,14 @@ func itemCouldBeEvaluated(schemaValue any, keywordPointer string, itemIndex int)
 		prefixValue, _ := objectField(schemaNode, "prefixItems")
 		prefixSchemas, _ := prefixValue.([]any)
 		_, hasContains := objectField(schemaNode, "contains")
+		itemsValue, _ := objectField(schemaNode, "items")
+		itemTuple, isTuple := itemsValue.([]any)
+		itemsEvaluate := isNotFalse(schemaNode, "items")
+		if isTuple {
+			itemsEvaluate = len(itemTuple) > itemIndex || isNotFalse(schemaNode, "additionalItems")
+		}
 		return len(prefixSchemas) > itemIndex ||
-			isNotFalse(schemaNode, "items") ||
+			itemsEvaluate ||
 			hasContains ||
 			(!isHolder && isNotFalse(schemaNode, "unevaluatedItems"))
 	})
@@ -303,31 +291,56 @@ func isNotFalse(schemaNode any, keywordName string) bool {
 }
 
 func schemaCouldRead(schemaValue any, keywordPointer string, readsMember func(any, bool) bool) bool {
-	holderPointer := keywordPointer[:max(strings.LastIndexByte(keywordPointer, '/'), 0)]
-	holderNode, isFound := jsonPointerValue(schemaValue, holderPointer)
-	return !isFound || nodeCouldRead(schemaValue, holderNode, true, readsMember, map[string]bool{})
-}
-
-func nodeCouldRead(
-	schemaValue, schemaNode any,
-	isHolder bool,
-	readsMember func(any, bool) bool,
-	visitedPointers map[string]bool,
-) bool {
-	if readsMember(schemaNode, isHolder) {
+	reachable, isFound := reachableSchemas(schemaValue, keywordPointer)
+	if !isFound || reachable.reachesOtherDocument {
 		return true
 	}
+	for _, reachedNode := range reachable.schemaNodes {
+		if readsMember(reachedNode.schemaNode, reachedNode.isHolder) {
+			return true
+		}
+	}
+	return false
+}
+
+type reachedSchema struct {
+	schemaNode any
+	isHolder   bool
+}
+
+type schemaReach struct {
+	schemaNodes          []reachedSchema
+	reachesOtherDocument bool
+}
+
+func reachableSchemas(schemaValue any, keywordPointer string) (schemaReach, bool) {
+	holderPointer := keywordPointer[:max(strings.LastIndexByte(keywordPointer, '/'), 0)]
+	holderNode, isFound := jsonPointerValue(schemaValue, holderPointer)
+	if !isFound {
+		return schemaReach{}, false
+	}
+	var reachable schemaReach
+	collectReachable(schemaValue, holderNode, true, &reachable, map[string]bool{})
+	return reachable, true
+}
+
+func collectReachable(
+	schemaValue, schemaNode any,
+	isHolder bool,
+	reachable *schemaReach,
+	visitedPointers map[string]bool,
+) {
+	reachedNode := reachedSchema{schemaNode: schemaNode, isHolder: isHolder}
+	reachable.schemaNodes = append(reachable.schemaNodes, reachedNode)
 	referenceValue, _ := objectField(schemaNode, "$ref")
 	if referenceText, isText := referenceValue.(string); isText {
 		referencePointer, isLocal := strings.CutPrefix(referenceText, "#")
 		if !isLocal {
-			return true
-		}
-		if !visitedPointers[referencePointer] {
+			reachable.reachesOtherDocument = true
+		} else if !visitedPointers[referencePointer] {
 			visitedPointers[referencePointer] = true
-			targetNode, isFound := jsonPointerValue(schemaValue, referencePointer)
-			if isFound && nodeCouldRead(schemaValue, targetNode, false, readsMember, visitedPointers) {
-				return true
+			if targetNode, isFound := jsonPointerValue(schemaValue, referencePointer); isFound {
+				collectReachable(schemaValue, targetNode, false, reachable, visitedPointers)
 			}
 		}
 	}
@@ -348,11 +361,8 @@ func nodeCouldRead(
 		branchSchemas = append(branchSchemas, dependentSchema)
 	}
 	for _, branchSchema := range branchSchemas {
-		if nodeCouldRead(schemaValue, branchSchema, false, readsMember, visitedPointers) {
-			return true
-		}
+		collectReachable(schemaValue, branchSchema, false, reachable, visitedPointers)
 	}
-	return false
 }
 
 // ClosestName is the candidate a misspelt name most likely means, where one is close enough and no other is as close.

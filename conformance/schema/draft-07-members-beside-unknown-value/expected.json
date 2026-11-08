@@ -1,0 +1,19 @@
+{
+  "problems": [
+    {
+      "line": 3,
+      "column": 3,
+      "message": "`priorty` is not a field of `route`",
+      "label": "`route` has no field `priorty`",
+      "rule": "additionalProperties, at schema.json#/properties/route/additionalProperties",
+      "help": "did you mean `priority`?"
+    },
+    {
+      "line": 7,
+      "column": 7,
+      "message": "`pair` must NOT have more than `2` items",
+      "label": "breaks `additionalItems`",
+      "rule": "additionalItems, at schema.json#/properties/pair/additionalItems"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "priority": { "type": "integer" }, "vpc_id": { "type": "string" } }
+    },
+    "tags": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "owner": { "type": "string" } },
+      "patternProperties": { "^mock_": { "type": "string" } }
+    },
+    "pair": {
+      "type": "array",
+      "items": [{ "type": "string" }, { "type": "integer" }],
+      "additionalItems": false
+    },
+    "ports": {
+      "type": "array",
+      "items": [{ "type": "string" }],
+      "additionalItems": { "type": "integer" }
+    }
+  }
+}

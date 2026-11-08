@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "properties": { "priority": { "type": "integer" }, "vpc_id": { "type": "string" } }
+    },
+    "listener": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "type": "string" } },
+      "dependentSchemas": {
+        "kind": {
+          "properties": { "kind": { "const": "mock-tls" }, "certificate": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

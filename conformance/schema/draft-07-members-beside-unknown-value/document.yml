@@ -1,0 +1,8 @@
+route:
+  vpc_id: ref data_source.mock_vpc.id
+  priorty: 140
+tags:
+  owner: ref local.mock_owner
+  mock_team: mock-platform
+pair: [ref local.mock_name, 8080, 9090]
+ports: [ref local.mock_name, 8080, 9090]

@@ -110,7 +110,7 @@ In order, each by the DSL's `validator` block:
 | Unknown | Read by |
 |---|---|
 | a field | a `properties` entry, a matching `patternProperties` pattern, an `additionalProperties` other than `false`, or a nested `unevaluatedProperties` other than `false` |
-| an item | a `prefixItems` entry at its index, an `items` other than `false`, a `contains`, or a nested `unevaluatedItems` other than `false` |
+| an item | a `prefixItems` entry at its index, an `items` array entry at its index, an `additionalItems` other than `false` past it, an `items` schema other than `false`, a `contains`, or a nested `unevaluatedItems` other than `false` |
 
 ### Requirement markers
 

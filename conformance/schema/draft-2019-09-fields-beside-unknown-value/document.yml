@@ -1,0 +1,6 @@
+route:
+  vpc_id: ref data_source.mock_vpc.id
+  priorty: 140
+listener:
+  kind: ref local.mock_kind
+  certificate: mock-certificate

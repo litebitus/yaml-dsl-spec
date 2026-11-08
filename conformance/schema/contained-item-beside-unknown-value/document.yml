@@ -1,0 +1,1 @@
+ports: [ref local.mock_name, 8080, 9090]

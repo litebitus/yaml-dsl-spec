@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "listener": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "properties": { "kind": { "type": "string" } },
+      "dependentSchemas": {
+        "kind": {
+          "properties": { "kind": { "const": "mock-tls" }, "certificate": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

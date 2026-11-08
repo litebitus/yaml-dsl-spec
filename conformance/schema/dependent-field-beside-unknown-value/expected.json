@@ -1,0 +1,12 @@
+{
+  "problems": [
+    {
+      "line": 4,
+      "column": 3,
+      "message": "`certficate` is not a field of `listener`",
+      "label": "`listener` has no field `certficate`",
+      "rule": "unevaluatedProperties, at schema.json#/properties/listener/unevaluatedProperties",
+      "help": "did you mean `certificate`?"
+    }
+  ]
+}
