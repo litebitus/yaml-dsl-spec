@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -38,7 +39,6 @@ jobs:
         uses: actions/setup-node@v7.1.0
         with:
           node-version: 26.13.0
-          registry-url: https://registry.npmjs.org
 
       - name: Set up Go
         uses: actions/setup-go@v7.0.0
@@ -82,11 +82,9 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --workspace --manifest-path rust/Cargo.toml --allow-dirty
 
-      - name: Stage the snapshot JS package
+      - name: Publish the snapshot JS package
         working-directory: javascript
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm stage publish --tag snapshot
+        run: npm publish --tag snapshot
 
       - name: Tag and push the snapshot
         env:
@@ -108,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Published \`yaml-dsl-spec\` \`${VERSION#v}\` to crates.io, staged it on npm with the \`snapshot\` tag and tagged the Go module \`go/${VERSION}\`, from commit \`${GITHUB_SHA::7}\`; promote the npm version on npmjs.com."
+            echo "Published \`yaml-dsl-spec\` \`${VERSION#v}\` to crates.io, to npm with the \`snapshot\` tag, and tagged the Go module \`go/${VERSION}\`, from commit \`${GITHUB_SHA::7}\`."
             echo
             echo '```toml'
             echo "yaml-dsl-spec = \"=${VERSION#v}\""

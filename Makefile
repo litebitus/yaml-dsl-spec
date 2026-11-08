@@ -1,8 +1,7 @@
 RUST = --manifest-path rust/Cargo.toml
-NPM_PACKAGE = $(shell node -p "require('./javascript/package.json').name")
 COVERAGE_FLOOR = 90
 
-.PHONY: build promote-npm test test-go test-javascript test-rust
+.PHONY: build test test-go test-javascript test-rust
 
 build: test
 	cargo build $(RUST) --workspace --release
@@ -29,12 +28,3 @@ test-go:
 	@go -C go tool cover -func=coverage.out | \
 		awk -v floor=$(COVERAGE_FLOOR) '/^total:/ { sub(/%/, "", $$3); print "Go coverage: " $$3 "%"; exit !($$3 >= floor) }' || \
 		{ echo "Go coverage is below $(COVERAGE_FLOOR)%" >&2; exit 1; }
-
-promote-npm:
-	@if [ -z "$(STAGE_ID)" ]; then \
-		node javascript/scripts/promote-staged.js $(NPM_PACKAGE); \
-		echo "STAGE_ID is required: make promote-npm STAGE_ID=<stage id>" >&2; \
-		exit 1; \
-	fi
-	npm stage view $(STAGE_ID)
-	@node javascript/scripts/promote-staged.js $(NPM_PACKAGE) $(STAGE_ID)
