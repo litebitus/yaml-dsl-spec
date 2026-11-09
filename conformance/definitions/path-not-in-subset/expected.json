@@ -5,14 +5,14 @@
       "column": 19,
       "message": "`regions[0]` must match pattern `^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$`",
       "label": "breaks `pattern`",
-      "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/path/pattern"
+      "rule": "pattern, at yaml-dsl-v1.3.schema.json#/$defs/path/pattern"
     },
     {
       "line": 43,
       "column": 15,
       "message": "`path` must match pattern `^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$`",
       "label": "breaks `pattern`",
-      "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/path/pattern"
+      "rule": "pattern, at yaml-dsl-v1.3.schema.json#/$defs/path/pattern"
     }
   ]
 }

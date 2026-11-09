@@ -115,6 +115,7 @@ jobs:
           set -euo pipefail
           awk '/^## Unreleased$/ { inside = 1; next } /^## / { inside = 0 } inside' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
           sed -i "s/^## Unreleased$/## Unreleased\n\n## ${NEXT} — $(date -u +%Y-%m-%d)/" CHANGELOG.md
+          sed -i "s/^### \([0-9]*\.[0-9]*\) — unreleased$/### \1 — ${NEXT}, $(date -u +%Y-%m-%d)/" schemas/CHANGELOG.md
           sed -i "0,/^version = \".*\"$/s//version = \"${NEXT#v}\"/" rust/Cargo.toml
           sed -i "s/^yaml-dsl-spec = { path = \"\.\", version = \"=.*\" }$/yaml-dsl-spec = { path = \".\", version = \"=${NEXT#v}\" }/" rust/Cargo.toml
           cargo update --workspace --manifest-path rust/Cargo.toml
@@ -122,7 +123,7 @@ jobs:
           mv "$RUNNER_TEMP/package.json" javascript/package.json
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md rust/Cargo.toml rust/Cargo.lock javascript/package.json
+          git add CHANGELOG.md schemas/CHANGELOG.md rust/Cargo.toml rust/Cargo.lock javascript/package.json
           git commit -m "docs(changelog): ${NEXT}"
           git tag -a "$NEXT" -m "Release $NEXT"
           go -C go generate ./...

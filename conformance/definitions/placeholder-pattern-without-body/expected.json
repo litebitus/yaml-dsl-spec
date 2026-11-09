@@ -5,7 +5,7 @@
       "column": 16,
       "message": "`pattern` must match pattern `\\(\\?<body>`",
       "label": "breaks `pattern`",
-      "rule": "pattern, at yaml-dsl-v1.2.schema.json#/$defs/placeholder/properties/pattern/pattern"
+      "rule": "pattern, at yaml-dsl-v1.3.schema.json#/$defs/placeholder/properties/pattern/pattern"
     }
   ]
 }

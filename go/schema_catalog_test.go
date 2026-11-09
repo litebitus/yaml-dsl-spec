@@ -9,19 +9,19 @@ import (
 )
 
 func TestAMajorStandsForItsNewestMinor(testingContext *testing.T) {
-	if readVersions := YAMLDSLVersions(); !reflect.DeepEqual(readVersions, []string{"1", "1.0", "1.1", "1.2"}) {
+	if readVersions := YAMLDSLVersions(); !reflect.DeepEqual(readVersions, []string{"1", "1.0", "1.1", "1.2", "1.3"}) {
 		testingContext.Errorf("yaml-dsl versions %v", readVersions)
 	}
 	if readVersions := FunctionTableVersions(); !reflect.DeepEqual(readVersions, []string{"1", "1.0", "1.1"}) {
 		testingContext.Errorf("function table versions %v", readVersions)
 	}
 	majorSchema, _ := YAMLDSLSchema("1")
-	newestSchema, _ := YAMLDSLSchema("1.2")
-	olderSchema, _ := YAMLDSLSchema("1.1")
+	newestSchema, _ := YAMLDSLSchema("1.3")
+	olderSchema, _ := YAMLDSLSchema("1.2")
 	if majorSchema != newestSchema || majorSchema == olderSchema {
 		testingContext.Error("major 1 is not its newest minor")
 	}
-	for _, minorVersion := range []string{"1.0", "1.1", "1.2"} {
+	for _, minorVersion := range []string{"1.0", "1.1", "1.2", "1.3"} {
 		minorSchema, isCarried := YAMLDSLSchema(minorVersion)
 		if !isCarried || !strings.Contains(minorSchema, `"title": "yaml-dsl.yml v`+minorVersion+`"`) {
 			testingContext.Errorf("schema %s does not state its minor", minorVersion)

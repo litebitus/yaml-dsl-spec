@@ -22,11 +22,11 @@ fn errors(schema: &str, instance: &Value) -> Vec<String> {
 
 #[test]
 fn a_major_stands_for_its_newest_minor() {
-    assert_eq!(YAML_DSL_VERSIONS, ["1", "1.0", "1.1", "1.2"]);
+    assert_eq!(YAML_DSL_VERSIONS, ["1", "1.0", "1.1", "1.2", "1.3"]);
     assert_eq!(FUNCTION_TABLE_VERSIONS, ["1", "1.0", "1.1"]);
-    assert_eq!(yaml_dsl_schema("1"), yaml_dsl_schema("1.2"));
-    assert_ne!(yaml_dsl_schema("1.1"), yaml_dsl_schema("1.2"));
-    for minor in ["1.0", "1.1", "1.2"] {
+    assert_eq!(yaml_dsl_schema("1"), yaml_dsl_schema("1.3"));
+    assert_ne!(yaml_dsl_schema("1.2"), yaml_dsl_schema("1.3"));
+    for minor in ["1.0", "1.1", "1.2", "1.3"] {
         let title = format!("\"title\": \"yaml-dsl.yml v{minor}\"");
         assert!(yaml_dsl_schema(minor).unwrap().contains(&title));
     }
@@ -43,13 +43,31 @@ fn a_minor_schema_takes_a_file_stating_its_minor_or_its_major() {
         config["version"] = Value::from(version);
         assert_eq!(errors(schema, &config), Vec::<String>::new());
     }
-    config["version"] = Value::from("1.2");
+    config["version"] = Value::from("1.3");
     assert!(!errors(schema, &config).is_empty());
-    let newest = yaml_dsl_schema("1.2").unwrap();
-    for version in ["1", "1.2"] {
+    let newest = yaml_dsl_schema("1.3").unwrap();
+    for version in ["1", "1.3"] {
         config["version"] = Value::from(version);
         assert_eq!(errors(newest, &config), Vec::<String>::new());
     }
+}
+
+#[test]
+fn performance_takes_the_schema_store_or_the_deprecated_field_it_replaces_never_both() {
+    let schema = yaml_dsl_schema("1.3").unwrap();
+    let with_performance = |performance: Value| {
+        let mut config = json(MOCK_DSL_CONFIG);
+        config["version"] = Value::from("1.3");
+        config["dsls"][0]["performance"] = performance;
+        errors(schema, &config)
+    };
+    let schema_store = serde_json::json!({ "schema_store": true });
+    assert_eq!(with_performance(schema_store), Vec::<String>::new());
+    let deprecated = serde_json::json!({ "compiled_schema_cache": true });
+    assert_eq!(with_performance(deprecated), Vec::<String>::new());
+    let both = serde_json::json!({ "schema_store": true, "compiled_schema_cache": true });
+    assert!(!with_performance(both).is_empty());
+    assert!(!with_performance(serde_json::json!({})).is_empty());
 }
 
 #[test]

@@ -5,14 +5,14 @@
       "column": 20,
       "message": "`file_includes` must be `array`",
       "label": "is a string",
-      "rule": "type, at yaml-dsl-v1.2.schema.json#/$defs/globs/type"
+      "rule": "type, at yaml-dsl-v1.3.schema.json#/$defs/globs/type"
     },
     {
       "line": 46,
       "column": 22,
       "message": "`name_source` must be one of `\"key\"`, `\"value\"`, `\"meta_argument\"`",
       "label": "not one of the 3 values `enum` allows",
-      "rule": "enum, at yaml-dsl-v1.2.schema.json#/$defs/declaration/properties/name_source/enum"
+      "rule": "enum, at yaml-dsl-v1.3.schema.json#/$defs/declaration/properties/name_source/enum"
     }
   ]
 }

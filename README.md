@@ -65,7 +65,7 @@ What each package implements is designed in [docs/package-design.md](docs/packag
 |---|---|---|
 | `definitions/<case>/` | a `yaml-dsl.yml` | its DSLs, or its problems |
 | `yaml/<case>/` | an `input.yml`, and the tag keys of an optional `tag-keys.json` | its node tree with every value's line and column, or its problem |
-| `schema/<case>/` | a `document.yml`, its `schema.json`, the DSL `validator` block of an optional `validator.json`, and the JSON pointers of an optional `unknown-values.json`, each value read as a reference to a declaration | its problems, or why the schema is not read |
+| `schema/<case>/` | a `document.yml`, its `schema.json`, the DSL `validator` block of an optional `validator.json`, the JSON pointers of an optional `unknown-values.json`, each value read as a reference to a declaration, and the fragment of an optional `fragment.json` the document is validated against | its problems, with their subjects where a `subjects.json` lists them, or why the schema is not read |
 | `patterns/cases.json` | a pattern of the standard's subset, and texts | whether it compiles, its named groups, and each text's captures |
 | `diagnostic-rendering/<case>/` | a `diagnostic.json`, the severity, source name and style of a `rendering.json`, and the source text of an optional `source.yml`, all within the subset the package design defines rendering for | the diagnostic renderer's text, its lines in `expected.json` |
 | `diagnostic-rendering/subset-corpus.json` | texts drawn from that subset, each an error's message and its source's one line, placed at its start | its text at each style it lists |
@@ -96,6 +96,7 @@ A schema and the packages carry separate versions. A schema's version is the ver
 - A deprecated field stays until the next major, which removes it.
 - A major floats to its newest minor. `version: "1"` in a `yaml-dsl.yml` is read against the newest 1.x its reader carries; `version: "1.0"` against 1.0.
 - The schemas are edited here, and only here. Each package's build copies them in.
+- What each version changes is in [schemas/CHANGELOG.md](schemas/CHANGELOG.md).
 
 ### Packages
 

@@ -20,11 +20,11 @@ function errors(schema, instance) {
 }
 
 test('a major stands for its newest minor', () => {
-  assert.deepStrictEqual(spec.YAML_DSL_VERSIONS, ['1', '1.0', '1.1', '1.2']);
+  assert.deepStrictEqual(spec.YAML_DSL_VERSIONS, ['1', '1.0', '1.1', '1.2', '1.3']);
   assert.deepStrictEqual(spec.FUNCTION_TABLE_VERSIONS, ['1', '1.0', '1.1']);
-  assert.strictEqual(spec.yamlDslSchema('1'), spec.yamlDslSchema('1.2'));
-  assert.notStrictEqual(spec.yamlDslSchema('1.1'), spec.yamlDslSchema('1.2'));
-  for (const minor of ['1.0', '1.1', '1.2']) {
+  assert.strictEqual(spec.yamlDslSchema('1'), spec.yamlDslSchema('1.3'));
+  assert.notStrictEqual(spec.yamlDslSchema('1.2'), spec.yamlDslSchema('1.3'));
+  for (const minor of ['1.0', '1.1', '1.2', '1.3']) {
     assert.strictEqual(spec.yamlDslSchema(minor).title, `yaml-dsl.yml v${minor}`);
   }
   assert.strictEqual(spec.yamlDslSchema('2'), null);
@@ -37,10 +37,25 @@ test('a minor schema takes a file stating its minor or its major', () => {
   for (const version of ['1', '1.0']) {
     assert.deepStrictEqual(errors(spec.yamlDslSchema('1.0'), { ...config, version }), []);
   }
-  assert.notDeepStrictEqual(errors(spec.yamlDslSchema('1.0'), { ...config, version: '1.2' }), []);
-  for (const version of ['1', '1.2']) {
-    assert.deepStrictEqual(errors(spec.yamlDslSchema('1.2'), { ...config, version }), []);
+  assert.notDeepStrictEqual(errors(spec.yamlDslSchema('1.0'), { ...config, version: '1.3' }), []);
+  for (const version of ['1', '1.3']) {
+    assert.deepStrictEqual(errors(spec.yamlDslSchema('1.3'), { ...config, version }), []);
   }
+});
+
+test('performance takes the schema store, or the deprecated field it replaces, never both', () => {
+  const config = fixture('mock-dsl.json');
+  const withPerformance = (performance) => ({
+    ...config,
+    version: '1.3',
+    dsls: [{ ...config.dsls[0], performance }],
+  });
+  const schema = spec.yamlDslSchema('1.3');
+  assert.deepStrictEqual(errors(schema, withPerformance({ schema_store: true })), []);
+  assert.deepStrictEqual(errors(schema, withPerformance({ compiled_schema_cache: true })), []);
+  const both = withPerformance({ schema_store: true, compiled_schema_cache: true });
+  assert.notDeepStrictEqual(errors(schema, both), []);
+  assert.notDeepStrictEqual(errors(schema, withPerformance({})), []);
 });
 
 test('a config the schema accepts reads into its definitions', () => {
