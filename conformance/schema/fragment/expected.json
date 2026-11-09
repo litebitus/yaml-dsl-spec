@@ -1,0 +1,18 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 1,
+      "message": "`visiblity` is not defined in the schema",
+      "rule": "additionalProperties, at schema.json#/$defs/queue/additionalProperties",
+      "help": "did you mean `visibility`?"
+    },
+    {
+      "line": 2,
+      "column": 7,
+      "message": "`tags` must be `array`",
+      "label": "is a string",
+      "rule": "type, at schema.json#/$defs/tags/type"
+    }
+  ]
+}

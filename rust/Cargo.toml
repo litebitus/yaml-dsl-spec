@@ -16,6 +16,7 @@ jsonschema = { version = "0.60.2", default-features = false }
 saphyr-parser = "0.3.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] }
+sha2 = "0.11.1"
 
 [workspace]
 members = ["diagnostic-renderer"]

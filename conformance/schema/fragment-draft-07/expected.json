@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 13,
+      "message": "`visibility` must be `integer`",
+      "label": "is a string",
+      "rule": "type, at schema.json#/definitions/queue/properties/visibility/type"
+    }
+  ]
+}

@@ -96,7 +96,19 @@ function schemaReading(folder) {
   }
   const unknownPointers = readJson(path.join(folder, 'unknown-values.json')) || [];
   const documentValue = withUnknownValues(resolved.Value.fromNode(node), '', unknownPointers);
-  return { problems: loaded.validate(documentValue, rules).map(problemJson) };
+  const fragment = readJson(path.join(folder, 'fragment.json'));
+  const problems = fragment === null
+    ? loaded.problems(documentValue, rules)
+    : loaded.fragmentProblems(fragment.pointer, documentValue, rules);
+  const expectedSubjects = readJson(path.join(folder, 'subjects.json'));
+  if (expectedSubjects !== null) {
+    assert.deepStrictEqual(
+      problems.map((problem) => problem.subject),
+      expectedSubjects,
+      `schema/${path.basename(folder)}: subjects`,
+    );
+  }
+  return { problems: problems.map((problem) => problemJson(problem.diagnostic)) };
 }
 
 function withUnknownValues(value, pointer, unknownPointers) {

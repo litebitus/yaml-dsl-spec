@@ -2,6 +2,7 @@ package yamldslspec
 
 import (
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -276,5 +277,108 @@ func TestFloatsAreWrittenAsTheReferenceWritesThem(testingContext *testing.T) {
 		if serdeFloatText(floatValue) != expectedText {
 			testingContext.Errorf("%v writes as %q", floatValue, serdeFloatText(floatValue))
 		}
+	}
+}
+
+const mockFragmentSchema = `{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {"queue": {"$ref": "#/$defs/mock queue"}},
+  "$defs": {
+    "mock queue": {
+      "type": "object",
+      "properties": {"tags": {"$ref": "#/$defs/tags"}, "visibility": {"type": "integer"}},
+      "oneOf": [{"required": ["arn"]}, {"required": ["name"]}]
+    },
+    "tags": {"type": "array"}
+  }
+}`
+
+func problemSubjects(subjectProblems []SchemaProblem) []string {
+	subjectPointers := []string{}
+	for _, subjectProblem := range subjectProblems {
+		subjectPointers = append(subjectPointers, subjectProblem.Subject)
+	}
+	return subjectPointers
+}
+
+func problemRules(subjectProblems []SchemaProblem) []string {
+	ruleTexts := []string{}
+	for _, subjectProblem := range subjectProblems {
+		ruleTexts = append(ruleTexts, *subjectProblem.Diagnostic.Notes.Rule)
+	}
+	return ruleTexts
+}
+
+func TestProblemsGiveEachProblemOfValidateItsSubject(testingContext *testing.T) {
+	documentValue := ResolvedValueFromNode(parsedNode(testingContext, "queue:\n  orders: {visibility: thirty}\n", nil))
+	loadedSchema := loadedMockSchema(testingContext, mockQueueSchema)
+	subjectProblems := loadedSchema.Problems(documentValue, ValidationRules{})
+	if !reflect.DeepEqual(problemSubjects(subjectProblems), []string{"/queue/orders", "/queue/orders/visibility"}) {
+		testingContext.Errorf("subjects %v", problemSubjects(subjectProblems))
+	}
+	var subjectDiagnostics []Diagnostic
+	for _, subjectProblem := range subjectProblems {
+		subjectDiagnostics = append(subjectDiagnostics, subjectProblem.Diagnostic)
+	}
+	if !reflect.DeepEqual(loadedSchema.Validate(documentValue, ValidationRules{}), subjectDiagnostics) {
+		testingContext.Errorf("validate differs from problems %v", subjectDiagnostics)
+	}
+}
+
+func TestAFragmentResolvesItsReferencesAgainstTheWholeSchemaAndRequiresNoKey(testingContext *testing.T) {
+	loadedSchema := loadedMockSchema(testingContext, mockFragmentSchema)
+	fragmentDocument := ResolvedValueFromNode(parsedNode(testingContext, "tags: mock\nvisibility: high\n", nil))
+	fragmentProblems := loadedSchema.FragmentProblems("/$defs/mock queue", fragmentDocument, ValidationRules{})
+	expectedRules := []string{
+		"type, at mock.schema.json#/$defs/tags/type",
+		"type, at mock.schema.json#/$defs/mock queue/properties/visibility/type",
+	}
+	if !reflect.DeepEqual(problemRules(fragmentProblems), expectedRules) {
+		testingContext.Errorf("rules %v", problemRules(fragmentProblems))
+	}
+	if !reflect.DeepEqual(problemSubjects(fragmentProblems), []string{"/tags", "/visibility"}) {
+		testingContext.Errorf("subjects %v", problemSubjects(fragmentProblems))
+	}
+	firstFragment := loadedSchema.compiledFragment("/$defs/mock queue")
+	if firstFragment == nil || loadedSchema.compiledFragment("/$defs/mock queue") != firstFragment {
+		testingContext.Error("the fragment is not compiled once")
+	}
+	fullDocument := ResolvedValueFromNode(parsedNode(testingContext, "queue: {}\n", nil))
+	fullProblems := problemMessages(loadedSchema.Validate(fullDocument, ValidationRules{}))
+	if !reflect.DeepEqual(fullProblems, []string{"`queue` matches none of its allowed forms"}) {
+		testingContext.Errorf("full document problems %v", fullProblems)
+	}
+}
+
+func TestAFragmentPointerNamingNoSchemaNodeIsOneProblem(testingContext *testing.T) {
+	loadedSchema := loadedMockSchema(testingContext, mockFragmentSchema)
+	documentValue := ResolvedValueFromNode(parsedNode(testingContext, "tags: []\n", nil))
+	for _, fragmentPointer := range []string{"/$defs/missing", "/$defs/tags/type", "/$defs/tags/allOf/0"} {
+		fragmentProblems := loadedSchema.FragmentProblems(fragmentPointer, documentValue, ValidationRules{})
+		expectedProblem := SchemaProblem{
+			Subject:    "",
+			Diagnostic: DiagnosticAt(documentValue.Position, "the schema has no node at `#"+fragmentPointer+"`"),
+		}
+		if !reflect.DeepEqual(fragmentProblems, []SchemaProblem{expectedProblem}) {
+			testingContext.Errorf("%s gives %v", fragmentPointer, fragmentProblems)
+		}
+	}
+}
+
+func TestAFragmentIsReadByConcurrentReaders(testingContext *testing.T) {
+	loadedSchema := loadedMockSchema(testingContext, mockFragmentSchema)
+	documentValue := ResolvedValueFromNode(parsedNode(testingContext, "tags: mock\n", nil))
+	var readerGroup sync.WaitGroup
+	readProblemCounts := make([]int, 8)
+	for readerIndex := range readProblemCounts {
+		readerGroup.Add(1)
+		go func() {
+			defer readerGroup.Done()
+			readProblemCounts[readerIndex] = len(loadedSchema.FragmentProblems("/$defs/mock queue", documentValue, ValidationRules{}))
+		}()
+	}
+	readerGroup.Wait()
+	if !reflect.DeepEqual(readProblemCounts, []int{1, 1, 1, 1, 1, 1, 1, 1}) {
+		testingContext.Errorf("problem counts %v", readProblemCounts)
 	}
 }

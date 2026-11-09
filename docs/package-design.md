@@ -84,9 +84,13 @@ Each entry is named in each language's own case. A version is a minor, such as `
 
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
+| a schema cache | `SchemaCache::default()`, `.with_capacity(capacity)`, `.with_store(store)` | `new SchemaCache({ capacity, store })` | `NewSchemaCache(WithCapacity(capacity), WithStore(store))` | a cache holding at most `capacity` schemas, the least recently asked for dropped first, every schema without one; and keeping what it prepares from each schema in `store`, none without one |
+| a schema store | `SchemaStore` trait: `read(key)`, `write(key, prepared)` | `{ read(key), write(key, prepared) }` | `SchemaStore` interface: `Read(key)`, `Write(key, prepared)` | the caller's place for prepared schemas, by the key the cache names |
 | load a schema | `SchemaCache::load(name, text)` | `SchemaCache.load(name, text)` | `SchemaCache.Load(name, text)` | the schema, read once per name and text, in its draft, with its function table; else why it does not load |
 | the rules | `ValidationRules::from_validator(validator)` | `ValidationRules.fromValidator(validator)` | `ValidationRulesFromValidator(validator)` | a DSL definition's `validator` block, its patterns compiled; no rules for none |
 | validate | `LoadedSchema::validate(document, rules)` | `LoadedSchema.validate(document, rules)` | `LoadedSchema.Validate(document, rules)` | every problem of a resolved document, read by the rules, in document order |
+| problems | `LoadedSchema::problems(document, rules)` | `LoadedSchema.problems(document, rules)` | `LoadedSchema.Problems(document, rules)` | the problems `validate` gives, each with its subject: the JSON pointer of the value it is about |
+| problems of a fragment | `LoadedSchema::fragment_problems(pointer, document, rules)` | `LoadedSchema.fragmentProblems(pointer, document, rules)` | `LoadedSchema.FragmentProblems(pointer, document, rules)` | the problems of a document read against the schema's node at `pointer`, such as `/$defs/queue`, each with its subject |
 | a child value | `child_value(key, patterns)` | `childValue(key, patterns)` | `ChildValue(key, patterns)` | the field and value a key sets on the entry it keys |
 | a closest name | `closest_name(name, candidates)` | `closestName(name, candidates)` | `ClosestName(name, candidates)` | the candidate a misspelt name most likely means |
 
@@ -166,6 +170,22 @@ A value is fenced in the fewest backticks it does not hold, padded with a space 
 - A `then` or `else` that fails reports its own failures.
 - A field or item an `additionalProperties`, `unevaluatedProperties` or `unevaluatedItems` schema other than `false` reads reports that schema's failures as its own, at its value.
 - A problem's rule names the keyword and where the schema holds it; its label says what is wrong where it is placed.
+- A problem's subject is the JSON pointer of the value it is about in the document validated: a reader that builds the document from another, such as one expanding macros, maps it back to its source.
+
+### Fragments
+
+A document whose schema is a fragment, `schema.json#/$defs/queue`, is validated against that node of the schema, its `$ref`s resolved against the whole schema. A problem's rule names where the whole schema holds the keyword, and its field reads from the document's root. A fragment that names no node of the schema is one problem at the document's root, `` the schema has no node at `#/$defs/missing` ``.
+
+A fragment requires no key: a missing field is not reported, nor an `anyOf` or `oneOf` with a form that fails only by fields it requires.
+
+### Schema cache
+
+A schema is loaded once per name and text: prepared, then built into the validator the package validates with.
+
+- Prepared is the package's own information: the draft the schema is read in, the schema as written, and the schema its requiredness markers are read into. Its form is the same in every language, `{"draft": "draft-2020-12", "schema": …, "marked": …}`, and it holds nothing of the validator library.
+- With a capacity, the cache holds at most that many schemas, the least recently asked for dropped first; without one, every schema loaded is held.
+- With a store, the cache reads a schema's prepared information from it before preparing the schema, and writes what it prepares. The key is a SHA-256 of the package's name and version, the schema's name and its text, so another version never reads it. An entry that does not read is prepared again from the text.
+- The store is the caller's: where it keeps an entry, and whether it keeps one, is the caller's to decide.
 
 ## Beyond the core
 

@@ -39,16 +39,19 @@ const VALIDATOR_OPTIONS = {
 const DRAFTS = [
   {
     name: 'draft-07',
+    preparedName: 'draft-07',
     ValidatorClass: AjvDraft07,
     schemaUris: ['http://json-schema.org/draft-07/schema#', 'http://json-schema.org/draft-07/schema'],
   },
   {
     name: 'draft 2019-09',
+    preparedName: 'draft-2019-09',
     ValidatorClass: AjvDraft201909,
     schemaUris: ['https://json-schema.org/draft/2019-09/schema', 'https://json-schema.org/draft/2019-09/schema#'],
   },
   {
     name: 'draft 2020-12',
+    preparedName: 'draft-2020-12',
     ValidatorClass: AjvDraft202012,
     schemaUris: ['https://json-schema.org/draft/2020-12/schema', 'https://json-schema.org/draft/2020-12/schema#'],
   },
@@ -83,6 +86,7 @@ const LENGTH_LIMITS = {
 };
 const KEYWORD_NAMES = { 'false schema': 'falseSchema' };
 const FALSE_SCHEMA_STEP = /\/false schema$/;
+const DOCUMENT_SCHEMA_KEY = 'urn:yaml-dsl-spec:document-schema';
 
 const hasOwn = (object, field) => Object.prototype.hasOwnProperty.call(object, field);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -105,9 +109,11 @@ function draftOfSchema(schema) {
 
 /** A document's schema, as its caller hands it over: its function table, and the validation against it. */
 class LoadedSchema {
-  constructor(table, validator, schema, marked, name, pointersBySchemaObject) {
+  constructor(table, validatorInstance, schema, marked, name, pointersBySchemaObject) {
     this.table = table;
-    this.validator = validator;
+    this.validatorInstance = validatorInstance;
+    this.validator = validatorInstance.getSchema(DOCUMENT_SCHEMA_KEY);
+    this.fragmentValidators = new Map();
     this.schema = schema;
     this.marked = marked;
     this.name = name;
@@ -117,22 +123,38 @@ class LoadedSchema {
   /**
    * Where the schema holds the keyword an error breaks, as a JSON pointer: by the
    * schema object holding it, since Ajv restarts a path inside a reference it
-   * does not inline.
+   * does not inline, and below `fragmentPointer` for a fragment's own path.
    */
-  keywordPointer(error) {
+  keywordPointer(error, fragmentPointer = '') {
     const written = pointerOfSchemaPath(error.schemaPath);
-    if (FALSE_SCHEMA_STEP.test(written)) return written.replace(FALSE_SCHEMA_STEP, '');
+    const wholeSchemaPointer = (pointer) => {
+      const belowFragment = `${fragmentPointer}${pointer}`;
+      const isBelowFragment = fragmentPointer !== ''
+        && schemaNodeAt(this.marked, belowFragment) !== undefined;
+      return isBelowFragment ? belowFragment : pointer;
+    };
+    if (FALSE_SCHEMA_STEP.test(written)) {
+      return wholeSchemaPointer(written.replace(FALSE_SCHEMA_STEP, ''));
+    }
     const holder = this.pointersBySchemaObject.get(error.parentSchema);
-    if (holder === undefined) return written;
+    if (holder === undefined) return wholeSchemaPointer(written);
     return `${holder}${written.slice(written.lastIndexOf('/'))}`;
   }
 
   /** The schema `text` holds, named `name` in reports, or throws why it holds none. */
   static parse(name, text) {
-    const failed = (error) => new Error(`schema ${name}: ${error.message}`);
+    return LoadedSchema.fromPrepared(name, LoadedSchema.prepared(name, text));
+  }
+
+  /**
+   * What the schema `text` holds prepares before a validator is built from it:
+   * the draft it is read in, the schema as written, and the schema its
+   * requiredness markers are read into. The package's own information, kept
+   * apart from the validator, or throws why the text holds no schema.
+   */
+  static prepared(name, text) {
     try {
       const schema = JSON.parse(text);
-      const table = FunctionTable.fromSchema(schema);
       const draft = draftOfSchema(schema);
       const declaresOlderDraft = isObject(schema)
         && schema.$schema !== undefined
@@ -140,12 +162,34 @@ class LoadedSchema {
       const declared = declaresOlderDraft
         ? { ...schema, $schema: ASSUMED_DRAFT.schemaUris[0] }
         : schema;
-      const marked = markedSchema(declared, draft.name);
-      const validator = new draft.ValidatorClass(VALIDATOR_OPTIONS).compile(marked);
-      const pointers = schemaObjectPointers(marked);
-      return new LoadedSchema(table, validator, schema, marked, name, pointers);
+      return { draft: draft.preparedName, schema, marked: markedSchema(declared, draft.name) };
     } catch (error) {
-      throw failed(error);
+      throw new Error(`schema ${name}: ${error.message}`);
+    }
+  }
+
+  /**
+   * The schema built from what its text prepared: its function table read, and
+   * its validator built from the marked schema; or throws why it builds none.
+   */
+  static fromPrepared(name, prepared) {
+    try {
+      const draft = DRAFTS.find((known) => known.preparedName === prepared.draft);
+      if (!draft) throw new Error(`prepared in an unknown draft ${prepared.draft}`);
+      const table = FunctionTable.fromSchema(prepared.schema);
+      const validatorInstance = new draft.ValidatorClass(VALIDATOR_OPTIONS);
+      validatorInstance.addSchema(prepared.marked, DOCUMENT_SCHEMA_KEY);
+      const pointers = schemaObjectPointers(prepared.marked);
+      return new LoadedSchema(
+        table,
+        validatorInstance,
+        prepared.schema,
+        prepared.marked,
+        name,
+        pointers,
+      );
+    } catch (error) {
+      throw new Error(`schema ${name}: ${error.message}`);
     }
   }
 
@@ -155,32 +199,81 @@ class LoadedSchema {
    * is not checked.
    */
   validate(document, rules) {
-    const instance = new InstanceRecord(rules);
-    const json = this.withQuotedValuesRead(instance.json(document, '', document.position), rules);
-    this.validator(json);
-    const errors = reportedErrors(this.validator.errors || [], this.marked)
-      .filter((error) => !instance.readsUnknown(error.instancePath, error.keyword));
-    const reported = { dependencies: new Set(), itemLists: new Set(), propertyNames: new Set() };
-    const diagnostics = errors
-      .flatMap((error) => this.errorProblems(error, json, instance, reported))
-      .filter((problem) => !instance.isCopied(problem.subject))
-      .map((problem) => problem.diagnostic);
-    diagnostics.sort(compareDiagnostics);
-    return diagnostics.filter((diagnostic, index) =>
-      index === 0 || !sameDiagnostic(diagnostic, diagnostics[index - 1]));
+    return this.problems(document, rules).map((problem) => problem.diagnostic);
   }
 
   /**
-   * `json` with each quoted value that spells a type the schema expects of it, and
+   * The problems `validate` reports, in its order, each as `{ subject, diagnostic }`:
+   * `subject` the JSON pointer of the document value the problem is about.
+   */
+  problems(document, rules) {
+    return this.validatorProblems(this.validator, document, rules);
+  }
+
+  /**
+   * The problems of `document` read as the schema node at `fragmentPointer`, as a
+   * document whose modeline names `<schema>#<fragmentPointer>` is read: a fragment
+   * requires no field, and a reference in it reads the whole schema.
+   */
+  fragmentProblems(fragmentPointer, document, rules) {
+    const validator = this.fragmentValidator(fragmentPointer);
+    if (validator !== null) {
+      return this.validatorProblems(validator, document, rules, fragmentPointer);
+    }
+    const message = `the schema has no node at ${codeSpan(`#${fragmentPointer}`)}`;
+    return [{ subject: '', diagnostic: Diagnostic.at(document.position, message) }];
+  }
+
+  /** The validator of the schema node at `fragmentPointer`, built once; else `null`. */
+  fragmentValidator(fragmentPointer) {
+    if (fragmentPointer === '') return this.validator;
+    if (!this.fragmentValidators.has(fragmentPointer)) {
+      const node = schemaNodeAt(this.marked, fragmentPointer);
+      const isSchemaNode = isObject(node) || typeof node === 'boolean';
+      const encodedPointer = fragmentPointer.split('/').map(encodeURIComponent).join('/');
+      const fragmentReference = `${DOCUMENT_SCHEMA_KEY}#${encodedPointer}`;
+      const validator = isSchemaNode ? this.validatorInstance.getSchema(fragmentReference) : null;
+      this.fragmentValidators.set(fragmentPointer, validator || null);
+    }
+    return this.fragmentValidators.get(fragmentPointer);
+  }
+
+  /**
+   * The problems `validator` finds in `document`, ordered and each reported once;
+   * read as the fragment at `fragmentPointer` where there is one.
+   */
+  validatorProblems(validator, document, rules, fragmentPointer = null) {
+    const instance = new InstanceRecord(rules);
+    const documentJson = instance.json(document, '', document.position);
+    const json = this.withQuotedValuesRead(validator, documentJson, rules);
+    validator(json);
+    const checkedErrors = (validator.errors || []).filter((error) => error.keyword !== 'if');
+    const fragmentErrors = fragmentPointer === null
+      ? checkedErrors
+      : withoutRequiredness(checkedErrors, this.marked);
+    const errors = reportedErrors(fragmentErrors, this.marked)
+      .filter((error) => !instance.readsUnknown(error.instancePath, error.keyword));
+    const reported = { dependencies: new Set(), itemLists: new Set(), propertyNames: new Set() };
+    const schemaPointer = fragmentPointer === null ? '' : fragmentPointer;
+    const problems = errors
+      .flatMap((error) => this.errorProblems(error, json, instance, reported, schemaPointer))
+      .filter((problem) => !instance.isCopied(problem.subject));
+    problems.sort((first, second) => compareDiagnostics(first.diagnostic, second.diagnostic));
+    return problems.filter((problem, index) =>
+      index === 0 || !sameDiagnostic(problem.diagnostic, problems[index - 1].diagnostic));
+  }
+
+  /**
+   * `json` with each quoted value that spells a type `validator` expects of it, and
    * `rules` allow, read as that type, until no more are read.
    */
-  withQuotedValuesRead(json, rules) {
+  withQuotedValuesRead(validator, json, rules) {
     if (rules.quotedValueTypes.length === 0) return json;
     let read = json;
     for (;;) {
-      this.validator(read);
+      validator(read);
       const readings = new Map();
-      for (const error of this.validator.errors || []) {
+      for (const error of validator.errors || []) {
         if (error.keyword !== 'type' || typeof error.data !== 'string') continue;
         const reading = rules.quotedValue(error.data, [].concat(error.schema));
         if (reading !== null && !readings.has(error.instancePath)) {
@@ -198,10 +291,10 @@ class LoadedSchema {
    * labeled with what is wrong there, naming the rule it breaks, and the allowed
    * name closest to a misspelt one.
    */
-  errorProblems(error, json, instance, reported) {
+  errorProblems(error, json, instance, reported, fragmentPointer = '') {
     const pointer = error.instancePath;
     const keyword = keywordName(error);
-    const schemaPointer = this.keywordPointer(error);
+    const schemaPointer = this.keywordPointer(error, fragmentPointer);
     const ruleAt = (name, at) => `${name}, at ${this.name}#${at}`;
     const rule = ruleAt(keyword, schemaPointer);
     const field = fieldName(json, pointer);
@@ -393,28 +486,6 @@ function schemaObjectPointers(schema) {
   return pointers;
 }
 
-/** Schemas parsed once and shared by every unit that reads them, by name and text. */
-class SchemaCache {
-  constructor() {
-    this.loaded = new Map();
-  }
-
-  /** The schema named `name` whose text is `text`, or throws why it holds none. */
-  load(name, text) {
-    const key = JSON.stringify([name, text]);
-    if (!this.loaded.has(key)) {
-      try {
-        this.loaded.set(key, { schema: LoadedSchema.parse(name, text) });
-      } catch (error) {
-        this.loaded.set(key, { error });
-      }
-    }
-    const loaded = this.loaded.get(key);
-    if (loaded.error) throw loaded.error;
-    return loaded.schema;
-  }
-}
-
 /** The keyword a report names: the crate's name for what Ajv reports. */
 function keywordName(error) {
   if (error.propertyName !== undefined) return 'propertyNames';
@@ -446,6 +517,43 @@ function reportedErrors(errors, schema) {
   return errors.filter((error) => error.keyword !== 'if'
     && !(error.keyword === 'propertyNames' && error.propertyName === undefined)
     && !explainers.some((outer) => explains(outer, error)));
+}
+
+/**
+ * The errors a fragment reports, as a fragment requires no field: none for a
+ * missing field, and no failing `anyOf` or `oneOf` with a form failing only by
+ * fields it requires, nor the errors inside one.
+ */
+function withoutRequiredness(errors, schema) {
+  const reachable = new Map();
+  const schemaReaches = (start, target) => {
+    if (!reachable.has(start)) reachable.set(start, reachableSchemaObjects(start, schema));
+    return reachable.get(start).has(target);
+  };
+  const instanceHolds = (outer, inner) => inner !== outer
+    && (inner.instancePath === outer.instancePath
+      || inner.instancePath.startsWith(`${outer.instancePath}/`));
+  const isInsideAlternative = (alternative, inner) => instanceHolds(alternative, inner)
+    && schemaReaches(alternative.schema, inner.parentSchema);
+  const failingAlternatives = [];
+  const fieldOnlyAlternatives = [];
+  const failsOnlyByFields = (error) => REQUIRED_KEYWORDS.has(error.keyword)
+    || fieldOnlyAlternatives.includes(error);
+  for (const error of errors) {
+    if (!ALTERNATIVE_KEYWORDS.has(error.keyword) || !Array.isArray(error.schema)) continue;
+    if (Array.isArray(error.params.passingSchemas)) continue;
+    const innerErrors = errors.filter((inner) => instanceHolds(error, inner));
+    const formFailsOnlyByFields = (form) => {
+      const formErrors = innerErrors.filter((inner) => schemaReaches(form, inner.parentSchema));
+      const ownErrors = formErrors.filter((inner) => !failingAlternatives.some((nested) =>
+        formErrors.includes(nested) && isInsideAlternative(nested, inner)));
+      return ownErrors.length > 0 && ownErrors.every(failsOnlyByFields);
+    };
+    failingAlternatives.push(error);
+    if (error.schema.some(formFailsOnlyByFields)) fieldOnlyAlternatives.push(error);
+  }
+  return errors.filter((error) => !failsOnlyByFields(error)
+    && !fieldOnlyAlternatives.some((alternative) => isInsideAlternative(alternative, error)));
 }
 
 /** Every schema object reachable from `start`, through local references. */
@@ -792,7 +900,6 @@ class InstanceRecord {
 
 module.exports = {
   LoadedSchema,
-  SchemaCache,
   ValidationRules,
   childValue,
   closestName,

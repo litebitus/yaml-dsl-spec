@@ -21,6 +21,7 @@ const dslDefinition = require('./lib/dsl-definition');
 const jsonPath = require('./lib/json-path');
 const resolved = require('./lib/resolved-value');
 const schemaValidation = require('./lib/schema-validation');
+const { SchemaCache } = require('./lib/schema-cache');
 const yamlReader = require('./lib/yaml-reader');
 
 module.exports = {
@@ -49,7 +50,7 @@ module.exports = {
     MacroEntry: functionTable.MacroEntry,
   },
   schemaValidation: {
-    SchemaCache: schemaValidation.SchemaCache,
+    SchemaCache,
     LoadedSchema: schemaValidation.LoadedSchema,
     ValidationRules: schemaValidation.ValidationRules,
     childValue: schemaValidation.childValue,

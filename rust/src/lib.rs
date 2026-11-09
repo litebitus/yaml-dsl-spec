@@ -17,6 +17,7 @@ mod problem_wording;
 mod requiredness_markers;
 pub mod resolved;
 pub mod schema;
+mod schema_cache;
 pub mod validation_rules;
 pub mod yaml_reader;
 

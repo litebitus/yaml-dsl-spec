@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["queue"],
+  "properties": {
+    "queue": { "$ref": "#/$defs/queue" }
+  },
+  "$defs": {
+    "queue": {
+      "type": "object",
+      "required": ["visibility"],
+      "properties": {
+        "visibility": { "type": "integer" },
+        "tags": { "$ref": "#/$defs/tags" }
+      },
+      "additionalProperties": false
+    },
+    "tags": { "type": "array" }
+  }
+}

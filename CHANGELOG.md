@@ -5,6 +5,8 @@
 - Packages
   - The diagnostic renderer draws a warning's carets and label in yellow, the warning's color, and an error's in red.
   - An unknown field reads `` `name` is not defined in the schema ``, with no label.
+  - The schema cache takes a capacity, the least recently asked for schema dropped first, and a store the caller supplies, where it keeps the information it prepares from each schema across runs.
+  - `problems` gives each problem with its subject, the JSON pointer of the value it is about, and `fragment_problems` validates a document against a fragment of its schema.
 
 ## v0.2.1 — 2026-11-08
 

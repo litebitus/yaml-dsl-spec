@@ -126,6 +126,75 @@ test('a value holding backticks is fenced in more backticks than it holds in a r
   );
 });
 
+function fragmentSchema() {
+  return LoadedSchema.parse('mock.schema.json', JSON.stringify({
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    type: 'object',
+    properties: { queue: { $ref: '#/$defs/queue' } },
+    $defs: {
+      queue: {
+        type: 'object',
+        required: ['name'],
+        properties: {
+          name: { type: 'string' },
+          tags: { $ref: '#/$defs/tags' },
+          retired: false,
+        },
+        anyOf: [{ required: ['arn'] }, { required: ['url'] }],
+      },
+      tags: { type: 'array' },
+    },
+  }));
+}
+
+test('each problem names the document value it is about', () => {
+  const document = map([['queue', map([['orders', map([
+    ['visibility', Value.string('thirty', position)],
+    ['retension', Value.string('7', position)],
+  ])]])]]);
+  const problems = queueSchema().problems(document, noRules);
+  assert.deepStrictEqual(
+    problems.map((problem) => [problem.subject, problem.diagnostic.message]),
+    [
+      ['/queue/orders', '`name` is required'],
+      ['/queue/orders/visibility', '`visibility` must be `integer`'],
+    ],
+  );
+  assert.deepStrictEqual(
+    queueSchema().validate(document, noRules),
+    problems.map((problem) => problem.diagnostic),
+  );
+});
+
+test('a fragment reads its references in the whole schema and requires no field', () => {
+  const schema = fragmentSchema();
+  const document = map([
+    ['tags', Value.string('mock', position)],
+    ['retired', new Value('bool', true, position)],
+  ]);
+  const problems = schema.fragmentProblems('/$defs/queue', document, noRules);
+  assert.deepStrictEqual(
+    problems.map(({ subject, diagnostic }) => [subject, diagnostic.message, diagnostic.notes.rule]),
+    [
+      [
+        '/retired',
+        '`retired` boolean schema is false',
+        'falseSchema, at mock.schema.json#/$defs/queue/properties/retired',
+      ],
+      ['/tags', '`tags` must be `array`', 'type, at mock.schema.json#/$defs/tags/type'],
+    ],
+  );
+  const firstValidator = schema.fragmentValidator('/$defs/queue');
+  assert.strictEqual(schema.fragmentValidator('/$defs/queue'), firstValidator);
+});
+
+test('a pointer naming no node of the schema is one problem at the document', () => {
+  const problems = fragmentSchema().fragmentProblems('/$defs/missing', map([]), noRules);
+  assert.deepStrictEqual(problems.map((problem) => problem.subject), ['']);
+  assert.strictEqual(problems[0].diagnostic.message, 'the schema has no node at `#/$defs/missing`');
+  assert.strictEqual(problems[0].diagnostic.notes, null);
+});
+
 test('a closest name is offered only when it is close and alone', () => {
   assert.strictEqual(closestName('brnch', ['branch', 'tags']), 'branch');
   assert.strictEqual(closestName('xyz', ['branch', 'tags']), null);

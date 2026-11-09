@@ -6,8 +6,9 @@
 //!   `tag-keys.json`, to its node tree or its problem;
 //! - `conformance/schema/`: a `document.yml` validated against a `schema.json`, read
 //!   by the DSL `validator` block of an optional `validator.json`, each value at a
-//!   pointer of an optional `unknown-values.json` read as a reference, to its
-//!   problems, or to why the schema is not read;
+//!   pointer of an optional `unknown-values.json` read as a reference, against
+//!   the schema node an optional `fragment.json` points at, to its problems and
+//!   the subjects of an optional `subjects.json`, or to why the schema is not read;
 //! - `conformance/patterns/cases.json`: each pattern, to its named groups and the
 //!   captures of each text, or to not compiling.
 
@@ -178,8 +179,24 @@ fn schema_reading(folder: &Path) -> Value {
         .map(|pointers| serde_json::from_value(pointers).unwrap())
         .unwrap_or_default();
     let document = with_unknown_values(ResolvedValue::from_node(&root), "", &unknown_pointers);
-    let problems = loaded.validate(&document, &rules);
-    json!({ "problems": problems.iter().map(problem_json).collect::<Vec<_>>() })
+    let fragment_pointer = optional_json(&folder.join("fragment.json"))
+        .map(|fragment| fragment["pointer"].as_str().unwrap().to_owned());
+    let problems = match &fragment_pointer {
+        Some(pointer) => loaded.fragment_problems(pointer, &document, &rules),
+        None => loaded.problems(&document, &rules),
+    };
+    if let Some(expected_subjects) = optional_json(&folder.join("subjects.json")) {
+        let subjects: Vec<&str> = problems
+            .iter()
+            .map(|problem| problem.subject.as_str())
+            .collect();
+        assert_eq!(json!(subjects), expected_subjects, "{}", folder.display());
+    }
+    let problems: Vec<Value> = problems
+        .iter()
+        .map(|problem| problem_json(&problem.diagnostic))
+        .collect();
+    json!({ "problems": problems })
 }
 
 fn with_unknown_values(

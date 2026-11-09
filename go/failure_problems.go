@@ -25,9 +25,10 @@ type reportedSubjects struct {
 	itemLists      map[string]bool
 }
 
-type schemaProblem struct {
-	subjectPointer  string
-	builtDiagnostic Diagnostic
+// SchemaProblem is a problem of a validated document with its subject, the JSON pointer of the value it is about.
+type SchemaProblem struct {
+	Subject    string
+	Diagnostic Diagnostic
 }
 
 type failureProblems struct {
@@ -50,7 +51,7 @@ func (problemBuilder failureProblems) closestSuggestion(misspeltName string, can
 	return &helpText
 }
 
-func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []schemaProblem {
+func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []SchemaProblem {
 	loadedSchema, documentRecord := problemBuilder.loadedSchema, problemBuilder.documentRecord
 	valuePointer := checkFailure.instancePointer
 	checkRule := problemBuilder.ruleAt(checkFailure.failedKeyword, checkFailure.schemaPointer)
@@ -61,22 +62,22 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 			return dependencyProblems
 		}
 	}
-	atValue := func(problemMessage string, schemaNote *string) []schemaProblem {
+	atValue := func(problemMessage string, schemaNote *string) []SchemaProblem {
 		valueProblem := DiagnosticAt(documentRecord.valuePosition(valuePointer), problemMessage).
 			WithLabel("breaks " + CodeSpan(checkFailure.failedKeyword)).
 			WithRule(checkRule).
 			WithSchema(schemaNote)
-		return []schemaProblem{{subjectPointer: valuePointer, builtDiagnostic: valueProblem}}
+		return []SchemaProblem{{Subject: valuePointer, Diagnostic: valueProblem}}
 	}
-	atSubject := func(subjectPointer string, subjectProblem Diagnostic) []schemaProblem {
-		return []schemaProblem{{subjectPointer: subjectPointer, builtDiagnostic: subjectProblem}}
+	atSubject := func(subjectPointer string, subjectProblem Diagnostic) []SchemaProblem {
+		return []SchemaProblem{{Subject: subjectPointer, Diagnostic: subjectProblem}}
 	}
 	schemaValue, _ := jsonPointerValue(loadedSchema.markedSchema, checkFailure.schemaPointer)
 	switch checkFailure.failedKeyword {
 	case "additionalProperties", "unevaluatedProperties":
 		allowedNames := allowedFields(loadedSchema.originalSchema, checkFailure.schemaPointer)
 		isUnevaluated := checkFailure.failedKeyword == "unevaluatedProperties"
-		var unknownProblems []schemaProblem
+		var unknownProblems []SchemaProblem
 		for _, unexpectedName := range checkFailure.fieldNames {
 			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
 			couldAccept := func() bool {
@@ -179,7 +180,7 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 	return atValue(namedField+" breaks "+CodeSpan(checkFailure.failedKeyword), nil)
 }
 
-func (problemBuilder failureProblems) dependencyProblems(checkFailure failedCheck, holderValue any) ([]schemaProblem, bool) {
+func (problemBuilder failureProblems) dependencyProblems(checkFailure failedCheck, holderValue any) ([]SchemaProblem, bool) {
 	markedSchema := problemBuilder.loadedSchema.markedSchema
 	dependencyPointer, dependencyKey, isDependency := dependencyOf(
 		markedSchema, checkFailure.schemaPointer, holderValue, checkFailure.missingField)
@@ -196,14 +197,14 @@ func (problemBuilder failureProblems) dependencyProblems(checkFailure failedChec
 	dependencyProblem := DiagnosticAt(problemBuilder.documentRecord.keyPosition(subjectPointer), dependencyMessageText).
 		WithLabel("breaks " + CodeSpan(dependencyKeyword)).
 		WithRule(problemBuilder.ruleAt(dependencyKeyword, dependencyPointer+"/"+escapePointer(dependencyKey)))
-	return []schemaProblem{{subjectPointer: subjectPointer, builtDiagnostic: dependencyProblem}}, true
+	return []SchemaProblem{{Subject: subjectPointer, Diagnostic: dependencyProblem}}, true
 }
 
 func (problemBuilder failureProblems) enumProblems(
 	checkFailure failedCheck,
 	schemaValue, holderValue any,
 	namedField, checkRule string,
-) []schemaProblem {
+) []SchemaProblem {
 	listedOptions, _ := schemaValue.([]any)
 	var allowedTexts, shownOptions []string
 	for _, listedOption := range listedOptions {
@@ -221,10 +222,10 @@ func (problemBuilder failureProblems) enumProblems(
 		WithLabel(fmt.Sprintf("not one of the %d values `enum` allows", len(listedOptions))).
 		WithRule(checkRule).
 		WithHelp(enumHelp)
-	return []schemaProblem{{subjectPointer: checkFailure.instancePointer, builtDiagnostic: enumProblem}}
+	return []SchemaProblem{{Subject: checkFailure.instancePointer, Diagnostic: enumProblem}}
 }
 
-func (problemBuilder failureProblems) tupleProblems(checkFailure failedCheck, namedField, checkRule string) []schemaProblem {
+func (problemBuilder failureProblems) tupleProblems(checkFailure failedCheck, namedField, checkRule string) []SchemaProblem {
 	listPointer := checkFailure.instancePointer
 	if problemBuilder.reportedCovers.itemLists[listPointer] {
 		return nil
@@ -241,7 +242,7 @@ func (problemBuilder failureProblems) tupleProblems(checkFailure failedCheck, na
 	tupleProblem := DiagnosticAt(listPosition, listLimitMessage(namedField, len(tupleSchemas))).
 		WithLabel("breaks " + CodeSpan(checkFailure.failedKeyword)).
 		WithRule(checkRule)
-	return []schemaProblem{{subjectPointer: listPointer, builtDiagnostic: tupleProblem}}
+	return []SchemaProblem{{Subject: listPointer, Diagnostic: tupleProblem}}
 }
 
 func listLimitMessage(namedField string, itemLimit int) string {

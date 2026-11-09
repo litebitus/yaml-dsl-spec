@@ -3,6 +3,7 @@ package yamldslspec
 import (
 	"cmp"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -37,68 +38,85 @@ var (
 type LoadedSchema struct {
 	Table           FunctionTable
 	compiledSchema  *jsonschema.Schema
+	schemaCompiler  *jsonschema.Compiler
+	fragmentLock    sync.Mutex
+	fragmentSchemas map[string]*jsonschema.Schema
 	originalSchema  any
 	markedSchema    any
 	schemaName      string
 	hoistedBranches map[string]string
 }
 
-// SchemaCache holds schemas loaded once per name and text, shared by every unit that reads them.
-type SchemaCache struct {
-	cacheLock     sync.Mutex
-	loadedSchemas map[schemaCacheKey]*schemaLoad
+// preparedSchema is what a schema's text prepares before a validator is built from it: the draft it is read in, the schema as written, and the schema its requiredness markers are read into. The package's own information, kept apart from the validator.
+type preparedSchema struct {
+	readDraft      schemaDraft
+	originalSchema any
+	markedSchema   any
 }
 
-type schemaCacheKey struct {
-	schemaName string
-	schemaText string
-}
-
-type schemaLoad struct {
-	loadOnce     sync.Once
-	loadedSchema *LoadedSchema
-	loadError    error
-}
-
-// NewSchemaCache is an empty schema cache.
-func NewSchemaCache() *SchemaCache {
-	return &SchemaCache{loadedSchemas: map[schemaCacheKey]*schemaLoad{}}
-}
-
-// Load is the schema a text holds, named as reports name it, read once per name and text; else why it does not load.
-func (schemaCache *SchemaCache) Load(schemaName, schemaText string) (*LoadedSchema, error) {
-	schemaCache.cacheLock.Lock()
-	if schemaCache.loadedSchemas == nil {
-		schemaCache.loadedSchemas = map[schemaCacheKey]*schemaLoad{}
-	}
-	cacheKey := schemaCacheKey{schemaName: schemaName, schemaText: schemaText}
-	pendingLoad, isCached := schemaCache.loadedSchemas[cacheKey]
-	if !isCached {
-		pendingLoad = &schemaLoad{}
-		schemaCache.loadedSchemas[cacheKey] = pendingLoad
-	}
-	schemaCache.cacheLock.Unlock()
-	pendingLoad.loadOnce.Do(func() {
-		pendingLoad.loadedSchema, pendingLoad.loadError = parseLoadedSchema(schemaName, schemaText)
-	})
-	return pendingLoad.loadedSchema, pendingLoad.loadError
+var preparedDraftNames = map[schemaDraft]string{
+	draftSeven:          "draft-07",
+	draftTwentyNineteen: "draft-2019-09",
+	draftTwentyTwenty:   "draft-2020-12",
 }
 
 func parseLoadedSchema(schemaName, schemaText string) (*LoadedSchema, error) {
+	schemaPreparation, preparationError := preparedSchemaOf(schemaName, schemaText)
+	if preparationError != nil {
+		return nil, preparationError
+	}
+	return loadedSchemaFromPrepared(schemaName, schemaPreparation)
+}
+
+func preparedSchemaOf(schemaName, schemaText string) (preparedSchema, error) {
 	failedLoad := func(loadCause error) error { return fmt.Errorf("schema %s: %v", schemaName, loadCause) }
 	schemaValue, decodeError := decodeOrderedJSON(schemaText)
 	if decodeError != nil {
-		return nil, failedLoad(decodeError)
+		return preparedSchema{}, failedLoad(decodeError)
 	}
+	readDraft, draftError := schemaDraftOf(schemaValue)
+	if draftError != nil {
+		return preparedSchema{}, failedLoad(draftError)
+	}
+	return preparedSchema{
+		readDraft:      readDraft,
+		originalSchema: schemaValue,
+		markedSchema:   markedSchema(schemaValue, readDraft),
+	}, nil
+}
+
+// preparedText is the prepared information as a store keeps it, the same in every language.
+func (schemaPreparation preparedSchema) preparedText() string {
+	return "{\"draft\":" + jsonString(preparedDraftNames[schemaPreparation.readDraft]) +
+		",\"schema\":" + jsonText(schemaPreparation.originalSchema) +
+		",\"marked\":" + jsonText(schemaPreparation.markedSchema) + "}"
+}
+
+func preparedSchemaOfText(storedText string) (preparedSchema, error) {
+	storedValue, decodeError := decodeOrderedJSON(storedText)
+	if decodeError != nil {
+		return preparedSchema{}, decodeError
+	}
+	draftName, _ := objectField(storedValue, "draft")
+	originalSchema, holdsSchema := objectField(storedValue, "schema")
+	markedValue, holdsMarked := objectField(storedValue, "marked")
+	for readDraft, preparedName := range preparedDraftNames {
+		if draftName == preparedName && holdsSchema && holdsMarked {
+			return preparedSchema{readDraft: readDraft, originalSchema: originalSchema, markedSchema: markedValue}, nil
+		}
+	}
+	return preparedSchema{}, fmt.Errorf("the stored text is no prepared schema")
+}
+
+func loadedSchemaFromPrepared(schemaName string, schemaPreparation preparedSchema) (*LoadedSchema, error) {
+	failedLoad := func(loadCause error) error { return fmt.Errorf("schema %s: %v", schemaName, loadCause) }
+	schemaValue := schemaPreparation.originalSchema
+	readDraft := schemaPreparation.readDraft
+	markedValue := schemaPreparation.markedSchema
 	functionTable, tableError := FunctionTableFromSchema(schemaValue)
 	if tableError != nil {
 		return nil, failedLoad(tableError)
 	}
-	readDraft, draftError := schemaDraftOf(schemaValue)
-	if draftError != nil {
-		return nil, failedLoad(draftError)
-	}
-	markedValue := markedSchema(schemaValue, readDraft)
 	schemaHoisting := assertionHoisting{hoistedBranches: map[string]string{}, readKeywords: draftKeywordsByDraft[readDraft]}
 	compilableValue := schemaHoisting.hoistedNode(markedValue, "")
 	if compilableObject, isObject := compilableValue.(*orderedObject); isObject {
@@ -126,6 +144,8 @@ func parseLoadedSchema(schemaName, schemaText string) (*LoadedSchema, error) {
 	return &LoadedSchema{
 		Table:           functionTable,
 		compiledSchema:  compiledSchema,
+		schemaCompiler:  schemaCompiler,
+		fragmentSchemas: map[string]*jsonschema.Schema{},
 		originalSchema:  schemaValue,
 		markedSchema:    markedValue,
 		schemaName:      schemaName,
@@ -154,29 +174,82 @@ func schemaDraftOf(schemaValue any) (schemaDraft, error) {
 
 // Validate is every problem of a resolved document, read by the rules, in document order.
 func (loadedSchema *LoadedSchema) Validate(documentValue ResolvedValue, validationRules ValidationRules) []Diagnostic {
+	var collectedProblems []Diagnostic
+	for _, subjectProblem := range loadedSchema.Problems(documentValue, validationRules) {
+		collectedProblems = append(collectedProblems, subjectProblem.Diagnostic)
+	}
+	return collectedProblems
+}
+
+// Problems is every problem Validate gives, each with its subject.
+func (loadedSchema *LoadedSchema) Problems(documentValue ResolvedValue, validationRules ValidationRules) []SchemaProblem {
+	return loadedSchema.problemsAgainst(loadedSchema.compiledSchema, false, documentValue, validationRules)
+}
+
+// FragmentProblems is every problem of a resolved document read against the schema's node at fragmentPointer, such as /$defs/queue, no key required, each with its subject.
+func (loadedSchema *LoadedSchema) FragmentProblems(
+	fragmentPointer string,
+	documentValue ResolvedValue,
+	validationRules ValidationRules,
+) []SchemaProblem {
+	fragmentSchema := loadedSchema.compiledFragment(fragmentPointer)
+	if fragmentSchema == nil {
+		missingMessage := "the schema has no node at " + CodeSpan("#"+fragmentPointer)
+		return []SchemaProblem{{Subject: "", Diagnostic: DiagnosticAt(documentValue.Position, missingMessage)}}
+	}
+	return loadedSchema.problemsAgainst(fragmentSchema, true, documentValue, validationRules)
+}
+
+func (loadedSchema *LoadedSchema) compiledFragment(fragmentPointer string) *jsonschema.Schema {
+	loadedSchema.fragmentLock.Lock()
+	defer loadedSchema.fragmentLock.Unlock()
+	if fragmentSchema, isCompiled := loadedSchema.fragmentSchemas[fragmentPointer]; isCompiled {
+		return fragmentSchema
+	}
+	var fragmentSchema *jsonschema.Schema
+	if _, isNode := jsonPointerValue(loadedSchema.originalSchema, fragmentPointer); isNode {
+		fragmentLocation := compiledSchemaLocation + "#" + (&url.URL{Fragment: fragmentPointer}).EscapedFragment()
+		if compiledSchema, compileError := loadedSchema.schemaCompiler.Compile(fragmentLocation); compileError == nil {
+			fragmentSchema = compiledSchema
+		}
+	}
+	loadedSchema.fragmentSchemas[fragmentPointer] = fragmentSchema
+	return fragmentSchema
+}
+
+func (loadedSchema *LoadedSchema) problemsAgainst(
+	validatingSchema *jsonschema.Schema,
+	requiresNoKey bool,
+	documentValue ResolvedValue,
+	validationRules ValidationRules,
+) []SchemaProblem {
 	documentRecord := newInstanceRecord(validationRules)
 	documentJSON := documentRecord.jsonOf(documentValue, "", documentValue.Position)
-	documentJSON = loadedSchema.withQuotedValuesRead(documentJSON, validationRules)
+	documentJSON = loadedSchema.withQuotedValuesRead(validatingSchema, documentJSON, validationRules)
 	reportedCovers := reportedSubjects{dependencyKeys: map[string]bool{}, itemLists: map[string]bool{}}
-	var collectedProblems []Diagnostic
+	var collectedProblems []SchemaProblem
 	problemBuilder := failureProblems{
 		loadedSchema:   loadedSchema,
 		documentJSON:   documentJSON,
 		documentRecord: documentRecord,
 		reportedCovers: &reportedCovers,
 	}
-	for _, checkFailure := range loadedSchema.failuresOf(documentJSON, documentRecord) {
+	for _, checkFailure := range loadedSchema.failuresOf(validatingSchema, documentJSON, documentRecord, requiresNoKey) {
 		if documentRecord.readsUnknown(checkFailure.instancePointer, checkFailure.failedKeyword) {
 			continue
 		}
 		for _, builtProblem := range problemBuilder.problemsOf(checkFailure) {
-			if !documentRecord.isCopied(builtProblem.subjectPointer) {
-				collectedProblems = append(collectedProblems, builtProblem.builtDiagnostic)
+			if !documentRecord.isCopied(builtProblem.Subject) {
+				collectedProblems = append(collectedProblems, builtProblem)
 			}
 		}
 	}
-	slices.SortStableFunc(collectedProblems, compareDiagnostics)
-	return slices.CompactFunc(collectedProblems, sameDiagnostic)
+	slices.SortStableFunc(collectedProblems, func(firstProblem, secondProblem SchemaProblem) int {
+		return compareDiagnostics(firstProblem.Diagnostic, secondProblem.Diagnostic)
+	})
+	return slices.CompactFunc(collectedProblems, func(firstProblem, secondProblem SchemaProblem) bool {
+		return sameDiagnostic(firstProblem.Diagnostic, secondProblem.Diagnostic)
+	})
 }
 
 func compareDiagnostics(firstProblem, secondProblem Diagnostic) int {

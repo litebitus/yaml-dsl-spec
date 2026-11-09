@@ -1,0 +1,9 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 1,
+      "message": "the schema has no node at `#/$defs/missing`"
+    }
+  ]
+}

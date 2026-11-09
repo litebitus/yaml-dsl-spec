@@ -26,6 +26,7 @@ type failureCollector struct {
 	loadedSchema     *LoadedSchema
 	documentJSON     any
 	documentRecord   *instanceRecord
+	requiresNoKey    bool
 	failedChecks     []failedCheck
 	usedHolders      map[string]bool
 	unevaluatedNames map[string]map[string]bool
@@ -43,12 +44,16 @@ func newFailureCollector(loadedSchema *LoadedSchema, documentJSON any, documentR
 	}
 }
 
-func (loadedSchema *LoadedSchema) withQuotedValuesRead(documentJSON any, validationRules ValidationRules) any {
+func (loadedSchema *LoadedSchema) withQuotedValuesRead(
+	validatingSchema *jsonschema.Schema,
+	documentJSON any,
+	validationRules ValidationRules,
+) any {
 	if len(validationRules.QuotedValueTypes) == 0 {
 		return documentJSON
 	}
 	for {
-		validationError, _ := loadedSchema.compiledSchema.Validate(documentJSON).(*jsonschema.ValidationError)
+		validationError, _ := validatingSchema.Validate(documentJSON).(*jsonschema.ValidationError)
 		if validationError == nil {
 			return documentJSON
 		}
@@ -145,12 +150,18 @@ func (loadedSchema *LoadedSchema) keywordPointer(errorNode *jsonschema.Validatio
 	return loadedSchema.realPointer(keywordPointer)
 }
 
-func (loadedSchema *LoadedSchema) failuresOf(documentJSON any, documentRecord *instanceRecord) []failedCheck {
-	validationError, _ := loadedSchema.compiledSchema.Validate(documentJSON).(*jsonschema.ValidationError)
+func (loadedSchema *LoadedSchema) failuresOf(
+	validatingSchema *jsonschema.Schema,
+	documentJSON any,
+	documentRecord *instanceRecord,
+	requiresNoKey bool,
+) []failedCheck {
+	validationError, _ := validatingSchema.Validate(documentJSON).(*jsonschema.ValidationError)
 	if validationError == nil {
 		return nil
 	}
 	checkCollector := newFailureCollector(loadedSchema, documentJSON, documentRecord)
+	checkCollector.requiresNoKey = requiresNoKey
 	checkCollector.collectNode(validationError, nil)
 	unevaluatedKeys := make([]string, 0, len(checkCollector.unevaluatedAt))
 	for unevaluatedKey := range checkCollector.unevaluatedAt {
@@ -174,6 +185,9 @@ func (checkCollector *failureCollector) addCheck(addedCheck failedCheck) {
 
 func (checkCollector *failureCollector) collectNode(errorNode *jsonschema.ValidationError, reliableLocation []string) {
 	loadedSchema := checkCollector.loadedSchema
+	if checkCollector.requiresNoKey && failsOnlyByRequiredKeys(errorNode) {
+		return
+	}
 	if _, isPropertyNames := errorNode.ErrorKind.(*kind.PropertyNames); !isPropertyNames {
 		reliableLocation = errorNode.InstanceLocation
 		if checkCollector.collectUnevaluated(errorNode) {
@@ -219,6 +233,21 @@ func (checkCollector *failureCollector) collectNode(errorNode *jsonschema.Valida
 		nodeCheck.failedKeyword = failureKeyword(errorNode.ErrorKind)
 		checkCollector.addCheck(nodeCheck)
 	}
+}
+
+func failsOnlyByRequiredKeys(errorNode *jsonschema.ValidationError) bool {
+	failsOtherwise := func(causeNode *jsonschema.ValidationError) bool { return !failsOnlyByRequiredKeys(causeNode) }
+	switch errorKind := errorNode.ErrorKind.(type) {
+	case *kind.Required, *kind.Dependency, *kind.DependentRequired:
+		return true
+	case *kind.Schema, *kind.Group, *kind.Reference, *kind.AllOf:
+		return len(errorNode.Causes) > 0 && !slices.ContainsFunc(errorNode.Causes, failsOtherwise)
+	case *kind.AnyOf:
+		return slices.ContainsFunc(errorNode.Causes, failsOnlyByRequiredKeys)
+	case *kind.OneOf:
+		return len(errorKind.Subschemas) == 0 && slices.ContainsFunc(errorNode.Causes, failsOnlyByRequiredKeys)
+	}
+	return false
 }
 
 func (checkCollector *failureCollector) addDependency(nodeCheck failedCheck, dependencyPointer string, missingNames []string) {

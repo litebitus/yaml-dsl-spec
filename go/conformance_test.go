@@ -209,7 +209,23 @@ func schemaReading(testingContext *testing.T, caseFolder string) any {
 		}
 	}
 	documentValue := withUnknownValues(ResolvedValueFromNode(rootNode), "", unknownPointers)
-	return map[string]any{"problems": problemsJSON(loadedSchema.Validate(documentValue, validationRules))}
+	subjectProblems := loadedSchema.Problems(documentValue, validationRules)
+	if fragmentValue, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "fragment.json")); isPresent {
+		fragmentPointer, _ := fragmentValue.(map[string]any)["pointer"].(string)
+		subjectProblems = loadedSchema.FragmentProblems(fragmentPointer, documentValue, validationRules)
+	}
+	var readProblems []Diagnostic
+	readSubjects := []any{}
+	for _, subjectProblem := range subjectProblems {
+		readProblems = append(readProblems, subjectProblem.Diagnostic)
+		readSubjects = append(readSubjects, subjectProblem.Subject)
+	}
+	if expectedSubjects, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "subjects.json")); isPresent {
+		if !reflect.DeepEqual(readSubjects, expectedSubjects) {
+			testingContext.Errorf("%s problems are about %q", filepath.Base(caseFolder), readSubjects)
+		}
+	}
+	return map[string]any{"problems": problemsJSON(readProblems)}
 }
 
 func withUnknownValues(documentValue ResolvedValue, valuePointer string, unknownPointers []string) ResolvedValue {

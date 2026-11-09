@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "queue": { "$ref": "#/definitions/queue" }
+  },
+  "definitions": {
+    "queue": {
+      "type": "object",
+      "properties": {
+        "visibility": { "type": "integer" }
+      }
+    }
+  }
+}

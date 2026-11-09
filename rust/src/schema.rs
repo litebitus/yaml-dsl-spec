@@ -1,14 +1,13 @@
 //! A document's schema, as its caller hands it over: its function table, and
 //! the validation of the resolved document against it.
 
-use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, BTreeSet};
-use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::OnceLock;
 
 use fancy_regex::Regex;
 use jsonschema::error::{TypeKind, ValidationErrorKind};
 use jsonschema::{Draft, ValidationError};
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as JsonValue};
 
 use crate::diagnostic::Diagnostic;
@@ -21,6 +20,7 @@ use crate::problem_wording::{
 };
 use crate::requiredness_markers::{description_text, marked_schema};
 use crate::resolved::{Value, ValueKind};
+pub use crate::schema_cache::{SchemaCache, SchemaStore};
 pub use crate::validation_rules::child_value;
 use crate::validation_rules::{ValidationRules, copied_pointers, escape_pointer, merged_over};
 
@@ -44,46 +44,60 @@ struct SchemaFailure<'v> {
 }
 
 impl<'v> SchemaFailure<'v> {
-    fn of(error: ValidationError<'v>) -> Self {
+    fn of(error: ValidationError<'v>, schema_node: &SchemaNode<'_>) -> Self {
         Self {
             pointer: error.instance_path().as_str().to_owned(),
-            schema_path: error.schema_path().as_str().to_owned(),
+            schema_path: schema_node.keyword_pointer(&error),
             error,
             failing_members: Vec::new(),
         }
     }
 }
 
-/// A schema parsed once, by the first unit that reads it, or why it did not parse.
-type SchemaLoad = Arc<OnceLock<Result<Arc<LoadedSchema>, String>>>;
-
-/// Schemas parsed once and shared by every unit that reads them, by name and text.
-#[derive(Default)]
-pub struct SchemaCache {
-    loaded: Mutex<BTreeMap<(String, u64), SchemaLoad>>,
+struct SchemaNode<'s> {
+    validator: &'s jsonschema::Validator,
+    fragment_pointer: Option<&'s str>,
 }
 
-impl SchemaCache {
-    pub fn load(&self, name: &str, text: &str) -> Result<Arc<LoadedSchema>, String> {
-        let mut hasher = DefaultHasher::new();
-        text.hash(&mut hasher);
-        let key = (name.to_owned(), hasher.finish());
-        let cell = {
-            let mut loaded = self
-                .loaded
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            Arc::clone(loaded.entry(key).or_default())
-        };
-        cell.get_or_init(|| LoadedSchema::parse(name, text).map(Arc::new))
-            .clone()
+impl SchemaNode<'_> {
+    fn keyword_pointer(&self, error: &ValidationError<'_>) -> String {
+        whole_keyword_pointer(
+            self.fragment_pointer.unwrap_or_default(),
+            error.schema_path().as_str(),
+            error.evaluation_path().as_str(),
+        )
+    }
+}
+
+/// What a schema's text prepares before a validator is built from it: the draft
+/// it is read in, the schema as written, and the schema its requiredness markers
+/// are read into. The package's own information, kept apart from the validator.
+#[derive(Serialize, Deserialize)]
+pub(crate) struct PreparedSchema {
+    draft: String,
+    schema: JsonValue,
+    marked: JsonValue,
+}
+
+impl PreparedSchema {
+    pub(crate) fn of(name: &str, text: &str) -> Result<Self, String> {
+        let schema: JsonValue =
+            serde_json::from_str(text).map_err(|error| format!("schema {name}: {error}"))?;
+        let draft = schema_draft(&schema).map_err(|error| format!("schema {name}: {error}"))?;
+        let marked = marked_schema(&schema, draft);
+        Ok(Self {
+            draft: draft_name(draft).to_owned(),
+            schema,
+            marked,
+        })
     }
 }
 
 /// A problem, and the document value it is about.
-struct SchemaProblem {
-    subject: String,
-    diagnostic: Diagnostic,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SchemaProblem {
+    pub subject: String,
+    pub diagnostic: Diagnostic,
 }
 
 /// What the problems already reported cover: each dependency's key and each list
@@ -95,13 +109,18 @@ struct ReportedSubjects {
 }
 
 impl LoadedSchema {
-    fn parse(name: &str, text: &str) -> Result<Self, String> {
-        let schema: JsonValue =
-            serde_json::from_str(text).map_err(|error| format!("schema {name}: {error}"))?;
+    /// The schema built from what its text prepared: its function table read, and
+    /// its validator built from the marked schema.
+    pub(crate) fn from_prepared(name: &str, prepared: PreparedSchema) -> Result<Self, String> {
+        let PreparedSchema {
+            draft,
+            schema,
+            marked,
+        } = prepared;
+        let draft = draft_of_name(&draft)
+            .ok_or_else(|| format!("schema {name}: prepared in an unknown draft {draft}"))?;
         let table = FunctionTable::from_schema(&schema)
             .map_err(|error| format!("schema {name}: {error}"))?;
-        let draft = schema_draft(&schema).map_err(|error| format!("schema {name}: {error}"))?;
-        let marked = marked_schema(&schema, draft);
         let validator = jsonschema::options()
             .with_draft(draft)
             .should_validate_formats(false)
@@ -118,9 +137,60 @@ impl LoadedSchema {
         })
     }
 
+    /// The schema `text` holds, named `name` in reports, prepared and built at once.
+    #[cfg(test)]
+    fn parse(name: &str, text: &str) -> Result<Self, String> {
+        Self::from_prepared(name, PreparedSchema::of(name, text)?)
+    }
+
     /// Validates `document`, read by `rules`. A value not known when the document
     /// compiles, such as a call or a reference to a declaration, is not checked.
     pub fn validate(&self, document: &Value, rules: &ValidationRules) -> Vec<Diagnostic> {
+        self.problems(document, rules)
+            .into_iter()
+            .map(|problem| problem.diagnostic)
+            .collect()
+    }
+
+    /// The problems `validate` reports, each with the document value it is about.
+    pub fn problems(&self, document: &Value, rules: &ValidationRules) -> Vec<SchemaProblem> {
+        let schema_node = SchemaNode {
+            validator: &self.validator,
+            fragment_pointer: None,
+        };
+        self.node_problems(&schema_node, document, rules)
+    }
+
+    /// The problems of `document` read against the schema node at `fragment_pointer`.
+    pub fn fragment_problems(
+        &self,
+        fragment_pointer: &str,
+        document: &Value,
+        rules: &ValidationRules,
+    ) -> Vec<SchemaProblem> {
+        let Some(validator) = self.subschema_validator(fragment_pointer) else {
+            let missing_node = code_span(&format!("#{fragment_pointer}"));
+            return vec![SchemaProblem {
+                subject: String::new(),
+                diagnostic: Diagnostic::at(
+                    &document.position,
+                    format!("the schema has no node at {missing_node}"),
+                ),
+            }];
+        };
+        let schema_node = SchemaNode {
+            validator,
+            fragment_pointer: Some(fragment_pointer),
+        };
+        self.node_problems(&schema_node, document, rules)
+    }
+
+    fn node_problems(
+        &self,
+        schema_node: &SchemaNode<'_>,
+        document: &Value,
+        rules: &ValidationRules,
+    ) -> Vec<SchemaProblem> {
         let mut instance = Instance {
             rules,
             positions: BTreeMap::new(),
@@ -129,40 +199,47 @@ impl LoadedSchema {
             copied: BTreeSet::new(),
         };
         let mut json = instance.json(document, String::new(), &document.position);
-        self.read_quoted_values(&mut json, rules);
+        self.read_quoted_values(schema_node, &mut json, rules);
         let mut reported = ReportedSubjects::default();
-        let failures = self.schema_failures(&json);
-        let mut diagnostics: Vec<Diagnostic> = failures
+        let failures = self.schema_failures(schema_node, &json);
+        let mut problems: Vec<SchemaProblem> = failures
             .iter()
             .filter(|failure| !instance.reads_unknown(&failure.pointer, failure.error.kind()))
+            .filter(|failure| {
+                schema_node.fragment_pointer.is_none()
+                    || !passes_without_requiredness(&failure.error)
+            })
             .flat_map(|failure| self.error_problems(failure, &json, &instance, &mut reported))
             .filter(|problem| !instance.is_copied(&problem.subject))
-            .map(|problem| problem.diagnostic)
             .collect();
-        diagnostics.sort_by(|first, second| {
-            place(first)
-                .cmp(&place(second))
-                .then_with(|| first.message.cmp(&second.message))
+        problems.sort_by(|first, second| {
+            place(&first.diagnostic)
+                .cmp(&place(&second.diagnostic))
+                .then_with(|| first.diagnostic.message.cmp(&second.diagnostic.message))
         });
-        diagnostics.dedup();
-        diagnostics
+        problems.dedup_by(|later, earlier| later.diagnostic == earlier.diagnostic);
+        problems
     }
 
-    fn schema_failures<'v>(&'v self, json: &'v JsonValue) -> Vec<SchemaFailure<'v>> {
+    fn schema_failures<'v>(
+        &'v self,
+        schema_node: &SchemaNode<'v>,
+        json: &'v JsonValue,
+    ) -> Vec<SchemaFailure<'v>> {
         let mut failing_units: Option<Vec<(String, String)>> = None;
         let mut failures = Vec::new();
-        for error in self.validator.iter_errors(json) {
+        for error in schema_node.validator.iter_errors(json) {
             let is_unevaluated = matches!(
                 error.kind(),
                 ValidationErrorKind::UnevaluatedProperties { .. }
                     | ValidationErrorKind::UnevaluatedItems { .. }
             );
             if !is_unevaluated {
-                failures.push(SchemaFailure::of(error));
+                failures.push(SchemaFailure::of(error, schema_node));
                 continue;
             }
-            let mut failure = SchemaFailure::of(error);
-            let units = failing_units.get_or_insert_with(|| self.failing_units(json));
+            let mut failure = SchemaFailure::of(error, schema_node);
+            let units = failing_units.get_or_insert_with(|| self.failing_units(schema_node, json));
             let members = failing_members(units, &failure.pointer, &failure.schema_path);
             let is_open = self
                 .marked
@@ -181,8 +258,14 @@ impl LoadedSchema {
         failures
     }
 
-    fn failing_units(&self, json: &JsonValue) -> Vec<(String, String)> {
-        let listed = serde_json::to_value(self.validator.evaluate(json).list()).unwrap_or_default();
+    fn failing_units(
+        &self,
+        schema_node: &SchemaNode<'_>,
+        json: &JsonValue,
+    ) -> Vec<(String, String)> {
+        let evaluation = schema_node.validator.evaluate(json);
+        let listed = serde_json::to_value(evaluation.list()).unwrap_or_default();
+        let fragment_pointer = schema_node.fragment_pointer.unwrap_or_default();
         listed["details"]
             .as_array()
             .into_iter()
@@ -190,7 +273,11 @@ impl LoadedSchema {
             .filter(|unit| unit["valid"] == JsonValue::Bool(false))
             .filter_map(|unit| {
                 Some((
-                    unit["schemaLocation"].as_str()?.to_owned(),
+                    whole_keyword_pointer(
+                        fragment_pointer,
+                        unit["schemaLocation"].as_str()?,
+                        unit["evaluationPath"].as_str()?,
+                    ),
                     unit["instanceLocation"].as_str()?.to_owned(),
                 ))
             })
@@ -224,12 +311,11 @@ impl LoadedSchema {
             };
             for error in validator.iter_errors(value) {
                 let pointer = format!("{member}{}", error.instance_path().as_str());
-                let below_keyword = format!("{}{}", unevaluated.schema_path, error.schema_path());
-                let schema_path = if self.marked.pointer(&below_keyword).is_some() {
-                    below_keyword
-                } else {
-                    error.schema_path().as_str().to_owned()
-                };
+                let schema_path = whole_keyword_pointer(
+                    &unevaluated.schema_path,
+                    error.schema_path().as_str(),
+                    error.evaluation_path().as_str(),
+                );
                 failures.push(SchemaFailure {
                     error,
                     pointer,
@@ -243,14 +329,19 @@ impl LoadedSchema {
 
     /// Reads each quoted value that spells a type the schema expects of it, and
     /// `rules` allow, as that type, until no more are read.
-    fn read_quoted_values(&self, json: &mut JsonValue, rules: &ValidationRules) {
+    fn read_quoted_values(
+        &self,
+        schema_node: &SchemaNode<'_>,
+        json: &mut JsonValue,
+        rules: &ValidationRules,
+    ) {
         if rules.quoted_value_types.is_empty() {
             return;
         }
         loop {
             let mut readings: BTreeMap<String, JsonValue> = BTreeMap::new();
-            for error in self.validator.iter_errors(json) {
-                self.collect_quoted_readings(&error, rules, &mut readings);
+            for error in schema_node.validator.iter_errors(json) {
+                self.collect_quoted_readings(schema_node, &error, rules, &mut readings);
             }
             if readings.is_empty() {
                 return;
@@ -265,6 +356,7 @@ impl LoadedSchema {
 
     fn collect_quoted_readings(
         &self,
+        schema_node: &SchemaNode<'_>,
         error: &ValidationError<'_>,
         rules: &ValidationRules,
         readings: &mut BTreeMap<String, JsonValue>,
@@ -274,7 +366,7 @@ impl LoadedSchema {
                 let Some(text) = error.instance().as_str() else {
                     return;
                 };
-                let expected = self.expected_types(error.schema_path().as_str(), error);
+                let expected = self.expected_types(&schema_node.keyword_pointer(error), error);
                 if let Some(value) = rules.quoted_value(text, &expected) {
                     readings
                         .entry(error.instance_path().as_str().to_owned())
@@ -284,7 +376,7 @@ impl LoadedSchema {
             ValidationErrorKind::AnyOf { context }
             | ValidationErrorKind::OneOfNotValid { context } => {
                 for inner in context.iter().flatten() {
-                    self.collect_quoted_readings(inner, rules, readings);
+                    self.collect_quoted_readings(schema_node, inner, rules, readings);
                 }
             }
             _ => {}
@@ -655,6 +747,24 @@ const DRAFT_2020_12_URIS: [&str; 2] = [
 
 /// The draft the standard reads a document schema in, by its root `$schema`:
 /// draft-07 where it names none or an older draft.
+/// A draft's name in prepared information, the same in every language.
+fn draft_name(draft: Draft) -> &'static str {
+    match draft {
+        Draft::Draft201909 => "draft-2019-09",
+        Draft::Draft202012 => "draft-2020-12",
+        _ => "draft-07",
+    }
+}
+
+fn draft_of_name(name: &str) -> Option<Draft> {
+    match name {
+        "draft-07" => Some(Draft::Draft7),
+        "draft-2019-09" => Some(Draft::Draft201909),
+        "draft-2020-12" => Some(Draft::Draft202012),
+        _ => None,
+    }
+}
+
 fn schema_draft(schema: &JsonValue) -> Result<Draft, String> {
     let Some(declared) = schema.get("$schema") else {
         return Ok(Draft::Draft7);
@@ -680,6 +790,26 @@ fn place(diagnostic: &Diagnostic) -> Option<(usize, usize)> {
         .position
         .as_ref()
         .map(|position| (position.line, position.column))
+}
+
+fn whole_keyword_pointer(node_pointer: &str, schema_path: &str, evaluation_path: &str) -> String {
+    if schema_path == evaluation_path {
+        format!("{node_pointer}{schema_path}")
+    } else {
+        schema_path.to_owned()
+    }
+}
+
+fn passes_without_requiredness(error: &ValidationError<'_>) -> bool {
+    match error.kind() {
+        ValidationErrorKind::Required { .. } => true,
+        ValidationErrorKind::AnyOf { context } | ValidationErrorKind::OneOfNotValid { context } => {
+            context.iter().any(|branch_errors| {
+                !branch_errors.is_empty() && branch_errors.iter().all(passes_without_requiredness)
+            })
+        }
+        _ => false,
+    }
 }
 
 /// The fields a schema node allows: the `properties` of every schema the node
@@ -1050,6 +1180,8 @@ impl Instance<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use crate::definition::QuotedValueType;
     use crate::resolved::{Call, MapEntry};
@@ -1178,6 +1310,61 @@ mod tests {
             Some(
                 "type, at mock.schema.json#/properties/queue/additionalProperties/properties/visibility/type"
             )
+        );
+    }
+
+    #[test]
+    fn each_problem_names_the_document_value_it_is_about() {
+        let document = map(vec![(
+            "queue",
+            map(vec![(
+                "orders",
+                map(vec![("visibility", Value::string("thirty", position()))]),
+            )]),
+        )]);
+        let problems = schema().problems(&document, &ValidationRules::default());
+        let subjects: Vec<&str> = problems
+            .iter()
+            .map(|problem| problem.subject.as_str())
+            .collect();
+        assert_eq!(subjects, ["/queue/orders", "/queue/orders/visibility"]);
+    }
+
+    #[test]
+    fn a_fragment_names_its_rules_in_the_whole_schema_and_requires_no_field() {
+        let text = r##"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": {
+                "queue": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {"tags": {"$ref": "#/$defs/tags"}}
+                },
+                "tags": {"type": "array"}
+            }
+        }"##;
+        let schema = LoadedSchema::parse("mock.schema.json", text).unwrap();
+        let document = map(vec![("tags", Value::string("mock", position()))]);
+        let problems =
+            schema.fragment_problems("/$defs/queue", &document, &ValidationRules::default());
+        let reports: Vec<(&str, &str, Option<&str>)> = problems
+            .iter()
+            .map(|problem| {
+                let notes = problem.diagnostic.notes.as_deref().unwrap();
+                (
+                    problem.subject.as_str(),
+                    problem.diagnostic.message.as_str(),
+                    notes.rule.as_deref(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            reports,
+            [(
+                "/tags",
+                "`tags` must be `array`",
+                Some("type, at mock.schema.json#/$defs/tags/type")
+            )]
         );
     }
 

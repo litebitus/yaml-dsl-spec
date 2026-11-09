@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "$defs": {
+    "target": {
+      "type": "object",
+      "properties": {
+        "arn": { "type": "string" },
+        "name": { "type": "string" },
+        "port": { "type": "integer" }
+      },
+      "anyOf": [
+        { "required": ["arn"] },
+        { "required": ["name"] }
+      ]
+    }
+  }
+}
