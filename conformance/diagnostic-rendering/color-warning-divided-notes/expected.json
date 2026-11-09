@@ -8,7 +8,7 @@
     "\u001b[90m2 |\u001b[0m   panels:",
     "\u001b[90m3 |\u001b[0m     - title: Mock requests",
     "\u001b[90m4 |\u001b[0m       unit: reqps",
-    "\u001b[90m  |\u001b[0m       \u001b[91m^^^^ deprecated\u001b[0m",
+    "\u001b[90m  |\u001b[0m       \u001b[33m^^^^ deprecated\u001b[0m",
     "\u001b[90m  |\u001b[0m",
     "\u001b[90m  =\u001b[0m \u001b[36mrule:\u001b[0m deprecated, at mock-dashboard.schema.",
     "    json#/$defs/panel/properties/unit/deprecated",

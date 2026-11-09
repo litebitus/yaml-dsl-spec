@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use yaml_dsl_spec::{Diagnostic, DiagnosticNotes, Position};
 
 use crate::line_wrapping::{LEVEL_COLUMNS, WrappedLine, WrappedRow};
@@ -55,10 +57,11 @@ pub fn render_diagnostic(
     source: DiagnosticSource<'_>,
     style: RenderStyle,
 ) -> String {
-    let mut rendered = match severity {
-        Severity::Error => style.headline("error", FAILURE, &diagnostic.message),
-        Severity::Warning => style.headline("warning", ATTENTION, &diagnostic.message),
+    let (severity_word, severity_color) = match severity {
+        Severity::Error => ("error", FAILURE),
+        Severity::Warning => ("warning", ATTENTION),
     };
+    let mut rendered = style.headline(severity_word, severity_color, &diagnostic.message);
     let notes = diagnostic.notes.as_deref();
     let Some(position) = &diagnostic.position else {
         return rendered + &notes_text(notes, 1, style);
@@ -100,7 +103,9 @@ pub fn render_diagnostic(
             if let Some((row_index, start, end)) = underlined
                 && row_index == index
             {
-                for underline_row in underline(&line, row, start, end, notes, room, style) {
+                let underline_rows =
+                    underline(&line, row, start..end, notes, room, severity_color, style);
+                for underline_row in underline_rows {
                     rendered.push_str(&format!("\n{blank} {underline_row}"));
                 }
             }
@@ -158,19 +163,19 @@ fn underlined_span(line: &WrappedLine, position: &Position) -> (usize, usize, us
 fn underline(
     line: &WrappedLine,
     row: &WrappedRow,
-    start: usize,
-    end: usize,
+    span: Range<usize>,
     notes: Option<&DiagnosticNotes>,
     room: Option<usize>,
+    severity_color: &str,
     style: RenderStyle,
 ) -> Vec<String> {
-    let first = start.max(row.start);
-    let last = end.min(row.end).max(first);
+    let first = span.start.max(row.start);
+    let last = span.end.min(row.end).max(first);
     let caret_column = row.indent + line.columns(row.start, first);
     let carets = "^".repeat(line.columns(first, last).max(1));
     let indent = " ".repeat(caret_column);
     let Some(label) = notes.and_then(|notes| notes.label.as_deref()) else {
-        return vec![format!("{indent}{}", style.paint(FAILURE, &carets))];
+        return vec![format!("{indent}{}", style.paint(severity_color, &carets))];
     };
     let label_columns = WrappedLine::new(label, None).columns(0, label.chars().count());
     let fits_beside =
@@ -178,13 +183,16 @@ fn underline(
     if fits_beside {
         return vec![format!(
             "{indent}{}",
-            style.paint(FAILURE, &format!("{carets} {label}"))
+            style.paint(severity_color, &format!("{carets} {label}"))
         )];
     }
     let label_room = room.map(|room| room.saturating_sub(caret_column));
-    let mut rows = vec![format!("{indent}{}", style.paint(FAILURE, &carets))];
+    let mut rows = vec![format!("{indent}{}", style.paint(severity_color, &carets))];
     for label_row in WrappedLine::new(label, label_room).row_texts() {
-        rows.push(format!("{indent}{}", style.paint(FAILURE, &label_row)));
+        rows.push(format!(
+            "{indent}{}",
+            style.paint(severity_color, &label_row)
+        ));
     }
     rows
 }

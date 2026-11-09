@@ -259,7 +259,7 @@ A line is each line the renderer divides: the headline, a source line, a label, 
 | `warning` | yellow, `33` |
 | the message | bold |
 | the gutter, `-->`, `...` and a note's `=` | dim, `90` |
-| the carets and the label | red, `91` |
+| the carets and the label | the severity's: red, `91`, under an error; yellow, `33`, under a warning |
 | `rule:` and `help:` | cyan, `36` |
 | `[schema]` | bold purple, `#A6ABF2` |
 | the schema note's text | purple, `#A6ABF2` |

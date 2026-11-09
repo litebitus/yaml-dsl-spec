@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Packages
+  - The diagnostic renderer draws a warning's carets and label in yellow, the warning's color, and an error's in red.
+
 ## v0.2.1 — 2026-11-08
 
 - Packages

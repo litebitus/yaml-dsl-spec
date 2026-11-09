@@ -91,11 +91,11 @@ func (style RenderStyle) headline(severityWord, wordColor, message string) strin
 // RenderDiagnostic is a diagnostic as a compiler writes an error: the headline, the source's name and the position, the lines that hold the wrong text and the lines it is nested under, and the notes.
 func RenderDiagnostic(diagnostic yamldslspec.Diagnostic, severity Severity, source DiagnosticSource, style RenderStyle) string {
 	var rendered strings.Builder
+	severityWord, severityCode := "error", failureCode
 	if severity == SeverityWarning {
-		rendered.WriteString(style.headline("warning", attentionCode, diagnostic.Message))
-	} else {
-		rendered.WriteString(style.headline("error", failureCode, diagnostic.Message))
+		severityWord, severityCode = "warning", attentionCode
 	}
+	rendered.WriteString(style.headline(severityWord, severityCode, diagnostic.Message))
 	diagnosticNotes := diagnostic.Notes
 	if diagnostic.Position == nil {
 		rendered.WriteString(notesText(diagnosticNotes, 1, style))
@@ -139,7 +139,8 @@ func RenderDiagnostic(diagnostic yamldslspec.Diagnostic, severity Severity, sour
 			}
 			writeNewRow(&rendered, rowGutter, " ", line.rowText(row))
 			if isWrongLine && rowIndex == underlinedRow {
-				for _, underlineRow := range underline(line, row, spanStart, spanEnd, diagnosticNotes, sourceRoom, style) {
+				underlineRows := underline(line, row, spanStart, spanEnd, diagnosticNotes, sourceRoom, severityCode, style)
+				for _, underlineRow := range underlineRows {
 					writeNewRow(&rendered, blankGutter, " ", underlineRow)
 				}
 			}
@@ -224,24 +225,24 @@ func underlinedSpan(line wrappedLine, position yamldslspec.Position) (int, int, 
 	return underlinedRow, spanStart, spanEnd
 }
 
-func underline(line wrappedLine, row wrappedRow, spanStart, spanEnd int, diagnosticNotes *yamldslspec.DiagnosticNotes, sourceRoom *int, style RenderStyle) []string {
+func underline(line wrappedLine, row wrappedRow, spanStart, spanEnd int, diagnosticNotes *yamldslspec.DiagnosticNotes, sourceRoom *int, severityCode string, style RenderStyle) []string {
 	firstIndex := max(spanStart, row.startIndex)
 	lastIndex := max(min(spanEnd, row.endIndex), firstIndex)
 	caretColumn := row.indentColumns + line.columnsBetween(row.startIndex, firstIndex)
 	carets := strings.Repeat("^", max(line.columnsBetween(firstIndex, lastIndex), 1))
 	caretIndent := strings.Repeat(" ", caretColumn)
 	if diagnosticNotes == nil || diagnosticNotes.Label == nil {
-		return []string{caretIndent + style.paint(failureCode, carets)}
+		return []string{caretIndent + style.paint(severityCode, carets)}
 	}
 	labelText := *diagnosticNotes.Label
 	labelColumns := runeColumns([]rune(labelText))
 	if sourceRoom == nil || caretColumn+len(carets)+1+labelColumns <= *sourceRoom {
-		return []string{caretIndent + style.paint(failureCode, carets+" "+labelText)}
+		return []string{caretIndent + style.paint(severityCode, carets+" "+labelText)}
 	}
 	labelRoom := max(*sourceRoom-caretColumn, 0)
-	underlineRows := []string{caretIndent + style.paint(failureCode, carets)}
+	underlineRows := []string{caretIndent + style.paint(severityCode, carets)}
 	for _, labelRow := range newWrappedLine(labelText, &labelRoom).rowTexts() {
-		underlineRows = append(underlineRows, caretIndent+style.paint(failureCode, labelRow))
+		underlineRows = append(underlineRows, caretIndent+style.paint(severityCode, labelRow))
 	}
 	return underlineRows
 }
