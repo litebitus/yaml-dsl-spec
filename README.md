@@ -21,6 +21,7 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 | [YAML DSL editor](https://github.com/litebitus/vscode-yaml-dsl-editor) | the JavaScript package |
 | [yaml-dsl-compiler](https://github.com/litebitus/yaml-dsl-compiler) | the Rust crate |
 | [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator) | the Rust crate |
+| [terraform-provider-dashboard](https://github.com/litebitus/terraform-provider-dashboard) | the Go package |
 
 ## Packages
 
