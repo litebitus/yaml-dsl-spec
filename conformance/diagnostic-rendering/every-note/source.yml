@@ -3,5 +3,5 @@ queue:
     visibility: 30
     retention: 7
     tags: {}
-    brnch: main
-    tier: gold
+    tier: gld
+    branch: main

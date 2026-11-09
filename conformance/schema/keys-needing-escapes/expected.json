@@ -17,8 +17,7 @@
     {
       "line": 4,
       "column": 3,
-      "message": "`e/f` is not a field of `paths`",
-      "label": "`paths` has no field `e/f`",
+      "message": "`e/f` is not defined in the schema",
       "rule": "additionalProperties, at schema.json#/properties/paths/additionalProperties"
     }
   ]

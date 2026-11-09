@@ -85,9 +85,8 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []sch
 			if isUnevaluated && documentRecord.memberReadsUnknown(valuePointer, couldAccept) {
 				continue
 			}
-			unknownMessage := CodeSpan(unexpectedName) + " is not a field of " + namedField
+			unknownMessage := CodeSpan(unexpectedName) + " is not defined in the schema"
 			unknownProblem := DiagnosticAt(documentRecord.keyPosition(subjectPointer), unknownMessage).
-				WithLabel(namedField + " has no field " + CodeSpan(unexpectedName)).
 				WithRule(checkRule).
 				WithHelp(problemBuilder.closestSuggestion(unexpectedName, allowedNames))
 			unknownProblems = append(unknownProblems, atSubject(subjectPointer, unknownProblem)...)

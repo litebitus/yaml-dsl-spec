@@ -1,9 +1,9 @@
 {
   "line": 6,
-  "column": 5,
-  "message": "`brnch` is not a field of `name mock-orders`",
-  "label": "`name mock-orders` has no field `brnch`",
-  "rule": "unevaluatedProperties, at mock.schema.json#/$defs/queue/unevaluatedProperties",
+  "column": 11,
+  "message": "`tier` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",
+  "label": "not one of the 3 values `enum` allows",
+  "rule": "enum, at mock.schema.json#/$defs/queue/properties/tier/enum",
   "schema": "A mock queue's settings.",
-  "help": "did you mean `branch`?"
+  "help": "did you mean `gold`?"
 }

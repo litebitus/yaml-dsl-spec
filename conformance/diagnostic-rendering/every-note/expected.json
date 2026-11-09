@@ -1,19 +1,19 @@
 {
   "lines": [
-    "error: `brnch` is not a field of `name mock-orders`",
-    " --> mock-dsl.yml:6:5",
+    "error: `tier` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",
+    " --> mock-dsl.yml:6:11",
     "  |",
     "1 | queue:",
     "2 |   name mock-orders:",
     "...",
     "4 |     retention: 7",
     "5 |     tags: {}",
-    "6 |     brnch: main",
-    "  |     ^^^^^ `name mock-orders` has no field `brnch`",
-    "7 |     tier: gold",
+    "6 |     tier: gld",
+    "  |           ^^^ not one of the 3 values `enum` allows",
+    "7 |     branch: main",
     "  |",
-    "  = rule: unevaluatedProperties, at mock.schema.json#/$defs/queue/unevaluatedProperties",
+    "  = rule: enum, at mock.schema.json#/$defs/queue/properties/tier/enum",
     "  = [schema] A mock queue's settings.",
-    "  = help: did you mean `branch`?"
+    "  = help: did you mean `gold`?"
   ]
 }

@@ -1,19 +1,19 @@
 {
   "lines": [
-    "\u001b[91merror\u001b[0m: \u001b[1m`brnch` is not a field of `name mock-orders`\u001b[0m",
-    " \u001b[90m-->\u001b[0m mock-dsl.yml:6:5",
+    "\u001b[91merror\u001b[0m: \u001b[1m`tier` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`\u001b[0m",
+    " \u001b[90m-->\u001b[0m mock-dsl.yml:6:11",
     "\u001b[90m  |\u001b[0m",
     "\u001b[90m1 |\u001b[0m queue:",
     "\u001b[90m2 |\u001b[0m   name mock-orders:",
     "\u001b[90m...\u001b[0m",
     "\u001b[90m4 |\u001b[0m     retention: 7",
     "\u001b[90m5 |\u001b[0m     tags: {}",
-    "\u001b[90m6 |\u001b[0m     brnch: main",
-    "\u001b[90m  |\u001b[0m     \u001b[91m^^^^^ `name mock-orders` has no field `brnch`\u001b[0m",
-    "\u001b[90m7 |\u001b[0m     tier: gold",
+    "\u001b[90m6 |\u001b[0m     tier: gld",
+    "\u001b[90m  |\u001b[0m           \u001b[91m^^^ not one of the 3 values `enum` allows\u001b[0m",
+    "\u001b[90m7 |\u001b[0m     branch: main",
     "\u001b[90m  |\u001b[0m",
-    "\u001b[90m  =\u001b[0m \u001b[36mrule:\u001b[0m unevaluatedProperties, at mock.schema.json#/$defs/queue/unevaluatedProperties",
+    "\u001b[90m  =\u001b[0m \u001b[36mrule:\u001b[0m enum, at mock.schema.json#/$defs/queue/properties/tier/enum",
     "\u001b[90m  =\u001b[0m \u001b[1;38;2;166;171;242m[schema]\u001b[0m \u001b[38;2;166;171;242mA mock queue's settings.\u001b[0m",
-    "\u001b[90m  =\u001b[0m \u001b[36mhelp:\u001b[0m did you mean `branch`?"
+    "\u001b[90m  =\u001b[0m \u001b[36mhelp:\u001b[0m did you mean `gold`?"
   ]
 }

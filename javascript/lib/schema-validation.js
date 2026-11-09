@@ -283,9 +283,8 @@ class LoadedSchema {
         subject: fieldPointer,
         diagnostic: Diagnostic.at(
           instance.position(fieldPointer),
-          `${codeSpan(name)} is not a field of ${field}`,
+          `${codeSpan(name)} is not defined in the schema`,
         )
-          .withLabel(`${field} has no field ${codeSpan(name)}`)
           .withRule(rule)
           .withHelp(suggestion(name, allowed)),
       }];

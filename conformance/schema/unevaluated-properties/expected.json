@@ -3,8 +3,7 @@
     {
       "line": 3,
       "column": 3,
-      "message": "`brnch` is not a field of `workflow`",
-      "label": "`workflow` has no field `brnch`",
+      "message": "`brnch` is not defined in the schema",
       "rule": "unevaluatedProperties, at schema.json#/properties/workflow/unevaluatedProperties",
       "help": "did you mean `branch`?"
     }

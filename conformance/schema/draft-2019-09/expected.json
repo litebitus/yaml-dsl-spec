@@ -10,8 +10,7 @@
     {
       "line": 2,
       "column": 1,
-      "message": "`extra` is not a field of the document",
-      "label": "the document has no field `extra`",
+      "message": "`extra` is not defined in the schema",
       "rule": "unevaluatedProperties, at schema.json#/unevaluatedProperties"
     }
   ]

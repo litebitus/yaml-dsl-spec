@@ -10,8 +10,7 @@
     {
       "line": 5,
       "column": 5,
-      "message": "`file_exclude` is not a field of `dsls[0]`",
-      "label": "`dsls[0]` has no field `file_exclude`",
+      "message": "`file_exclude` is not defined in the schema",
       "rule": "additionalProperties, at yaml-dsl-v1.2.schema.json#/$defs/dsl/additionalProperties",
       "help": "did you mean `file_excludes`?"
     }

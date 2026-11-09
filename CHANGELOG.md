@@ -4,6 +4,7 @@
 
 - Packages
   - The diagnostic renderer draws a warning's carets and label in yellow, the warning's color, and an error's in red.
+  - An unknown field reads `` `name` is not defined in the schema ``, with no label.
 
 ## v0.2.1 — 2026-11-08
 

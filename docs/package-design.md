@@ -136,7 +136,7 @@ A message is the package's own sentence. Every key and value it names is fenced,
 | Failure | Message | Schema note |
 |---|---|---|
 | a missing field | `` `name` is required `` | |
-| an unknown field, by an `additionalProperties` or `unevaluatedProperties` that is `false` | `` `name` is not a field of <field> `` | |
+| an unknown field, by an `additionalProperties` or `unevaluatedProperties` that is `false` | `` `name` is not defined in the schema ``, with no label | |
 | a key `propertyNames` refuses | `` `key` is not a valid key of <field> `` | |
 | `type` | `` <field> must be `boolean` ``, the types the schema lists, in its order, joined by `or` | |
 | `enum` | `` <field> must be one of `"a"`, `"b"` ``, each value as JSON | |
@@ -187,7 +187,7 @@ A diagnostic written as a compiler writes an error, for a terminal or a log. Eve
 | the style | `RenderStyle { color, width }` | `RenderStyle{Color, Width}` | whether the text is painted for a terminal, and the terminal width its lines divide to: none, `0` in Go, for output that is not a terminal |
 
 ```
-error: `brnch` is not a field of `publish`
+error: `brnch` is not defined in the schema
   --> services/mock-api/mock-dsl.yml:57:5
    |
 52 | workflow:
@@ -196,7 +196,7 @@ error: `brnch` is not a field of `publish`
 55 |     tags: [mock]
 56 |     branch: main
 57 |     brnch: main
-   |     ^^^^^ `publish` has no field `brnch`
+   |     ^^^^^
 58 |     triggers:
 59 |       push:
    |
@@ -267,3 +267,4 @@ A line is each line the renderer divides: the headline, a source line, a label, 
 ## TODO
 
 - Schema resolution joins the core: a document's schema found and read as the specification's "Finding the schema" and "Schema URLs" state, through a schema cache, least recently used dropped first, in place of each reader's own copy. The schema cache's capacity is the consumer's to set.
+- Deprecation warnings join the core as an opt-in: a deprecated field or value a document uses is reported as a warning.

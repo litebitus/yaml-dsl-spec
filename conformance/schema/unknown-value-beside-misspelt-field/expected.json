@@ -3,8 +3,7 @@
     {
       "line": 4,
       "column": 5,
-      "message": "`priorty` is not a field of `mock-route`",
-      "label": "`mock-route` has no field `priorty`",
+      "message": "`priorty` is not defined in the schema",
       "rule": "unevaluatedProperties, at schema.json#/$defs/route/unevaluatedProperties",
       "help": "did you mean `priority`?"
     }

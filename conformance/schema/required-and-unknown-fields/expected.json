@@ -10,31 +10,27 @@
     {
       "line": 3,
       "column": 3,
-      "message": "`visiblity` is not a field of `queue`",
-      "label": "`queue` has no field `visiblity`",
+      "message": "`visiblity` is not defined in the schema",
       "rule": "additionalProperties, at schema.json#/properties/queue/additionalProperties",
       "help": "did you mean `visibility`?"
     },
     {
       "line": 4,
       "column": 3,
-      "message": "`retension` is not a field of `queue`",
-      "label": "`queue` has no field `retension`",
+      "message": "`retension` is not defined in the schema",
       "rule": "additionalProperties, at schema.json#/properties/queue/additionalProperties",
       "help": "did you mean `retention`?"
     },
     {
       "line": 5,
       "column": 3,
-      "message": "`zzz` is not a field of `queue`",
-      "label": "`queue` has no field `zzz`",
+      "message": "`zzz` is not defined in the schema",
       "rule": "additionalProperties, at schema.json#/properties/queue/additionalProperties"
     },
     {
       "line": 6,
       "column": 1,
-      "message": "`extra` is not a field of the document",
-      "label": "the document has no field `extra`",
+      "message": "`extra` is not defined in the schema",
       "rule": "additionalProperties, at schema.json#/additionalProperties"
     }
   ]

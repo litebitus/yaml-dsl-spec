@@ -399,9 +399,8 @@ impl LoadedSchema {
                         let subject = format!("{pointer}/{}", escape_pointer(name));
                         let diagnostic = Diagnostic::at(
                             instance.position(&subject),
-                            format!("{} is not a field of {field}", code_span(name)),
+                            format!("{} is not defined in the schema", code_span(name)),
                         )
-                        .with_label(format!("{field} has no field {}", code_span(name)))
                         .with_rule(rule.clone())
                         .with_help(suggestion(name, allowed.clone()));
                         SchemaProblem {
@@ -1238,7 +1237,7 @@ mod tests {
                 (
                     2,
                     3,
-                    "`brnch` is not a field of `queue`",
+                    "`brnch` is not defined in the schema",
                     Some("did you mean `branch`?")
                 ),
                 (
