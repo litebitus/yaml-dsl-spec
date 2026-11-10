@@ -4,7 +4,7 @@ Each version is the format a file names in its `version`, and the schema file of
 
 ## `yaml-dsl.yml`
 
-### 1.3 — unreleased
+### 1.3 — v0.3.0, 2026-11-10
 
 - `performance.schema_store` replaces `compiled_schema_cache`, deprecated.
 

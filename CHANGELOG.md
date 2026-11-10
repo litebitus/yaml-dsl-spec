@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.0 — 2026-11-10
+
 - Schemas
   - `yaml-dsl.yml` 1.3, and a schema changelog, `schemas/CHANGELOG.md`.
 - Packages
