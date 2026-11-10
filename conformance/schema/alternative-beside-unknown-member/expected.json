@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 6,
+      "column": 5,
+      "message": "`/mnt/other` matches none of its allowed forms",
+      "label": "breaks `oneOf`",
+      "rule": "oneOf, at schema.json#/properties/storage/additionalProperties/oneOf"
+    }
+  ]
+}

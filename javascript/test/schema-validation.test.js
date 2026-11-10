@@ -591,3 +591,68 @@ test('a reference inside a schema resource reads that resource for an unknown fi
     ['/mock/stray', '`stray` is not defined in the schema'],
   ]);
 });
+
+test('an error counts for a form only where that form reads the value it is about', () => {
+  const schema = LoadedSchema.parse('mock.schema.json', JSON.stringify({
+    $schema: DRAFT_2020_12,
+    $defs: { text: { type: 'string' } },
+    additionalProperties: {
+      oneOf: [
+        { anyOf: [{ $ref: '#/$defs/text' }] },
+        {
+          type: 'object',
+          required: ['size', 'kind'],
+          properties: { size: { type: 'string' }, kind: { $ref: '#/$defs/text' } },
+        },
+      ],
+    },
+  }));
+  const document = map([
+    ['sized', map([
+      ['size', Value.string('mock-size', position)],
+      ['kind', declarationReference()],
+    ])],
+    ['unsized', map([['kind', declarationReference()]])],
+  ]);
+  assert.deepStrictEqual(messagesOf(schema.problems(document, noRules)), [
+    ['/unsized', '`unsized` matches none of its allowed forms'],
+  ]);
+});
+
+test('errors in the fields and items a form reads are that form’s, not reported apart', () => {
+  const tuple = { prefixItems: [{ type: 'string' }], items: { type: 'integer' } };
+  const fields = {
+    patternProperties: { '^x': { type: 'integer' } },
+    additionalProperties: { type: 'boolean' },
+  };
+  const draft202012 = LoadedSchema.parse('mock.schema.json', JSON.stringify({
+    $schema: DRAFT_2020_12,
+    properties: {
+      list: { anyOf: [tuple, { contains: { const: 'mock' } }] },
+      record: { anyOf: [fields, { required: ['mock'] }] },
+    },
+  }));
+  const draft07 = LoadedSchema.parse('mock.schema.json', JSON.stringify({
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    properties: {
+      list: { anyOf: [{ items: [{ type: 'string' }], additionalItems: { type: 'integer' } }] },
+    },
+  }));
+  const document = map([
+    ['list', new Value('list', [
+      new Value('number', '1', position),
+      Value.string('x', position),
+    ], position)],
+    ['record', map([
+      ['xa', Value.string('mock', position)],
+      ['other', new Value('number', '1', position)],
+    ])],
+  ]);
+  assert.deepStrictEqual(messagesOf(draft202012.problems(document, noRules)), [
+    ['/list', '`list` matches none of its allowed forms'],
+    ['/record', '`record` matches none of its allowed forms'],
+  ]);
+  assert.deepStrictEqual(messagesOf(draft07.problems(document, noRules)), [
+    ['/list', '`list` matches none of its allowed forms'],
+  ]);
+});

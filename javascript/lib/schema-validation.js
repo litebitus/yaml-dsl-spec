@@ -88,7 +88,10 @@ const LENGTH_LIMITS = {
 };
 const KEYWORD_NAMES = { 'false schema': 'falseSchema' };
 const FALSE_SCHEMA_STEP = /\/false schema$/;
-const SCHEMA_LOOKUP_KEY = 'urn:yaml-dsl-spec:schema-lookup';
+const SAME_VALUE_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf'];
+const SAME_VALUE_KEYWORDS = ['else', 'if', 'not', 'propertyNames', 'then'];
+const SAME_VALUE_MAP_KEYWORDS = ['dependencies', 'dependentSchemas'];
+const SCHEMA_LOOKUP_KEY ='urn:yaml-dsl-spec:schema-lookup';
 const UNKNOWN_VALUE_KINDS = new Set(['call', 'reference', 'template']);
 const SCHEMA_DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
 const SCHEMA_NAME_MAP_KEYWORDS = new Set([
@@ -311,7 +314,7 @@ class LoadedSchema {
     const requiresNoKeyAt = fragmentPointer === null
       ? (instancePath) => instance.requiresNoKey(instancePath)
       : () => true;
-    const schemaReach = new SchemaReach(this.marked, this.pointersBySchemaObject);
+    const schemaReach = new SchemaReach(this.marked, this.pointersBySchemaObject, json);
     const keptErrors = withoutRequiredness(checkedErrors, schemaReach, requiresNoKeyAt);
     const alternatives = new FailingAlternatives(keptErrors, schemaReach);
     const errors = reportedErrors(keptErrors, schemaReach)
@@ -574,8 +577,13 @@ function reportedErrors(errors, schemaReach) {
     if (outer === inner) return false;
     const below = inner.instancePath === outer.instancePath
       || inner.instancePath.startsWith(`${outer.instancePath}/`);
-    if (outer.keyword === 'contains' && inner.instancePath === outer.instancePath) return false;
-    return below && schemaReach.reaches(outer.schema, inner.parentSchema);
+    if (!below) return false;
+    const innerReachedFrom = (startPath) => schemaReach
+      .reachesAt(outer.schema, startPath, inner.instancePath, inner.parentSchema);
+    if (outer.keyword !== 'contains') return innerReachedFrom(outer.instancePath);
+    if (inner.instancePath === outer.instancePath) return false;
+    const itemStep = inner.instancePath.slice(outer.instancePath.length + 1).split('/')[0];
+    return innerReachedFrom(`${outer.instancePath}/${itemStep}`);
   };
   return errors.filter((error) => error.keyword !== 'if'
     && !(error.keyword === 'propertyNames' && error.propertyName === undefined)
@@ -622,7 +630,12 @@ class FailingAlternatives {
       const innerErrors = errors.filter((inner) => instanceHolds(alternative, inner));
       const ownFailures = (form) => {
         const formErrors = innerErrors
-          .filter((inner) => schemaReach.reaches(form, inner.parentSchema));
+          .filter((inner) => schemaReach.reachesAt(
+            form,
+            alternative.instancePath,
+            inner.instancePath,
+            inner.parentSchema,
+          ));
         return formErrors.filter((inner) => !failing.some((nested) =>
           formErrors.includes(nested) && this.isInside(nested, inner)));
       };
@@ -633,7 +646,12 @@ class FailingAlternatives {
   /** Whether `inner` is an error inside a form of `alternative`. */
   isInside(alternative, inner) {
     return instanceHolds(alternative, inner)
-      && this.schemaReach.reaches(alternative.schema, inner.parentSchema);
+      && this.schemaReach.reachesAt(
+        alternative.schema,
+        alternative.instancePath,
+        inner.instancePath,
+        inner.parentSchema,
+      );
   }
 }
 
@@ -660,38 +678,106 @@ function failsCertainly(error, alternatives, instance) {
 }
 
 /**
- * Which objects of `schema` each of its objects reaches, below it and through local
- * references read in the schema resource holding them, worked out once per start.
+ * Which schemas of `schema` apply to each value of the document `json`, read from
+ * schemas that apply to a value above it: through the keywords that read the same
+ * value, local references read in the schema resource holding them, and the
+ * keywords that read a field or an item, worked out once per start.
  */
 class SchemaReach {
-  constructor(schema, pointersBySchemaObject) {
+  constructor(schema, pointersBySchemaObject, json) {
     this.schema = schema;
     this.pointersBySchemaObject = pointersBySchemaObject;
-    this.reachable = new Map();
+    this.json = json;
+    this.applyingByStart = new Map();
   }
 
-  /** Whether `target` is `start` or an object it reaches. */
-  reaches(start, target) {
-    if (!this.reachable.has(start)) this.reachable.set(start, this.reachableObjects(start));
-    return this.reachable.get(start).has(target);
+  /**
+   * Whether `target` applies to the value at `instancePath`, read from `start`, a
+   * schema or a list of schemas applying to the value at `startPath`, at or above it.
+   */
+  reachesAt(start, startPath, instancePath, target) {
+    if (instancePath !== startPath && !instancePath.startsWith(`${startPath}/`)) return false;
+    if (!this.applyingByStart.has(start)) this.applyingByStart.set(start, new Map());
+    const applyingByPath = this.applyingByStart.get(start);
+    const pathKey = `${startPath}\u0000${instancePath}`;
+    if (!applyingByPath.has(pathKey)) {
+      const startSchemas = Array.isArray(start) ? start : [start];
+      applyingByPath.set(pathKey, this.applyingSchemas(startSchemas, startPath, instancePath));
+    }
+    return applyingByPath.get(pathKey).has(target);
   }
 
-  reachableObjects(start) {
+  applyingSchemas(startSchemas, startPath, instancePath) {
+    const relativePath = instancePath.slice(startPath.length);
+    let applying = this.sameValueSchemas(startSchemas);
+    let valuePointer = startPath;
+    for (const step of relativePath === '' ? [] : pointerSteps(relativePath)) {
+      const value = valueAt(this.json, valuePointer);
+      const childSchemas = [...applying].flatMap((node) => memberSchemas(node, step, value));
+      applying = this.sameValueSchemas(childSchemas);
+      valuePointer = `${valuePointer}/${escapePointer(step)}`;
+    }
+    return applying;
+  }
+
+  /** `nodes` and every schema they apply to the same value, by keyword or reference. */
+  sameValueSchemas(nodes) {
     const reached = new Set();
-    const pending = [start];
+    const pending = [...nodes];
     while (pending.length > 0) {
       const node = pending.pop();
-      if (node === null || typeof node !== 'object' || reached.has(node)) continue;
+      if (!isObject(node) || reached.has(node)) continue;
       reached.add(node);
-      if (!Array.isArray(node) && typeof node.$ref === 'string') {
+      if (typeof node.$ref === 'string') {
         const holderPointer = this.pointersBySchemaObject.get(node) || '';
         const targetPointer = referencePointer(this.schema, holderPointer, node.$ref);
         if (targetPointer !== undefined) pending.push(schemaNodeAt(this.schema, targetPointer));
       }
-      pending.push(...Object.values(node));
+      for (const keyword of SAME_VALUE_LIST_KEYWORDS) {
+        if (Array.isArray(node[keyword])) pending.push(...node[keyword]);
+      }
+      for (const keyword of SAME_VALUE_KEYWORDS) {
+        if (node[keyword] !== undefined) pending.push(node[keyword]);
+      }
+      for (const keyword of SAME_VALUE_MAP_KEYWORDS) {
+        if (isObject(node[keyword])) pending.push(...Object.values(node[keyword]));
+      }
     }
     return reached;
   }
+}
+
+/** The schemas `node` applies to the member `step` of `value`, a field or an item. */
+function memberSchemas(node, step, value) {
+  if (isObject(value)) {
+    const properties = isObject(node.properties) ? node.properties : {};
+    const patternProperties = isObject(node.patternProperties) ? node.patternProperties : {};
+    const patternSchemas = Object.entries(patternProperties)
+      .filter(([pattern]) => {
+        const compiled = compilePattern(pattern);
+        return compiled !== null && compiled.test(step);
+      })
+      .map(([, patternSchema]) => patternSchema);
+    const isOwnField = hasOwn(properties, step) || patternSchemas.length > 0;
+    return [
+      ...(hasOwn(properties, step) ? [properties[step]] : []),
+      ...patternSchemas,
+      ...(isOwnField ? [] : [node.additionalProperties]),
+      ...(isOwnField || node.additionalProperties !== undefined
+        ? []
+        : [node.unevaluatedProperties]),
+    ].filter((schema) => schema !== undefined);
+  }
+  if (!Array.isArray(value)) return [];
+  const index = Number(step);
+  const prefixLength = Array.isArray(node.prefixItems) ? node.prefixItems.length : 0;
+  const itemSchemas = [];
+  if (index < prefixLength) itemSchemas.push(node.prefixItems[index]);
+  if (Array.isArray(node.items)) {
+    itemSchemas.push(index < node.items.length ? node.items[index] : node.additionalItems);
+  } else if (index >= prefixLength) itemSchemas.push(node.items);
+  itemSchemas.push(node.contains, node.unevaluatedItems);
+  return itemSchemas.filter((schema) => schema !== undefined);
 }
 
 /** A schema path or a local reference as a JSON pointer, without its `#`. */

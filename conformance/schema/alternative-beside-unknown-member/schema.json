@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "mock_text": { "type": "string" }
+  },
+  "type": "object",
+  "properties": {
+    "storage": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "anyOf": [{ "$ref": "#/$defs/mock_text" }] },
+          {
+            "type": "object",
+            "required": ["durable", "class"],
+            "properties": { "durable": { "type": "string" }, "class": { "$ref": "#/$defs/mock_text" } }
+          }
+        ]
+      }
+    }
+  }
+}

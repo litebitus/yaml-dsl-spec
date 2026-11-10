@@ -1,0 +1,6 @@
+storage:
+  /mnt/mock:
+    durable: 20Gi
+    class: mock-class
+  /mnt/other:
+    class: mock-class
