@@ -1,6 +1,7 @@
 package yamldslspec
 
 import (
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -8,19 +9,23 @@ import (
 
 type instanceRecord struct {
 	validationRules ValidationRules
+	functionTable   FunctionTable
 	keyPositions    map[string]Position
 	valuePositions  map[string]Position
 	unknownValues   map[string]bool
 	copiedValues    map[string]bool
+	unknownMerges   map[string]bool
 }
 
-func newInstanceRecord(validationRules ValidationRules) *instanceRecord {
+func newInstanceRecord(validationRules ValidationRules, functionTable FunctionTable) *instanceRecord {
 	return &instanceRecord{
 		validationRules: validationRules,
+		functionTable:   functionTable,
 		keyPositions:    map[string]Position{},
 		valuePositions:  map[string]Position{},
 		unknownValues:   map[string]bool{},
 		copiedValues:    map[string]bool{},
+		unknownMerges:   map[string]bool{},
 	}
 }
 
@@ -59,9 +64,109 @@ func (documentRecord *instanceRecord) jsonOf(resolvedValue ResolvedValue, valueP
 		}
 		documentRecord.mergeBaseKeys(objectFields, keyOrder, valuePointer)
 		return objectFields
+	case ResolvedCall:
+		if mergedFields, isMerged := documentRecord.mergeCallFields(localValue, valuePointer, keyPosition); isMerged {
+			return mergedFields
+		}
 	}
 	documentRecord.unknownValues[valuePointer] = true
 	return nil
+}
+
+func (documentRecord *instanceRecord) mergeCallFields(
+	callValue ResolvedValue,
+	valuePointer string,
+	keyPosition Position,
+) (map[string]any, bool) {
+	if callValue.Call == nil {
+		return nil, false
+	}
+	functionEntry, isFound := documentRecord.functionTable.Entry(callValue.Call.Function)
+	if !isFound || functionEntry.Macro == nil || functionEntry.Macro.Kind != MacroKindMerge {
+		return nil, false
+	}
+	var knownMaps []ResolvedValue
+	holdsUnknownArgument := false
+	for _, callArgument := range callValue.Call.Arguments {
+		switch localArgument := callArgument.LocalValue(); localArgument.Kind {
+		case ResolvedMap:
+			knownMaps = append(knownMaps, localArgument)
+		case ResolvedReference, ResolvedCall, ResolvedTemplate:
+			holdsUnknownArgument = true
+		}
+	}
+	if len(knownMaps) == 0 {
+		return nil, false
+	}
+	mergedFields := map[string]any{}
+	for _, knownMap := range knownMaps {
+		argumentRecord := newInstanceRecord(documentRecord.validationRules, documentRecord.functionTable)
+		argumentFields, _ := argumentRecord.jsonOf(knownMap, valuePointer, keyPosition).(map[string]any)
+		documentRecord.mergeArgumentInto(
+			mergedFields,
+			argumentFields,
+			valuePointer,
+			functionEntry.Macro.MergeBehavior,
+			argumentRecord,
+		)
+	}
+	if holdsUnknownArgument {
+		documentRecord.unknownMerges[valuePointer] = true
+	}
+	return mergedFields, true
+}
+
+func (documentRecord *instanceRecord) mergeArgumentInto(
+	mergedFields, argumentFields map[string]any,
+	fieldsPointer string,
+	mergeBehavior MergeBehavior,
+	argumentRecord *instanceRecord,
+) {
+	for fieldKey, argumentValue := range argumentFields {
+		childPointer := fieldsPointer + "/" + escapePointer(fieldKey)
+		heldValue, isHeld := mergedFields[fieldKey]
+		heldFields, heldIsObject := heldValue.(map[string]any)
+		argumentObject, argumentIsObject := argumentValue.(map[string]any)
+		switch {
+		case isHeld && mergeBehavior == MergeBehaviorJoin:
+		case heldIsObject && argumentIsObject && mergeBehavior == MergeBehaviorDeep:
+			documentRecord.mergeArgumentInto(heldFields, argumentObject, childPointer, mergeBehavior, argumentRecord)
+		default:
+			mergedFields[fieldKey] = argumentValue
+			documentRecord.takeRecordsBelow(argumentRecord, childPointer)
+		}
+	}
+}
+
+func (documentRecord *instanceRecord) takeRecordsBelow(argumentRecord *instanceRecord, valuePointer string) {
+	replacedRecords(documentRecord.keyPositions, argumentRecord.keyPositions, valuePointer)
+	replacedRecords(documentRecord.valuePositions, argumentRecord.valuePositions, valuePointer)
+	replacedRecords(documentRecord.unknownValues, argumentRecord.unknownValues, valuePointer)
+	replacedRecords(documentRecord.copiedValues, argumentRecord.copiedValues, valuePointer)
+	replacedRecords(documentRecord.unknownMerges, argumentRecord.unknownMerges, valuePointer)
+}
+
+func replacedRecords[RecordedValue any](heldRecords, takenRecords map[string]RecordedValue, valuePointer string) {
+	maps.DeleteFunc(heldRecords, func(recordedPointer string, _ RecordedValue) bool {
+		return pointerAtOrBelow(recordedPointer, valuePointer)
+	})
+	for recordedPointer, recordedValue := range takenRecords {
+		if pointerAtOrBelow(recordedPointer, valuePointer) {
+			heldRecords[recordedPointer] = recordedValue
+		}
+	}
+}
+
+func (documentRecord *instanceRecord) requiresNoKeyAt(valuePointer string) bool {
+	if matchesOrBelow(documentRecord.unknownMerges, valuePointer) {
+		return true
+	}
+	for _, rawStep := range strings.Split(valuePointer, "/")[1:] {
+		if slices.Contains(documentRecord.validationRules.MergeBaseKeys, unescapePointer(rawStep)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (documentRecord *instanceRecord) setChildValue(entryKey string, childFields map[string]any) {
@@ -103,11 +208,15 @@ func (documentRecord *instanceRecord) isUnknown(valuePointer string) bool {
 
 func matchesOrBelow(recordedPointers map[string]bool, valuePointer string) bool {
 	for recordedPointer := range recordedPointers {
-		if valuePointer == recordedPointer || strings.HasPrefix(valuePointer, recordedPointer+"/") {
+		if pointerAtOrBelow(valuePointer, recordedPointer) {
 			return true
 		}
 	}
 	return false
+}
+
+func pointerAtOrBelow(valuePointer, holderPointer string) bool {
+	return valuePointer == holderPointer || strings.HasPrefix(valuePointer, holderPointer+"/")
 }
 
 func (documentRecord *instanceRecord) readsUnknown(valuePointer, failedKeyword string) bool {

@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 9,
+      "message": "`size` must be `integer`",
+      "label": "is a string",
+      "rule": "type, at schema.json#/$defs/mock_resource/$defs/mock_size/type"
+    }
+  ]
+}

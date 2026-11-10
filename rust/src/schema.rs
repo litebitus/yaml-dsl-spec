@@ -11,16 +11,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as JsonValue};
 
 use crate::diagnostic::Diagnostic;
-use crate::function_table::FunctionTable;
+use crate::function_table::{FunctionTable, MacroKind};
 use crate::node::number_json;
 use crate::position::Position;
 use crate::problem_wording::{
     code_span, contains_message, definition_description, dependency_message, dependency_of,
-    duplicate_items, field_name, number_text,
+    dependency_value_path, duplicate_items, field_name, number_text, schema_note, unescape_pointer,
 };
-use crate::requiredness_markers::{description_text, marked_schema};
-use crate::resolved::{Value, ValueKind};
+use crate::requiredness_markers::marked_schema;
+use crate::resolved::{Call, MapEntry, Value, ValueKind};
 pub use crate::schema_cache::{SchemaCache, SchemaStore};
+use crate::schema_resources::{SchemaResources, child_schemas};
 pub use crate::validation_rules::child_value;
 use crate::validation_rules::{ValidationRules, copied_pointers, escape_pointer, merged_over};
 
@@ -34,6 +35,7 @@ pub struct LoadedSchema {
     name: String,
     draft: Draft,
     subschema_validators: OnceLock<Option<jsonschema::ValidatorMap>>,
+    resources: SchemaResources,
 }
 
 struct SchemaFailure<'v> {
@@ -41,17 +43,8 @@ struct SchemaFailure<'v> {
     pointer: String,
     schema_path: String,
     failing_members: Vec<String>,
-}
-
-impl<'v> SchemaFailure<'v> {
-    fn of(error: ValidationError<'v>, schema_node: &SchemaNode<'_>) -> Self {
-        Self {
-            pointer: error.instance_path().as_str().to_owned(),
-            schema_path: schema_node.keyword_pointer(&error),
-            error,
-            failing_members: Vec::new(),
-        }
-    }
+    instance_base: String,
+    evaluation_base: String,
 }
 
 struct SchemaNode<'s> {
@@ -60,12 +53,9 @@ struct SchemaNode<'s> {
 }
 
 impl SchemaNode<'_> {
-    fn keyword_pointer(&self, error: &ValidationError<'_>) -> String {
-        whole_keyword_pointer(
-            self.fragment_pointer.unwrap_or_default(),
-            error.schema_path().as_str(),
-            error.evaluation_path().as_str(),
-        )
+    /// The pointer of the schema node the validator starts from.
+    fn start_pointer(&self) -> &str {
+        self.fragment_pointer.unwrap_or_default()
     }
 }
 
@@ -121,6 +111,10 @@ impl LoadedSchema {
             .ok_or_else(|| format!("schema {name}: prepared in an unknown draft {draft}"))?;
         let table = FunctionTable::from_schema(&schema)
             .map_err(|error| format!("schema {name}: {error}"))?;
+        let resources = SchemaResources::of(&schema);
+        if let Some(failure) = schema_load_failure(&schema, &resources, &schema, "") {
+            return Err(format!("schema {name}: {failure}"));
+        }
         let validator = jsonschema::options()
             .with_draft(draft)
             .should_validate_formats(false)
@@ -134,7 +128,42 @@ impl LoadedSchema {
             name: name.to_owned(),
             draft,
             subschema_validators: OnceLock::new(),
+            resources,
         })
+    }
+
+    /// A failure of `error`, found by the validator starting at the schema node at
+    /// `start_pointer` on the document value at `instance_base`.
+    fn failure_of<'v>(
+        &self,
+        error: ValidationError<'v>,
+        start_pointer: &str,
+        instance_base: &str,
+    ) -> SchemaFailure<'v> {
+        SchemaFailure {
+            pointer: format!("{instance_base}{}", error.instance_path().as_str()),
+            schema_path: self.keyword_location(start_pointer, error.evaluation_path().as_str()),
+            error,
+            failing_members: Vec::new(),
+            instance_base: instance_base.to_owned(),
+            evaluation_base: start_pointer.to_owned(),
+        }
+    }
+
+    /// The schema as written, with the resources its references are read against.
+    fn resolvable_schema(&self) -> ResolvableSchema<'_> {
+        ResolvableSchema {
+            json: &self.schema,
+            resources: &self.resources,
+        }
+    }
+
+    /// Where the whole schema holds the keyword `evaluation_path` reaches from the
+    /// node at `start_pointer`.
+    fn keyword_location(&self, start_pointer: &str, evaluation_path: &str) -> String {
+        self.resources
+            .evaluation_pointer(&self.marked, start_pointer, evaluation_path)
+            .unwrap_or_else(|| format!("{start_pointer}{evaluation_path}"))
     }
 
     /// The schema `text` holds, named `name` in reports, prepared and built at once.
@@ -193,21 +222,25 @@ impl LoadedSchema {
     ) -> Vec<SchemaProblem> {
         let mut instance = Instance {
             rules,
+            table: &self.table,
             positions: BTreeMap::new(),
             value_positions: BTreeMap::new(),
             unknown: BTreeSet::new(),
             copied: BTreeSet::new(),
+            merge_calls: BTreeSet::new(),
         };
         let mut json = instance.json(document, String::new(), &document.position);
         self.read_quoted_values(schema_node, &mut json, rules);
         let mut reported = ReportedSubjects::default();
         let failures = self.schema_failures(schema_node, &json);
+        let requires_no_key = |pointer: &str| {
+            schema_node.fragment_pointer.is_some() || instance.requires_no_key(pointer)
+        };
         let mut problems: Vec<SchemaProblem> = failures
             .iter()
-            .filter(|failure| !instance.reads_unknown(&failure.pointer, failure.error.kind()))
+            .filter(|failure| !instance.reads_unknown(&failure.instance_base, &failure.error))
             .filter(|failure| {
-                schema_node.fragment_pointer.is_none()
-                    || !passes_without_requiredness(&failure.error)
+                !requires_no_key(&failure.pointer) || !passes_without_requiredness(&failure.error)
             })
             .flat_map(|failure| self.error_problems(failure, &json, &instance, &mut reported))
             .filter(|problem| !instance.is_copied(&problem.subject))
@@ -234,11 +267,11 @@ impl LoadedSchema {
                 ValidationErrorKind::UnevaluatedProperties { .. }
                     | ValidationErrorKind::UnevaluatedItems { .. }
             );
+            let mut failure = self.failure_of(error, schema_node.start_pointer(), "");
             if !is_unevaluated {
-                failures.push(SchemaFailure::of(error, schema_node));
+                failures.push(failure);
                 continue;
             }
-            let mut failure = SchemaFailure::of(error, schema_node);
             let units = failing_units.get_or_insert_with(|| self.failing_units(schema_node, json));
             let members = failing_members(units, &failure.pointer, &failure.schema_path);
             let is_open = self
@@ -265,7 +298,6 @@ impl LoadedSchema {
     ) -> Vec<(String, String)> {
         let evaluation = schema_node.validator.evaluate(json);
         let listed = serde_json::to_value(evaluation.list()).unwrap_or_default();
-        let fragment_pointer = schema_node.fragment_pointer.unwrap_or_default();
         listed["details"]
             .as_array()
             .into_iter()
@@ -273,9 +305,8 @@ impl LoadedSchema {
             .filter(|unit| unit["valid"] == JsonValue::Bool(false))
             .filter_map(|unit| {
                 Some((
-                    whole_keyword_pointer(
-                        fragment_pointer,
-                        unit["schemaLocation"].as_str()?,
+                    self.keyword_location(
+                        schema_node.start_pointer(),
                         unit["evaluationPath"].as_str()?,
                     ),
                     unit["instanceLocation"].as_str()?.to_owned(),
@@ -310,18 +341,7 @@ impl LoadedSchema {
                 continue;
             };
             for error in validator.iter_errors(value) {
-                let pointer = format!("{member}{}", error.instance_path().as_str());
-                let schema_path = whole_keyword_pointer(
-                    &unevaluated.schema_path,
-                    error.schema_path().as_str(),
-                    error.evaluation_path().as_str(),
-                );
-                failures.push(SchemaFailure {
-                    error,
-                    pointer,
-                    schema_path,
-                    failing_members: Vec::new(),
-                });
+                failures.push(self.failure_of(error, &unevaluated.schema_path, member));
             }
         }
         failures
@@ -366,7 +386,11 @@ impl LoadedSchema {
                 let Some(text) = error.instance().as_str() else {
                     return;
                 };
-                let expected = self.expected_types(&schema_node.keyword_pointer(error), error);
+                let keyword_pointer = self.keyword_location(
+                    schema_node.start_pointer(),
+                    error.evaluation_path().as_str(),
+                );
+                let expected = self.expected_types(&keyword_pointer, error);
                 if let Some(value) = rules.quoted_value(text, &expected) {
                     readings
                         .entry(error.instance_path().as_str().to_owned())
@@ -436,9 +460,17 @@ impl LoadedSchema {
                 return Vec::new();
             }
             let keyword = keyword_at.rsplit('/').next().unwrap_or_default().to_owned();
+            let value_node =
+                dependency_value_path(error.evaluation_path().as_str()).and_then(|value_path| {
+                    self.resources.evaluation_pointer(
+                        &self.marked,
+                        &failure.evaluation_base,
+                        &value_path,
+                    )
+                });
             let diagnostic = Diagnostic::at(
                 instance.position(&subject),
-                dependency_message(&self.marked, &keyword_at, &key),
+                dependency_message(&self.marked, &self.resources, value_node.as_deref(), &key),
             )
             .with_label(format!("breaks {}", code_span(&keyword)))
             .with_rule(rule_at(
@@ -474,7 +506,7 @@ impl LoadedSchema {
         match error.kind() {
             ValidationErrorKind::AdditionalProperties { unexpected }
             | ValidationErrorKind::UnevaluatedProperties { unexpected } => {
-                let allowed = allowed_fields(&self.schema, schema_path);
+                let allowed = allowed_fields(self.resolvable_schema(), schema_path);
                 let is_unevaluated = matches!(
                     error.kind(),
                     ValidationErrorKind::UnevaluatedProperties { .. }
@@ -484,7 +516,7 @@ impl LoadedSchema {
                     .filter(|name| {
                         !is_unevaluated
                             || !instance.member_reads_unknown(pointer, || {
-                                field_could_be_accepted(&self.schema, schema_path, name)
+                                field_could_be_accepted(self.resolvable_schema(), schema_path, name)
                             })
                     })
                     .map(|name| {
@@ -661,7 +693,7 @@ impl LoadedSchema {
             }
             ValidationErrorKind::Not { .. } => at_value_with_schema(
                 format!("{field} matches a form that is not allowed"),
-                self.schema.pointer(schema_path).and_then(description_text),
+                self.schema.pointer(schema_path).and_then(schema_note),
             ),
             ValidationErrorKind::AdditionalItems { limit } => at_value(list_limit(*limit)),
             ValidationErrorKind::UnevaluatedItems { .. } => {
@@ -672,7 +704,7 @@ impl LoadedSchema {
                     .filter_map(|member| member.rsplit('/').next()?.parse::<usize>().ok())
                     .filter(|index| {
                         !instance.member_reads_unknown(pointer, || {
-                            item_could_be_evaluated(&self.schema, schema_path, *index)
+                            item_could_be_evaluated(self.resolvable_schema(), schema_path, *index)
                         })
                     })
                     .count();
@@ -784,20 +816,68 @@ fn schema_draft(schema: &JsonValue) -> Result<Draft, String> {
     }
 }
 
+/// Why a schema does not load, found before the library compiles it: the first,
+/// in the schema's order, of a `$ref` whose JSON pointer names no node of the
+/// schema resource holding it, and a `pattern` or `patternProperties` key the
+/// standard's pattern dialect does not compile.
+fn schema_load_failure(
+    schema: &JsonValue,
+    resources: &SchemaResources,
+    node: &JsonValue,
+    pointer: &str,
+) -> Option<String> {
+    node.as_object()?.iter().find_map(|(keyword, value)| {
+        let keyword_failure = match (keyword.as_str(), value) {
+            ("$ref", JsonValue::String(reference)) => {
+                reference_load_failure(schema, resources, pointer, reference)
+            }
+            ("pattern", JsonValue::String(pattern)) => pattern_load_failure(pattern),
+            _ => None,
+        };
+        keyword_failure.or_else(|| {
+            child_schemas(keyword, value).into_iter().find_map(|child| {
+                let name_failure = child
+                    .name
+                    .filter(|_| keyword == "patternProperties")
+                    .and_then(pattern_load_failure);
+                name_failure.or_else(|| {
+                    let child_pointer = format!("{pointer}{}", child.pointer_suffix);
+                    schema_load_failure(schema, resources, child.schema, &child_pointer)
+                })
+            })
+        })
+    })
+}
+
+fn reference_load_failure(
+    schema: &JsonValue,
+    resources: &SchemaResources,
+    holder_pointer: &str,
+    reference: &str,
+) -> Option<String> {
+    let fragment = reference.strip_prefix('#')?;
+    if !fragment.is_empty() && !fragment.starts_with('/') {
+        return None;
+    }
+    let target = resources.reference_target(holder_pointer, reference)?;
+    schema
+        .pointer(&target)
+        .is_none()
+        .then(|| format!("{} names no node of the schema", code_span(reference)))
+}
+
+fn pattern_load_failure(pattern: &str) -> Option<String> {
+    Regex::new(pattern)
+        .is_err()
+        .then(|| format!("{} is not a pattern", code_span(pattern)))
+}
+
 /// Where a diagnostic stands, for reporting a document's problems in its order.
 fn place(diagnostic: &Diagnostic) -> Option<(usize, usize)> {
     diagnostic
         .position
         .as_ref()
         .map(|position| (position.line, position.column))
-}
-
-fn whole_keyword_pointer(node_pointer: &str, schema_path: &str, evaluation_path: &str) -> String {
-    if schema_path == evaluation_path {
-        format!("{node_pointer}{schema_path}")
-    } else {
-        schema_path.to_owned()
-    }
 }
 
 fn passes_without_requiredness(error: &ValidationError<'_>) -> bool {
@@ -814,7 +894,7 @@ fn passes_without_requiredness(error: &ValidationError<'_>) -> bool {
 
 /// The fields a schema node allows: the `properties` of every schema the node
 /// holding the keyword at `keyword_pointer` reaches.
-fn allowed_fields(schema: &JsonValue, keyword_pointer: &str) -> Vec<String> {
+fn allowed_fields(schema: ResolvableSchema<'_>, keyword_pointer: &str) -> Vec<String> {
     let mut fields: Vec<String> = Vec::new();
     let Some(reachable) = reachable_schemas(schema, keyword_pointer) else {
         return fields;
@@ -834,7 +914,11 @@ fn allowed_fields(schema: &JsonValue, keyword_pointer: &str) -> Vec<String> {
     fields
 }
 
-fn field_could_be_accepted(schema: &JsonValue, keyword_pointer: &str, name: &str) -> bool {
+fn field_could_be_accepted(
+    schema: ResolvableSchema<'_>,
+    keyword_pointer: &str,
+    name: &str,
+) -> bool {
     schema_could_read(schema, keyword_pointer, &|keywords, is_holder| {
         keywords
             .get("properties")
@@ -854,7 +938,11 @@ fn field_could_be_accepted(schema: &JsonValue, keyword_pointer: &str, name: &str
     })
 }
 
-fn item_could_be_evaluated(schema: &JsonValue, keyword_pointer: &str, index: usize) -> bool {
+fn item_could_be_evaluated(
+    schema: ResolvableSchema<'_>,
+    keyword_pointer: &str,
+    index: usize,
+) -> bool {
     schema_could_read(schema, keyword_pointer, &|keywords, is_holder| {
         let item_tuple = keywords.get("items").and_then(JsonValue::as_array);
         keywords
@@ -894,7 +982,7 @@ fn is_not_false(keywords: &Map<String, JsonValue>, keyword: &str) -> bool {
 }
 
 fn schema_could_read(
-    schema: &JsonValue,
+    schema: ResolvableSchema<'_>,
     keyword_pointer: &str,
     reads_member: &dyn Fn(&Map<String, JsonValue>, bool) -> bool,
 ) -> bool {
@@ -913,60 +1001,72 @@ struct ReachableSchemas<'s> {
     reaches_other_document: bool,
 }
 
+/// A schema with the resources its references are read against.
+#[derive(Clone, Copy)]
+struct ResolvableSchema<'s> {
+    json: &'s JsonValue,
+    resources: &'s SchemaResources,
+}
+
+/// The keywords whose schemas apply to the value of the node holding them.
+const REACHING_KEYWORDS: [&str; 7] = [
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "if",
+    "then",
+    "else",
+    "dependentSchemas",
+];
+
 fn reachable_schemas<'s>(
-    schema: &'s JsonValue,
+    schema: ResolvableSchema<'s>,
     keyword_pointer: &str,
 ) -> Option<ReachableSchemas<'s>> {
     let holder_pointer = keyword_pointer
         .rsplit_once('/')
         .map_or("", |(holder, _)| holder);
-    let holder = schema.pointer(holder_pointer)?;
     let mut reachable = ReachableSchemas::default();
-    collect_reachable(schema, holder, true, &mut reachable, &mut BTreeSet::new());
+    let mut visited_references = BTreeSet::new();
+    collect_reachable(
+        schema,
+        holder_pointer.to_owned(),
+        true,
+        &mut reachable,
+        &mut visited_references,
+    )?;
     Some(reachable)
 }
 
 fn collect_reachable<'s>(
-    schema: &'s JsonValue,
-    node: &'s JsonValue,
+    schema: ResolvableSchema<'s>,
+    pointer: String,
     is_holder: bool,
     reachable: &mut ReachableSchemas<'s>,
-    visited: &mut BTreeSet<String>,
-) {
-    let Some(keywords) = node.as_object() else {
-        return;
-    };
+    visited_references: &mut BTreeSet<String>,
+) -> Option<()> {
+    let keywords = schema.json.pointer(&pointer)?.as_object()?;
     reachable.schema_nodes.push((keywords, is_holder));
     if let Some(reference) = keywords.get("$ref").and_then(JsonValue::as_str) {
-        match reference.strip_prefix('#') {
-            Some(pointer) => {
-                if visited.insert(pointer.to_owned())
-                    && let Some(target) = schema.pointer(pointer)
-                {
-                    collect_reachable(schema, target, false, reachable, visited);
+        match schema.resources.reference_target(&pointer, reference) {
+            Some(target) => {
+                if visited_references.insert(target.clone()) {
+                    collect_reachable(schema, target, false, reachable, visited_references);
                 }
             }
             None => reachable.reaches_other_document = true,
         }
     }
-    let listed_branches = ["allOf", "anyOf", "oneOf"]
-        .into_iter()
-        .filter_map(|combinator| keywords.get(combinator).and_then(JsonValue::as_array))
-        .flatten();
-    let conditional_branches = ["if", "then", "else"]
-        .into_iter()
-        .filter_map(|keyword| keywords.get(keyword));
-    let dependent_branches = keywords
-        .get("dependentSchemas")
-        .and_then(JsonValue::as_object)
-        .into_iter()
-        .flat_map(|dependents| dependents.values());
-    for branch in listed_branches
-        .chain(conditional_branches)
-        .chain(dependent_branches)
-    {
-        collect_reachable(schema, branch, false, reachable, visited);
+    for keyword in REACHING_KEYWORDS {
+        let Some(value) = keywords.get(keyword) else {
+            continue;
+        };
+        for child in child_schemas(keyword, value) {
+            let child_pointer = format!("{pointer}{}", child.pointer_suffix);
+            collect_reachable(schema, child_pointer, false, reachable, visited_references);
+        }
     }
+    Some(())
 }
 
 /// The candidate closest in spelling to `name`, where one is close enough to be a
@@ -1032,6 +1132,7 @@ fn with_article(noun: &str) -> String {
 
 struct Instance<'r> {
     rules: &'r ValidationRules,
+    table: &'r FunctionTable,
     /// The position of the key holding each value, by JSON pointer.
     positions: BTreeMap<String, Position>,
     /// The position of each value itself, by JSON pointer.
@@ -1039,6 +1140,8 @@ struct Instance<'r> {
     unknown: BTreeSet<String>,
     /// The values a merge base key copied into an entry, by JSON pointer.
     copied: BTreeSet<String>,
+    /// The `merge` macro calls with an argument not known, by JSON pointer.
+    merge_calls: BTreeSet<String>,
 }
 
 impl Instance<'_> {
@@ -1073,11 +1176,62 @@ impl Instance<'_> {
                 self.merge_base_keys(&mut object, &pointer);
                 JsonValue::Object(object)
             }
-            ValueKind::Reference(_) | ValueKind::Call(_) | ValueKind::Template(_) => {
+            ValueKind::Call(call) => match self.merge_call_content(call, &value.position) {
+                Some(content) => {
+                    let holds_unknown_argument = call.arguments.iter().any(|argument| {
+                        matches!(
+                            argument.local_value().kind,
+                            ValueKind::Reference(_) | ValueKind::Call(_) | ValueKind::Template(_)
+                        )
+                    });
+                    if holds_unknown_argument {
+                        self.merge_calls.insert(pointer.clone());
+                    }
+                    self.json(&content, pointer, key_position)
+                }
+                None => {
+                    self.unknown.insert(pointer);
+                    JsonValue::Null
+                }
+            },
+            ValueKind::Reference(_) | ValueKind::Template(_) => {
                 self.unknown.insert(pointer);
                 JsonValue::Null
             }
         }
+    }
+
+    /// A call of a `merge` macro of the schema's function table, as the known maps
+    /// among its arguments merged in order by the macro's `merge_behavior`; none
+    /// for another call, or one with no known map among its arguments.
+    fn merge_call_content(&self, call: &Call, position: &Position) -> Option<Value> {
+        let macro_entry = self.table.entry(&call.function)?.macro_entry.as_ref()?;
+        if macro_entry.kind != MacroKind::Merge {
+            return None;
+        }
+        let known_maps: Vec<&[MapEntry]> = call
+            .arguments
+            .iter()
+            .filter_map(|argument| argument.local_value().entries())
+            .collect();
+        if known_maps.is_empty() {
+            return None;
+        }
+        let merged_entries = macro_entry.merge_behavior.merge_contents(&known_maps);
+        Some(Value::new(ValueKind::Map(merged_entries), position.clone()))
+    }
+
+    /// Whether the value at `pointer` requires no key: the content of a merge base
+    /// key, or of a `merge` macro call with an argument not known, or a value
+    /// below one.
+    fn requires_no_key(&self, pointer: &str) -> bool {
+        pointer
+            .split('/')
+            .skip(1)
+            .any(|step| self.rules.merge_base_keys.contains(&unescape_pointer(step)))
+            || self.merge_calls.iter().any(|merge_call| {
+                pointer == merge_call || pointer.starts_with(&format!("{merge_call}/"))
+            })
     }
 
     /// A key such as `name mock-orders` sets the field `name` of the entry it keys,
@@ -1125,23 +1279,31 @@ impl Instance<'_> {
             .any(|copied| pointer == copied || pointer.starts_with(&format!("{copied}/")))
     }
 
-    /// Whether an error at `pointer` comes from a value not known when the document
-    /// compiles: the value itself, or a check that reads a value below it through a
-    /// subschema, or compares the values below it.
-    fn reads_unknown(&self, pointer: &str, kind: &ValidationErrorKind) -> bool {
-        if self.is_unknown(pointer) {
+    /// Whether `error`, its instance path read below `instance_base`, comes from a
+    /// value not known when the document compiles: the value itself, a check that
+    /// reads a value below it through a subschema or compares the values below it,
+    /// or alternatives with a form whose every failure comes from one.
+    fn reads_unknown(&self, instance_base: &str, error: &ValidationError<'_>) -> bool {
+        let pointer = format!("{instance_base}{}", error.instance_path().as_str());
+        if self.is_unknown(&pointer) {
             return true;
         }
-        let reads_below = matches!(
-            kind,
-            ValidationErrorKind::AnyOf { .. }
-                | ValidationErrorKind::OneOfNotValid { .. }
-                | ValidationErrorKind::OneOfMultipleValid { .. }
-                | ValidationErrorKind::Not { .. }
-                | ValidationErrorKind::Contains
-                | ValidationErrorKind::UniqueItems
-        );
-        reads_below && self.holds_unknown_below(pointer)
+        match error.kind() {
+            ValidationErrorKind::AnyOf { context }
+            | ValidationErrorKind::OneOfNotValid { context } => {
+                context.iter().any(|form_failures| {
+                    !form_failures.is_empty()
+                        && form_failures
+                            .iter()
+                            .all(|form_failure| self.reads_unknown(instance_base, form_failure))
+                })
+            }
+            ValidationErrorKind::OneOfMultipleValid { .. }
+            | ValidationErrorKind::Not { .. }
+            | ValidationErrorKind::Contains
+            | ValidationErrorKind::UniqueItems => self.holds_unknown_below(&pointer),
+            _ => false,
+        }
     }
 
     fn member_reads_unknown(&self, pointer: &str, schema_could_read: impl Fn() -> bool) -> bool {
@@ -1434,6 +1596,263 @@ mod tests {
                     Some("did you mean `gold`?")
                 ),
             ]
+        );
+    }
+
+    fn number(text: &str) -> Value {
+        Value::new(ValueKind::Number(text.into()), position())
+    }
+
+    fn unknown_value() -> Value {
+        Value::new(ValueKind::Call(Call::new("mock", Vec::new())), position())
+    }
+
+    fn subjects(problems: &[SchemaProblem]) -> Vec<(&str, &str)> {
+        problems
+            .iter()
+            .map(|problem| {
+                (
+                    problem.subject.as_str(),
+                    problem.diagnostic.message.as_str(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_merge_base_key_content_requires_no_key() {
+        let text = r#"{
+            "type": "object",
+            "properties": {
+                "queue": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "required": ["name", "visibility"],
+                        "properties": {"visibility": {"type": "integer"}},
+                        "anyOf": [{"required": ["fifo"]}, {"required": ["standard"]}]
+                    }
+                }
+            }
+        }"#;
+        let schema = LoadedSchema::parse("mock.schema.json", text).unwrap();
+        let document = map(vec![(
+            "queue",
+            map(vec![
+                (
+                    "defaults",
+                    map(vec![("visibility", Value::string("thirty", position()))]),
+                ),
+                (
+                    "orders",
+                    map(vec![("name", Value::string("mock", position()))]),
+                ),
+            ]),
+        )]);
+        let rules = ValidationRules {
+            merge_base_keys: vec!["defaults".to_owned()],
+            ..ValidationRules::default()
+        };
+        assert_eq!(
+            subjects(&schema.problems(&document, &rules)),
+            [
+                (
+                    "/queue/orders",
+                    "`orders` matches none of its allowed forms"
+                ),
+                (
+                    "/queue/defaults/visibility",
+                    "`visibility` must be `integer`"
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_merge_call_is_validated_as_its_known_maps_merged_requiring_no_key_beside_an_unknown_one() {
+        let text = r#"{
+            "x-yaml-dsl-functions": {
+                "merge": {
+                    "arguments": [{"name": "contents", "repeated": true}],
+                    "macro": {"kind": "merge", "content": "contents", "merge_behavior": "deep"}
+                },
+                "mock_join": {
+                    "arguments": [{"name": "parts", "repeated": true}],
+                    "macro": {"kind": "function_call", "callee": "parts"}
+                }
+            },
+            "type": "object",
+            "additionalProperties": {
+                "type": "object",
+                "required": ["name", "visibility"],
+                "properties": {
+                    "visibility": {"type": "integer"},
+                    "tags": {"type": "object", "required": ["team"]}
+                }
+            }
+        }"#;
+        let schema = LoadedSchema::parse("mock.schema.json", text).unwrap();
+        let file: Arc<str> = Arc::from("mock.yml");
+        let first_map = Value::new(
+            ValueKind::Map(vec![MapEntry {
+                key: "visibility".to_owned(),
+                key_position: Position::new(&file, 2, 3),
+                value: Value::string("thirty", Position::new(&file, 2, 15)),
+            }]),
+            Position::new(&file, 2, 3),
+        );
+        let second_map = map(vec![("tags", map(vec![("tier", number("1"))]))]);
+        let merge_call = |function: &str, arguments: Vec<Value>| {
+            Value::new(ValueKind::Call(Call::new(function, arguments)), position())
+        };
+        let document = map(vec![
+            (
+                "orders",
+                merge_call("merge", vec![unknown_value(), first_map, second_map]),
+            ),
+            ("payments", merge_call("merge", vec![unknown_value()])),
+            (
+                "refunds",
+                merge_call("mock_join", vec![map(vec![("tags", number("1"))])]),
+            ),
+            (
+                "invoices",
+                merge_call(
+                    "merge",
+                    vec![
+                        map(vec![("visibility", number("30"))]),
+                        Value::string("mock", position()),
+                    ],
+                ),
+            ),
+        ]);
+        let problems = schema.problems(&document, &ValidationRules::default());
+        assert_eq!(
+            subjects(&problems),
+            [
+                ("/invoices", "`name` is required"),
+                ("/orders/visibility", "`visibility` must be `integer`"),
+            ]
+        );
+        let at = problems[1].diagnostic.position.as_ref().unwrap();
+        assert_eq!((at.line, at.column), (2, 15));
+    }
+
+    #[test]
+    fn alternatives_beside_an_unknown_value_are_reported_when_every_form_fails_certainly() {
+        let text = r#"{
+            "type": "object",
+            "additionalProperties": {
+                "anyOf": [
+                    {"required": ["origins", "methods"], "properties": {"origins": {"type": "array"}}},
+                    {"required": ["wildcard"]}
+                ]
+            }
+        }"#;
+        let schema = LoadedSchema::parse("mock.schema.json", text).unwrap();
+        let document = map(vec![
+            ("doors", map(vec![("origins", unknown_value())])),
+            (
+                "gates",
+                map(vec![
+                    ("origins", unknown_value()),
+                    ("methods", Value::string("GET", position())),
+                ]),
+            ),
+        ]);
+        assert_eq!(
+            subjects(&schema.problems(&document, &ValidationRules::default())),
+            [("/doors", "`doors` matches none of its allowed forms")]
+        );
+    }
+
+    #[test]
+    fn a_dependency_reached_through_a_reference_names_every_dependency_of_its_value() {
+        let text = r##"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": {"mock_form": {"dependentRequired": {"label": ["size"]}}},
+            "type": "object",
+            "properties": {
+                "mock": {
+                    "dependentRequired": {"label": ["kind"]},
+                    "$ref": "#/$defs/mock_form"
+                }
+            }
+        }"##;
+        let schema = LoadedSchema::parse("mock.schema.json", text).unwrap();
+        let document = map(vec![(
+            "mock",
+            map(vec![
+                ("label", Value::string("mock-label", position())),
+                ("kind", Value::string("mock-kind", position())),
+            ]),
+        )]);
+        assert_eq!(
+            subjects(&schema.problems(&document, &ValidationRules::default())),
+            [("/mock/label", "`label` needs `kind`; `size`")]
+        );
+    }
+
+    #[test]
+    fn a_schema_whose_reference_or_pattern_does_not_hold_does_not_load() {
+        let load = |text: &str| LoadedSchema::parse("mock.schema.json", text).err();
+        assert_eq!(
+            load(
+                r##"{"properties": {
+                    "first": {"$ref": "#/$defs/mock-missing"},
+                    "second": {"pattern": "(_mock_"}
+                }}"##
+            )
+            .as_deref(),
+            Some("schema mock.schema.json: `#/$defs/mock-missing` names no node of the schema")
+        );
+        assert_eq!(
+            load(
+                r##"{"patternProperties": {"(_mock_": {}}, "$defs": {"x": {"$ref": "#/nothing"}}}"##
+            )
+            .as_deref(),
+            Some("schema mock.schema.json: `(_mock_` is not a pattern")
+        );
+        let loads = [
+            r##"{"$defs": {"a b": {}}, "properties": {"mock": {"$ref": "#/$defs/a%20b"}}}"##,
+            r##"{"$schema": "https://json-schema.org/draft/2020-12/schema",
+                "properties": {"mock": {"$id": "https://mock.example/mock.json",
+                "$defs": {"inner": {}}, "properties": {"field": {"$ref": "#/$defs/inner"}}}}}"##,
+            r##"{"$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$defs": {"inner": {"$anchor": "mock-anchor"}},
+                "properties": {"mock": {"$ref": "#mock-anchor"}}}"##,
+            r##"{"properties": {"default": {"type": "string"}},
+                "default": {"$ref": "#/nothing", "pattern": "(_mock_"},
+                "examples": [{"$ref": "#/nothing"}]}"##,
+        ];
+        for text in loads {
+            assert_eq!(load(text), None, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_rule_inside_an_embedded_resource_names_where_the_whole_schema_holds_it() {
+        let text = r##"{
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "properties": {"mock": {"$ref": "#/$defs/mock_resource"}},
+            "$defs": {
+                "mock_resource": {
+                    "$id": "https://mock.example/mock-resource.json",
+                    "properties": {"size": {"$ref": "#/$defs/mock_size"}},
+                    "$defs": {"mock_size": {"type": "integer"}}
+                }
+            }
+        }"##;
+        let schema = LoadedSchema::parse("mock.schema.json", text).unwrap();
+        let document = map(vec![(
+            "mock",
+            map(vec![("size", Value::string("mock-size", position()))]),
+        )]);
+        let diagnostics = schema.validate(&document, &ValidationRules::default());
+        let notes = diagnostics[0].notes.as_deref().unwrap();
+        assert_eq!(
+            notes.rule.as_deref(),
+            Some("type, at mock.schema.json#/$defs/mock_resource/$defs/mock_size/type")
         );
     }
 

@@ -1,0 +1,3 @@
+{
+  "error": "schema schema.json: `#/$defs/mock-missing` names no node of the schema"
+}

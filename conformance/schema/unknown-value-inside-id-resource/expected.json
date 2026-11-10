@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 4,
+      "column": 3,
+      "message": "`mock_stray` is not defined in the schema",
+      "rule": "unevaluatedProperties, at schema.json#/$defs/mock_resource/unevaluatedProperties"
+    }
+  ]
+}

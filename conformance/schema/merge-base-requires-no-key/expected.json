@@ -1,0 +1,25 @@
+{
+  "problems": [
+    {
+      "line": 3,
+      "column": 16,
+      "message": "`retention` must be `integer`",
+      "label": "is a string",
+      "rule": "type, at schema.json#/properties/queue/additionalProperties/properties/retention/type"
+    },
+    {
+      "line": 8,
+      "column": 3,
+      "message": "`tags` is required",
+      "label": "`payments` has no field `tags`",
+      "rule": "required, at schema.json#/properties/queue/additionalProperties/required"
+    },
+    {
+      "line": 9,
+      "column": 5,
+      "message": "`payments` matches none of its allowed forms",
+      "label": "breaks `anyOf`",
+      "rule": "anyOf, at schema.json#/properties/queue/additionalProperties/anyOf"
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 //! How a schema problem is worded: the field it names and the sentence about it.
 
+use std::collections::BTreeSet;
+
 use serde_json::Value as JsonValue;
 
-use crate::requiredness_markers::description_text;
+use crate::schema_resources::SchemaResources;
 
 const DEPENDENCY_KEYWORDS: [&str; 3] = ["dependencies", "dependentRequired", "dependentSchemas"];
 const SCHEMA_MAP_KEYWORDS: [&str; 6] = [
@@ -83,7 +85,14 @@ pub fn definition_description(schema: &JsonValue, holder_pointer: &str) -> Optio
     if !DEFINITION_KEYWORDS.contains(&container) {
         return None;
     }
-    description_text(schema.pointer(holder_pointer)?)
+    schema_note(schema.pointer(holder_pointer)?)
+}
+
+/// A node's `description` as a problem reports it: verbatim, its requiredness
+/// marker included; none where it is empty or only whitespace.
+pub fn schema_note(node: &JsonValue) -> Option<String> {
+    let description = node.get("description")?.as_str()?;
+    (!description.trim().is_empty()).then(|| description.to_owned())
 }
 
 /// The key a dependency names, where `keyword_pointer` lies inside one: the
@@ -95,15 +104,8 @@ pub fn dependency_of(
     holder: &JsonValue,
     missing_field: Option<&str>,
 ) -> Option<(String, String)> {
-    let steps: Vec<String> = keyword_pointer
-        .split('/')
-        .skip(1)
-        .map(unescape_pointer)
-        .collect();
-    let at = (0..steps.len()).rev().find(|&at| {
-        DEPENDENCY_KEYWORDS.contains(&steps[at].as_str())
-            && (at == 0 || !SCHEMA_MAP_KEYWORDS.contains(&steps[at - 1].as_str()))
-    })?;
+    let steps = pointer_steps(keyword_pointer);
+    let at = dependency_step(&steps)?;
     let keyword_at: String = steps[..=at]
         .iter()
         .map(|step| format!("/{}", escape(step)))
@@ -129,28 +131,112 @@ pub fn dependency_of(
     Some((keyword_at, key))
 }
 
-/// `` `key` needs <what> ``: what each dependency of the node holding
-/// `keyword_pointer` states for `key`.
-pub fn dependency_message(schema: &JsonValue, keyword_pointer: &str, key: &str) -> String {
-    let holder_pointer = keyword_pointer
-        .rsplit_once('/')
-        .map_or("", |(holder, _)| holder);
-    let needed_texts: Vec<String> = schema
-        .pointer(holder_pointer)
-        .into_iter()
-        .flat_map(|holder| {
-            DEPENDENCY_KEYWORDS
-                .iter()
-                .filter_map(|keyword| holder.get(*keyword)?.get(key))
-        })
-        .map(needed_text)
-        .collect();
+fn pointer_steps(pointer: &str) -> Vec<String> {
+    pointer.split('/').skip(1).map(unescape_pointer).collect()
+}
+
+/// The index of the dependency keyword among a schema location's `steps`: the
+/// last one that is a keyword, not a name in a map of schemas.
+fn dependency_step(steps: &[String]) -> Option<usize> {
+    (0..steps.len()).rev().find(|&at| {
+        DEPENDENCY_KEYWORDS.contains(&steps[at].as_str())
+            && (at == 0 || !SCHEMA_MAP_KEYWORDS.contains(&steps[at - 1].as_str()))
+    })
+}
+
+/// The evaluation path of the schema node of the value a dependency failing at
+/// `evaluation_path` is about: the node above the `allOf` parts and `$ref`s
+/// leading to the dependency keyword.
+pub fn dependency_value_path(evaluation_path: &str) -> Option<String> {
+    let steps = pointer_steps(evaluation_path);
+    let mut steps_above = &steps[..dependency_step(&steps)?];
+    loop {
+        steps_above = match steps_above {
+            [rest @ .., keyword, index] if keyword == "allOf" && index.parse::<usize>().is_ok() => {
+                rest
+            }
+            [rest @ .., keyword] if keyword == "$ref" => rest,
+            _ => break,
+        };
+    }
+    Some(
+        steps_above
+            .iter()
+            .map(|step| format!("/{}", escape(step)))
+            .collect(),
+    )
+}
+
+/// `` `key` needs <what> ``: what every dependency of `key` states, gathered from
+/// the value's schema node at `value_node_pointer` and every `allOf` part and
+/// `$ref` of it, in schema order.
+pub fn dependency_message(
+    schema: &JsonValue,
+    resources: &SchemaResources,
+    value_node_pointer: Option<&str>,
+    key: &str,
+) -> String {
+    let needed_texts = value_node_pointer.map_or_else(Vec::new, |value_node_pointer| {
+        let mut dependency_needs = DependencyNeeds {
+            schema,
+            resources,
+            key,
+            visited_references: BTreeSet::from([value_node_pointer.to_owned()]),
+            needed_texts: Vec::new(),
+        };
+        dependency_needs.collect(value_node_pointer);
+        dependency_needs.needed_texts
+    });
     let needed = if needed_texts.is_empty() {
         UNSTATED_CONDITION.to_owned()
     } else {
         needed_texts.join("; ")
     };
     format!("{} needs {needed}", code_span(key))
+}
+
+/// What the dependencies of one key need, gathered across schema nodes, each
+/// reference followed once.
+struct DependencyNeeds<'s> {
+    schema: &'s JsonValue,
+    resources: &'s SchemaResources,
+    key: &'s str,
+    visited_references: BTreeSet<String>,
+    needed_texts: Vec<String>,
+}
+
+impl DependencyNeeds<'_> {
+    /// What the dependencies of the key in the node at `pointer` need, then in
+    /// each `allOf` part and `$ref` target of it.
+    fn collect(&mut self, pointer: &str) {
+        let Some(keywords) = self.schema.pointer(pointer).and_then(JsonValue::as_object) else {
+            return;
+        };
+        self.needed_texts.extend(
+            keywords
+                .iter()
+                .filter(|(keyword, _)| DEPENDENCY_KEYWORDS.contains(&keyword.as_str()))
+                .filter_map(|(_, dependencies)| dependencies.get(self.key))
+                .map(needed_text),
+        );
+        for (keyword, value) in keywords {
+            match (keyword.as_str(), value) {
+                ("allOf", JsonValue::Array(parts)) => {
+                    for index in 0..parts.len() {
+                        self.collect(&format!("{pointer}/allOf/{index}"));
+                    }
+                }
+                ("$ref", JsonValue::String(reference)) => {
+                    if let Some(target) = self.resources.reference_target(pointer, reference)
+                        && self.visited_references.insert(target.clone())
+                    {
+                        self.collect(&target);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 fn needed_text(needed: &JsonValue) -> String {
@@ -304,14 +390,58 @@ mod tests {
         let holder = json!({"queue": 1, "topic": 2});
         let queue = dependency_of(&schema, "/dependentRequired", &holder, Some("role")).unwrap();
         assert_eq!(queue, ("/dependentRequired".to_owned(), "queue".to_owned()));
+        let resources = SchemaResources::of(&schema);
         assert_eq!(
-            dependency_message(&schema, &queue.0, &queue.1),
+            dependency_message(&schema, &resources, Some(""), &queue.1),
             "`queue` needs `role` and `region`"
         );
         let topic = dependency_of(&schema, "/dependentSchemas/topic/not", &holder, None).unwrap();
         assert_eq!(
-            dependency_message(&schema, &topic.0, &topic.1),
+            dependency_message(&schema, &resources, Some(""), &topic.1),
             "`topic` needs `queue` must not be set"
+        );
+        assert_eq!(
+            dependency_message(&schema, &resources, None, &topic.1),
+            "`topic` needs a condition the schema states"
+        );
+    }
+
+    #[test]
+    fn a_dependency_value_is_the_node_above_the_parts_and_references_leading_to_it() {
+        assert_eq!(
+            dependency_value_path("/properties/mock/allOf/0/$ref/dependentSchemas/label/anyOf")
+                .as_deref(),
+            Some("/properties/mock")
+        );
+        assert_eq!(
+            dependency_value_path("/properties/dependentRequired/type"),
+            None
+        );
+    }
+
+    #[test]
+    fn a_dependency_names_what_every_dependency_of_the_value_schema_needs() {
+        let schema = json!({
+            "$defs": {
+                "mock_form": {
+                    "dependentRequired": {"label": ["size"]},
+                    "allOf": [{"$ref": "#/$defs/mock_form"}]
+                },
+                "mock_holder": {
+                    "dependentRequired": {"label": ["kind"]},
+                    "allOf": [{"dependentRequired": {"label": ["tier"]}}],
+                    "$ref": "#/$defs/mock_form"
+                }
+            }
+        });
+        let resources = SchemaResources::of(&schema);
+        assert_eq!(
+            dependency_message(&schema, &resources, Some("/$defs/mock_holder"), "label"),
+            "`label` needs `kind`; `tier`; `size`"
+        );
+        assert_eq!(
+            dependency_message(&schema, &resources, Some("/$defs/missing"), "label"),
+            "`label` needs a condition the schema states"
         );
     }
 
@@ -332,15 +462,17 @@ mod tests {
     fn alternatives_of_a_definition_report_its_description_as_written() {
         let schema = json!({
             "$defs": {
-                "size": {"description": "[optional] A literal number, or a ref. More."},
-                "arn": {"description": "ARN of a role.\nOr a ref to one."}
+                "size": {"description": "[optional] A literal number, or a ref. More. "},
+                "arn": {"description": "ARN of a role.\nOr a ref to one."},
+                "blank": {"description": " \n "}
             },
             "properties": {"size": {"description": "A literal number."}}
         });
         assert_eq!(
             definition_description(&schema, "/$defs/size").as_deref(),
-            Some("A literal number, or a ref. More.")
+            Some("[optional] A literal number, or a ref. More. ")
         );
+        assert_eq!(definition_description(&schema, "/$defs/blank"), None);
         assert_eq!(
             definition_description(&schema, "/$defs/arn").as_deref(),
             Some("ARN of a role.\nOr a ref to one.")

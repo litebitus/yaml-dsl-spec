@@ -84,18 +84,10 @@ func requirednessMarker(schemaNode any) (string, bool) {
 func descriptionText(schemaNode any) *string {
 	descriptionValue, _ := objectField(schemaNode, "description")
 	writtenText, isText := descriptionValue.(string)
-	if !isText {
+	if !isText || strings.TrimSpace(writtenText) == "" {
 		return nil
 	}
-	unmarkedText := writtenText
-	if markerText, isMarked := requirednessMarker(schemaNode); isMarked {
-		unmarkedText = strings.TrimLeftFunc(writtenText, unicode.IsSpace)[len(markerText):]
-	}
-	unmarkedText = strings.TrimSpace(unmarkedText)
-	if unmarkedText == "" {
-		return nil
-	}
-	return &unmarkedText
+	return &writtenText
 }
 
 func markedSchema(schemaValue any, readDraft schemaDraft) any {

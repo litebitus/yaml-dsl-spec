@@ -1,0 +1,9 @@
+queue:
+  defaults:
+    retention: forever
+  orders:
+    visibility: 30
+    tags: {}
+    fifo: true
+  payments:
+    visibility: 30

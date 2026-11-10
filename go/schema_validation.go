@@ -2,16 +2,18 @@ package yamldslspec
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const compiledSchemaLocation = "urn:yaml-dsl-spec:document-schema"
+const compiledSchemaDirectory = "https://yaml-dsl-spec.invalid/"
 
 var (
 	draftSevenURIs = []string{
@@ -45,6 +47,7 @@ type LoadedSchema struct {
 	markedSchema    any
 	schemaName      string
 	hoistedBranches map[string]string
+	schemaLocation  string
 }
 
 // preparedSchema is what a schema's text prepares before a validator is built from it: the draft it is read in, the schema as written, and the schema its requiredness markers are read into. The package's own information, kept apart from the validator.
@@ -134,12 +137,20 @@ func loadedSchemaFromPrepared(schemaName string, schemaPreparation preparedSchem
 		}
 		return compiledPattern, nil
 	})
-	if resourceError := schemaCompiler.AddResource(compiledSchemaLocation, plainJSON(compilableValue)); resourceError != nil {
-		return nil, failedLoad(resourceError)
+	if faultError := firstSchemaFault(schemaValue, schemaValue, ""); faultError != nil {
+		return nil, failedLoad(faultError)
 	}
-	compiledSchema, compileError := schemaCompiler.Compile(compiledSchemaLocation)
+	schemaLocation := unstatedSchemaLocation(schemaValue)
+	libraryFailure := func(libraryError error) error {
+		namedText := strings.ReplaceAll(libraryError.Error(), schemaLocation, schemaName)
+		return failedLoad(errors.New(strings.ReplaceAll(namedText, compiledSchemaDirectory, "")))
+	}
+	if resourceError := schemaCompiler.AddResource(schemaLocation, plainJSON(compilableValue)); resourceError != nil {
+		return nil, libraryFailure(resourceError)
+	}
+	compiledSchema, compileError := schemaCompiler.Compile(schemaLocation)
 	if compileError != nil {
-		return nil, failedLoad(compileError)
+		return nil, libraryFailure(compileError)
 	}
 	return &LoadedSchema{
 		Table:           functionTable,
@@ -150,6 +161,7 @@ func loadedSchemaFromPrepared(schemaName string, schemaPreparation preparedSchem
 		markedSchema:    markedValue,
 		schemaName:      schemaName,
 		hoistedBranches: schemaHoisting.hoistedBranches,
+		schemaLocation:  schemaLocation,
 	}, nil
 }
 
@@ -208,7 +220,7 @@ func (loadedSchema *LoadedSchema) compiledFragment(fragmentPointer string) *json
 	}
 	var fragmentSchema *jsonschema.Schema
 	if _, isNode := jsonPointerValue(loadedSchema.originalSchema, fragmentPointer); isNode {
-		fragmentLocation := compiledSchemaLocation + "#" + (&url.URL{Fragment: fragmentPointer}).EscapedFragment()
+		fragmentLocation := loadedSchema.schemaLocation + "#" + (&url.URL{Fragment: fragmentPointer}).EscapedFragment()
 		if compiledSchema, compileError := loadedSchema.schemaCompiler.Compile(fragmentLocation); compileError == nil {
 			fragmentSchema = compiledSchema
 		}
@@ -223,7 +235,11 @@ func (loadedSchema *LoadedSchema) problemsAgainst(
 	documentValue ResolvedValue,
 	validationRules ValidationRules,
 ) []SchemaProblem {
-	documentRecord := newInstanceRecord(validationRules)
+	documentRecord := newInstanceRecord(validationRules, loadedSchema.Table)
+	requiresNoKeyAt := documentRecord.requiresNoKeyAt
+	if requiresNoKey {
+		requiresNoKeyAt = func(string) bool { return true }
+	}
 	documentJSON := documentRecord.jsonOf(documentValue, "", documentValue.Position)
 	documentJSON = loadedSchema.withQuotedValuesRead(validatingSchema, documentJSON, validationRules)
 	reportedCovers := reportedSubjects{dependencyKeys: map[string]bool{}, itemLists: map[string]bool{}}
@@ -234,8 +250,8 @@ func (loadedSchema *LoadedSchema) problemsAgainst(
 		documentRecord: documentRecord,
 		reportedCovers: &reportedCovers,
 	}
-	for _, checkFailure := range loadedSchema.failuresOf(validatingSchema, documentJSON, documentRecord, requiresNoKey) {
-		if documentRecord.readsUnknown(checkFailure.instancePointer, checkFailure.failedKeyword) {
+	for _, checkFailure := range loadedSchema.failuresOf(validatingSchema, documentJSON, documentRecord, requiresNoKeyAt) {
+		if checkFailure.readsUnknownValue(loadedSchema, documentRecord) {
 			continue
 		}
 		for _, builtProblem := range problemBuilder.problemsOf(checkFailure) {
@@ -393,12 +409,14 @@ func reachableSchemas(schemaValue any, keywordPointer string) (schemaReach, bool
 		return schemaReach{}, false
 	}
 	var reachable schemaReach
-	collectReachable(schemaValue, holderNode, true, &reachable, map[string]bool{})
+	collectReachable(schemaValue, holderPointer, holderNode, true, &reachable, map[string]bool{})
 	return reachable, true
 }
 
 func collectReachable(
-	schemaValue, schemaNode any,
+	schemaValue any,
+	nodePointer string,
+	schemaNode any,
 	isHolder bool,
 	reachable *schemaReach,
 	visitedPointers map[string]bool,
@@ -407,34 +425,43 @@ func collectReachable(
 	reachable.schemaNodes = append(reachable.schemaNodes, reachedNode)
 	referenceValue, _ := objectField(schemaNode, "$ref")
 	if referenceText, isText := referenceValue.(string); isText {
-		referencePointer, isLocal := strings.CutPrefix(referenceText, "#")
-		if !isLocal {
+		targetPointer, isPointerReference := referenceTargetPointer(schemaValue, nodePointer, referenceText)
+		if !strings.HasPrefix(referenceText, "#") {
 			reachable.reachesOtherDocument = true
-		} else if !visitedPointers[referencePointer] {
-			visitedPointers[referencePointer] = true
-			if targetNode, isFound := jsonPointerValue(schemaValue, referencePointer); isFound {
-				collectReachable(schemaValue, targetNode, false, reachable, visitedPointers)
+		} else if isPointerReference && !visitedPointers[targetPointer] {
+			visitedPointers[targetPointer] = true
+			if targetNode, isFound := jsonPointerValue(schemaValue, targetPointer); isFound {
+				collectReachable(schemaValue, targetPointer, targetNode, false, reachable, visitedPointers)
 			}
 		}
 	}
-	var branchSchemas []any
+	type schemaBranch struct {
+		branchPointer string
+		branchSchema  any
+	}
+	var schemaBranches []schemaBranch
+	addBranch := func(branchPointer string, branchSchema any) {
+		schemaBranches = append(schemaBranches, schemaBranch{branchPointer: branchPointer, branchSchema: branchSchema})
+	}
 	for _, combinatorKeyword := range []string{"allOf", "anyOf", "oneOf"} {
 		branchesValue, _ := objectField(schemaNode, combinatorKeyword)
 		listedBranches, _ := branchesValue.([]any)
-		branchSchemas = append(branchSchemas, listedBranches...)
+		for branchIndex, listedBranch := range listedBranches {
+			addBranch(nodePointer+"/"+combinatorKeyword+"/"+strconv.Itoa(branchIndex), listedBranch)
+		}
 	}
 	for _, conditionKeyword := range []string{"if", "then", "else"} {
 		if conditionSchema, isPresent := objectField(schemaNode, conditionKeyword); isPresent {
-			branchSchemas = append(branchSchemas, conditionSchema)
+			addBranch(nodePointer+"/"+conditionKeyword, conditionSchema)
 		}
 	}
 	dependentsValue, _ := objectField(schemaNode, "dependentSchemas")
 	for _, dependentKey := range objectKeys(dependentsValue) {
 		dependentSchema, _ := objectField(dependentsValue, dependentKey)
-		branchSchemas = append(branchSchemas, dependentSchema)
+		addBranch(nodePointer+"/dependentSchemas/"+escapePointer(dependentKey), dependentSchema)
 	}
-	for _, branchSchema := range branchSchemas {
-		collectReachable(schemaValue, branchSchema, false, reachable, visitedPointers)
+	for _, reachedBranch := range schemaBranches {
+		collectReachable(schemaValue, reachedBranch.branchPointer, reachedBranch.branchSchema, false, reachable, visitedPointers)
 	}
 }
 

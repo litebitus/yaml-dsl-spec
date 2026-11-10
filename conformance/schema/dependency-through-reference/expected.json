@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 3,
+      "message": "`label` needs `legacy` must not be set; `kind`; `size`",
+      "label": "breaks `dependentSchemas`",
+      "rule": "dependentSchemas, at schema.json#/$defs/mock_entry/dependentSchemas/label"
+    }
+  ]
+}

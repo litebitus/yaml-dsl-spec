@@ -82,4 +82,31 @@ function call(functionName, callArguments) {
   return { function: functionName, arguments: callArguments, expandFinalArgument: false };
 }
 
-module.exports = { Value, reference, call };
+/**
+ * The map values `maps` merged in order by a `merge` macro's `mergeBehavior`, a map
+ * at `position`: `deep` merges nested maps key by key, `shallow` replaces a key's
+ * value whole, `join` takes each key once. Each entry keeps where it was written.
+ */
+function mapMergeResult(maps, mergeBehavior, position) {
+  const entries = [];
+  for (const entry of maps.flatMap((map) => map.value)) {
+    const earlierAt = entries.findIndex((earlier) => earlier.key === entry.key);
+    if (earlierAt === -1) entries.push(entry);
+    else if (mergeBehavior !== 'join') {
+      const earlierValue = entries[earlierAt].value.localValue();
+      const laterValue = entry.value.localValue();
+      const mergesDeep = mergeBehavior === 'deep'
+        && earlierValue.kind === 'map'
+        && laterValue.kind === 'map';
+      const nestedMerge = () => mapMergeResult(
+        [earlierValue, laterValue],
+        mergeBehavior,
+        laterValue.position,
+      );
+      entries[earlierAt] = mergesDeep ? { ...entry, value: nestedMerge() } : entry;
+    }
+  }
+  return new Value('map', entries, position);
+}
+
+module.exports = { Value, reference, call, mapMergeResult };

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": { "mock_call_form": { "type": "object" } },
+  "type": "object",
+  "properties": {
+    "mock": {
+      "type": "object",
+      "dependentRequired": { "label": ["kind"] },
+      "allOf": [
+        {
+          "dependentSchemas": {
+            "label": { "anyOf": [{ "required": ["size"] }, { "$ref": "#/$defs/mock_call_form" }] }
+          }
+        }
+      ]
+    }
+  }
+}

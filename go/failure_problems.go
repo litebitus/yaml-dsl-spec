@@ -80,10 +80,7 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []Sch
 		var unknownProblems []SchemaProblem
 		for _, unexpectedName := range checkFailure.fieldNames {
 			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
-			couldAccept := func() bool {
-				return fieldCouldBeAccepted(loadedSchema.originalSchema, checkFailure.schemaPointer, unexpectedName)
-			}
-			if isUnevaluated && documentRecord.memberReadsUnknown(valuePointer, couldAccept) {
+			if isUnevaluated && checkFailure.readsUnknownMember(loadedSchema, documentRecord, unexpectedName) {
 				continue
 			}
 			unknownMessage := CodeSpan(unexpectedName) + " is not defined in the schema"
@@ -156,11 +153,7 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []Sch
 		listItems, _ := holderValue.([]any)
 		beyondCount := 0
 		for _, indexText := range checkFailure.fieldNames {
-			itemIndex, _ := strconv.Atoi(indexText)
-			couldEvaluate := func() bool {
-				return itemCouldBeEvaluated(loadedSchema.originalSchema, checkFailure.schemaPointer, itemIndex)
-			}
-			if !documentRecord.memberReadsUnknown(valuePointer, couldEvaluate) {
+			if !checkFailure.readsUnknownMember(loadedSchema, documentRecord, indexText) {
 				beyondCount++
 			}
 		}
@@ -193,7 +186,7 @@ func (problemBuilder failureProblems) dependencyProblems(checkFailure failedChec
 	}
 	problemBuilder.reportedCovers.dependencyKeys[subjectPointer] = true
 	dependencyKeyword := dependencyPointer[strings.LastIndexByte(dependencyPointer, '/')+1:]
-	dependencyMessageText := dependencyMessage(markedSchema, dependencyPointer, dependencyKey)
+	dependencyMessageText := dependencyMessage(markedSchema, checkFailure.valueSchemaPointer, dependencyKey)
 	dependencyProblem := DiagnosticAt(problemBuilder.documentRecord.keyPosition(subjectPointer), dependencyMessageText).
 		WithLabel("breaks " + CodeSpan(dependencyKeyword)).
 		WithRule(problemBuilder.ruleAt(dependencyKeyword, dependencyPointer+"/"+escapePointer(dependencyKey)))

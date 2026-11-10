@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "mock": { "$ref": "#/$defs/mock_resource" }
+  },
+  "$defs": {
+    "mock_resource": {
+      "$id": "https://mock.example/mock-resource.json",
+      "type": "object",
+      "properties": { "size": { "$ref": "#/$defs/mock_size" } },
+      "$defs": { "mock_size": { "type": "integer" } }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "mock_entry": {
+      "type": "object",
+      "dependentSchemas": { "label": { "required": ["size"] } }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "mock": {
+      "$ref": "#/$defs/mock_entry",
+      "dependentSchemas": { "label": { "not": { "required": ["legacy"] } } },
+      "dependentRequired": { "label": ["kind"] }
+    }
+  }
+}

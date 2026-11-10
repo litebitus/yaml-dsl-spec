@@ -2,6 +2,7 @@ package yamldslspec
 
 import (
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 )
@@ -226,12 +227,12 @@ func TestADependencyNamesWhatItsKeyNeeds(testingContext *testing.T) {
 	if !isDependency || keywordPointer != "/dependentRequired" || dependencyKey != "queue" {
 		testingContext.Fatalf("dependency %q %q", keywordPointer, dependencyKey)
 	}
-	queueMessage := dependencyMessage(schemaValue, keywordPointer, dependencyKey)
+	queueMessage := dependencyMessage(schemaValue, "", dependencyKey)
 	if queueMessage != "`queue` needs `role` and `region`" {
 		testingContext.Errorf("message %q", queueMessage)
 	}
-	topicPointer, topicKey, _ := dependencyOf(schemaValue, "/dependentSchemas/topic/not", holderValue, nil)
-	topicMessage := dependencyMessage(schemaValue, topicPointer, topicKey)
+	_, topicKey, _ := dependencyOf(schemaValue, "/dependentSchemas/topic/not", holderValue, nil)
+	topicMessage := dependencyMessage(schemaValue, "", topicKey)
 	if topicMessage != "`topic` needs `queue` must not be set" {
 		testingContext.Errorf("message %q", topicMessage)
 	}
@@ -380,5 +381,215 @@ func TestAFragmentIsReadByConcurrentReaders(testingContext *testing.T) {
 	readerGroup.Wait()
 	if !reflect.DeepEqual(readProblemCounts, []int{1, 1, 1, 1, 1, 1, 1, 1}) {
 		testingContext.Errorf("problem counts %v", readProblemCounts)
+	}
+}
+
+func problemLines(subjectProblems []SchemaProblem) []int {
+	lineNumbers := []int{}
+	for _, subjectProblem := range subjectProblems {
+		lineNumbers = append(lineNumbers, subjectProblem.Diagnostic.Position.Line)
+	}
+	return lineNumbers
+}
+
+func TestAMergeBaseKeysContentRequiresNoKey(testingContext *testing.T) {
+	schemaText := `{
+	  "properties": {"queue": {"additionalProperties": {
+	    "type": "object",
+	    "required": ["name"],
+	    "properties": {"name": {"type": "string"}, "settings": {"type": "object", "required": ["mode"]}},
+	    "anyOf": [{"required": ["name"]}, {"required": ["arn"]}]
+	  }}}
+	}`
+	documentText := "queue:\n" +
+		"  defaults: {settings: {}}\n" +
+		"  orders: {name: mock, settings: {mode: mock}}\n" +
+		"  payments: {}\n"
+	documentValue := ResolvedValueFromNode(parsedNode(testingContext, documentText, nil))
+	validationRules := ValidationRules{MergeBaseKeys: []string{"defaults"}}
+	subjectProblems := loadedMockSchema(testingContext, schemaText).Problems(documentValue, validationRules)
+	if !reflect.DeepEqual(problemSubjects(subjectProblems), []string{"/queue/payments", "/queue/payments"}) {
+		testingContext.Errorf("subjects %v", problemSubjects(subjectProblems))
+	}
+}
+
+const mockMergeMacrosSchema = `{
+  "x-yaml-dsl-functions": {
+    "mock_deep": {
+      "arguments": [{"name": "contents", "type": "map", "required": true, "repeated": true}],
+      "macro": {"kind": "merge", "content": "contents", "merge_behavior": "deep"}
+    },
+    "mock_shallow": {
+      "arguments": [{"name": "contents", "type": "map", "required": true, "repeated": true}],
+      "macro": {"kind": "merge", "content": "contents", "merge_behavior": "shallow"}
+    },
+    "mock_join": {
+      "arguments": [{"name": "contents", "type": "map", "required": true, "repeated": true}],
+      "macro": {"kind": "merge", "content": "contents", "merge_behavior": "join"}
+    },
+    "mock_function": {"arguments": [{"name": "value", "type": "any", "required": true}]}
+  },
+  "properties": {"merged": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["name"],
+    "properties": {
+      "name": {"type": "string"},
+      "tier": {"type": "integer"},
+      "nested": {"type": "object", "properties": {"x": {"type": "integer"}, "y": {"type": "integer"}}}
+    }
+  }}
+}`
+
+func mergeCallDocument(testingContext *testing.T, functionName string, argumentKeys ...string) ResolvedValue {
+	sourceText := "first: {tier: low, nested: {x: one}}\nsecond: {tier: 5, nested: {y: two}}\ncount: 3\n"
+	sourceValue := ResolvedValueFromNode(parsedNode(testingContext, sourceText, nil))
+	unknownContent := ResolvedValue{
+		Kind:      ResolvedReference,
+		Position:  sourceValue.Position,
+		Reference: &Reference{Scope: "mock", Name: "mock", Target: ReferenceTarget{Kind: TargetDeclaration}},
+	}
+	var callArguments []ResolvedValue
+	for _, argumentKey := range argumentKeys {
+		knownArgument, isKnown := sourceValue.Get(argumentKey)
+		if !isKnown {
+			knownArgument = unknownContent
+		}
+		callArguments = append(callArguments, knownArgument)
+	}
+	callValue := ResolvedValue{
+		Kind:     ResolvedCall,
+		Position: sourceValue.Position,
+		Call:     &FunctionCall{Function: functionName, Arguments: callArguments},
+	}
+	mergedEntry := MapEntry{Key: "merged", KeyPosition: sourceValue.Position, Value: callValue}
+	return ResolvedValue{Kind: ResolvedMap, Position: sourceValue.Position, Entries: []MapEntry{mergedEntry}}
+}
+
+func TestAMergeCallIsValidatedAsItsKnownMapsMergedRequiringNoKeyOnlyBesideAnUnknownArgument(
+	testingContext *testing.T,
+) {
+	loadedSchema := loadedMockSchema(testingContext, mockMergeMacrosSchema)
+	mergeCases := []struct {
+		functionName     string
+		argumentKeys     []string
+		expectedSubjects []string
+		expectedLines    []int
+	}{
+		{
+			"mock_deep",
+			[]string{"mock_unknown", "first", "second"},
+			[]string{"/merged/nested/x", "/merged/nested/y"},
+			[]int{1, 2},
+		},
+		{
+			"mock_shallow",
+			[]string{"mock_unknown", "first", "second"},
+			[]string{"/merged/nested/y"},
+			[]int{2},
+		},
+		{
+			"mock_join",
+			[]string{"mock_unknown", "first", "second"},
+			[]string{"/merged/tier", "/merged/nested/x"},
+			[]int{1, 1},
+		},
+		{
+			"mock_deep",
+			[]string{"first", "second"},
+			[]string{"/merged", "/merged/nested/x", "/merged/nested/y"},
+			[]int{1, 1, 2},
+		},
+		{
+			"mock_deep",
+			[]string{"count", "first"},
+			[]string{"/merged", "/merged/tier", "/merged/nested/x"},
+			[]int{1, 1, 1},
+		},
+	}
+	for _, mergeCase := range mergeCases {
+		documentValue := mergeCallDocument(testingContext, mergeCase.functionName, mergeCase.argumentKeys...)
+		subjectProblems := loadedSchema.Problems(documentValue, ValidationRules{})
+		if !reflect.DeepEqual(problemSubjects(subjectProblems), mergeCase.expectedSubjects) ||
+			!reflect.DeepEqual(problemLines(subjectProblems), mergeCase.expectedLines) {
+			testingContext.Errorf("%s %v gives %v", mergeCase.functionName, mergeCase.argumentKeys, subjectProblems)
+		}
+	}
+}
+
+func TestACallWithNoKnownMapOrOfNoMergeMacroIsNotChecked(testingContext *testing.T) {
+	loadedSchema := loadedMockSchema(testingContext, mockMergeMacrosSchema)
+	for _, documentValue := range []ResolvedValue{
+		mergeCallDocument(testingContext, "mock_deep", "mock_unknown", "count"),
+		mergeCallDocument(testingContext, "mock_function", "first"),
+		mergeCallDocument(testingContext, "mock_missing", "first"),
+	} {
+		if subjectProblems := loadedSchema.Problems(documentValue, ValidationRules{}); len(subjectProblems) != 0 {
+			testingContext.Errorf("problems %v", subjectProblems)
+		}
+	}
+}
+
+func TestAnAlternativeBesideAnUnknownValueIsReportedWhenEveryFormFailsAKnownCheck(testingContext *testing.T) {
+	schemaText := `{"additionalProperties": {"type": "object", "oneOf": [
+	  {"required": ["arn"]},
+	  {"required": ["size"], "properties": {"size": {"type": "integer"}}},
+	  {"anyOf": [{"required": ["name"]}, {"required": ["region"], "properties": {"region": {"type": "integer"}}}]}
+	]}}`
+	documentText := "known: {zone: mock}\nhidden: {zone: mock, size: mock}\nnested: {region: mock}\n"
+	unknownPointers := []string{"/known/zone", "/hidden/zone", "/hidden/size", "/nested/region"}
+	documentValue := withValuesRead(
+		ResolvedValueFromNode(parsedNode(testingContext, documentText, nil)),
+		"",
+		func(valuePointer string, writtenValue ResolvedValue) (ResolvedValue, bool) {
+			if slices.Contains(unknownPointers, valuePointer) {
+				return unknownReference(writtenValue), true
+			}
+			return ResolvedValue{}, false
+		})
+	subjectProblems := loadedMockSchema(testingContext, schemaText).Problems(documentValue, ValidationRules{})
+	if !reflect.DeepEqual(problemSubjects(subjectProblems), []string{"/known"}) {
+		testingContext.Errorf("problems %v", subjectProblems)
+	}
+}
+
+func TestADependencyNamesWhatTheKeyNeedsAcrossItsPartsAndReferences(testingContext *testing.T) {
+	schemaValue, _ := decodeOrderedJSON(`{
+	  "$schema": "https://json-schema.org/draft/2020-12/schema",
+	  "$defs": {
+	    "shared": {"dependentRequired": {"label": ["owner"]}, "allOf": [{"$ref": "#/$defs/shared"}]},
+	    "resource": {
+	      "$id": "https://mock.example/mock-resource.json",
+	      "$ref": "#/$defs/shared",
+	      "$defs": {"shared": {"dependentRequired": {"label": ["inner"]}}}
+	    }
+	  },
+	  "allOf": [{"dependentRequired": {"label": ["size"]}}, {"$ref": "#/$defs/shared"}],
+	  "dependentSchemas": {"label": {"not": {"required": ["legacy"]}}},
+	  "dependentRequired": {"label": ["kind"]}
+	}`)
+	expectedMessages := map[string]string{
+		"":                 "`label` needs `legacy` must not be set; `kind`; `size`; `owner`",
+		"/$defs/resource":  "`label` needs `inner`",
+		"/$defs/shared":    "`label` needs `owner`",
+		"/$defs/no-schema": "`label` needs a condition the schema states",
+	}
+	for valueSchemaPointer, expectedMessage := range expectedMessages {
+		if labelMessage := dependencyMessage(schemaValue, valueSchemaPointer, "label"); labelMessage != expectedMessage {
+			testingContext.Errorf("%q gives %q", valueSchemaPointer, labelMessage)
+		}
+	}
+}
+
+func TestASchemaNoteIsTheDescriptionVerbatim(testingContext *testing.T) {
+	writtenText := "  [optional] Kept as written.\n"
+	describedNode := map[string]any{"description": writtenText}
+	if schemaNote := descriptionText(describedNode); schemaNote == nil || *schemaNote != writtenText {
+		testingContext.Errorf("note %v", schemaNote)
+	}
+	for _, undescribedNode := range []any{map[string]any{"description": " \n\t"}, map[string]any{}} {
+		if schemaNote := descriptionText(undescribedNode); schemaNote != nil {
+			testingContext.Errorf("note %q", *schemaNote)
+		}
 	}
 }

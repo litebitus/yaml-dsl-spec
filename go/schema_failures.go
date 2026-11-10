@@ -14,19 +14,21 @@ import (
 var readsBelowKeywords = []string{"anyOf", "oneOf", "not", "contains", "uniqueItems"}
 
 type failedCheck struct {
-	failedKeyword   string
-	instancePointer string
-	schemaPointer   string
-	errorKind       jsonschema.ErrorKind
-	missingField    *string
-	fieldNames      []string
+	failedKeyword      string
+	instancePointer    string
+	schemaPointer      string
+	valueSchemaPointer string
+	errorKind          jsonschema.ErrorKind
+	missingField       *string
+	fieldNames         []string
+	formsFailCertainly bool
 }
 
 type failureCollector struct {
 	loadedSchema     *LoadedSchema
 	documentJSON     any
 	documentRecord   *instanceRecord
-	requiresNoKey    bool
+	requiresNoKeyAt  func(string) bool
 	failedChecks     []failedCheck
 	usedHolders      map[string]bool
 	unevaluatedNames map[string]map[string]bool
@@ -38,10 +40,38 @@ func newFailureCollector(loadedSchema *LoadedSchema, documentJSON any, documentR
 		loadedSchema:     loadedSchema,
 		documentJSON:     documentJSON,
 		documentRecord:   documentRecord,
+		requiresNoKeyAt:  func(string) bool { return false },
 		usedHolders:      map[string]bool{},
 		unevaluatedNames: map[string]map[string]bool{},
 		unevaluatedAt:    map[string]failedCheck{},
 	}
+}
+
+func (checkFailure failedCheck) readsUnknownValue(loadedSchema *LoadedSchema, documentRecord *instanceRecord) bool {
+	if !checkFailure.formsFailCertainly &&
+		documentRecord.readsUnknown(checkFailure.instancePointer, checkFailure.failedKeyword) {
+		return true
+	}
+	memberIsKnown := func(memberName string) bool {
+		return !checkFailure.readsUnknownMember(loadedSchema, documentRecord, memberName)
+	}
+	return strings.HasPrefix(checkFailure.failedKeyword, "unevaluated") &&
+		!slices.ContainsFunc(checkFailure.fieldNames, memberIsKnown)
+}
+
+func (checkFailure failedCheck) readsUnknownMember(
+	loadedSchema *LoadedSchema,
+	documentRecord *instanceRecord,
+	memberName string,
+) bool {
+	schemaCouldRead := func() bool {
+		if checkFailure.failedKeyword == "unevaluatedItems" {
+			itemIndex, _ := strconv.Atoi(memberName)
+			return itemCouldBeEvaluated(loadedSchema.originalSchema, checkFailure.schemaPointer, itemIndex)
+		}
+		return fieldCouldBeAccepted(loadedSchema.originalSchema, checkFailure.schemaPointer, memberName)
+	}
+	return documentRecord.memberReadsUnknown(checkFailure.instancePointer, schemaCouldRead)
 }
 
 func (loadedSchema *LoadedSchema) withQuotedValuesRead(
@@ -154,15 +184,19 @@ func (loadedSchema *LoadedSchema) failuresOf(
 	validatingSchema *jsonschema.Schema,
 	documentJSON any,
 	documentRecord *instanceRecord,
-	requiresNoKey bool,
+	requiresNoKeyAt func(string) bool,
 ) []failedCheck {
 	validationError, _ := validatingSchema.Validate(documentJSON).(*jsonschema.ValidationError)
 	if validationError == nil {
 		return nil
 	}
 	checkCollector := newFailureCollector(loadedSchema, documentJSON, documentRecord)
-	checkCollector.requiresNoKey = requiresNoKey
-	checkCollector.collectNode(validationError, nil)
+	checkCollector.requiresNoKeyAt = requiresNoKeyAt
+	checkCollector.collectNode(validationError, nil, loadedSchema.nodePointer(validationError))
+	return checkCollector.collectedChecks()
+}
+
+func (checkCollector *failureCollector) collectedChecks() []failedCheck {
 	unevaluatedKeys := make([]string, 0, len(checkCollector.unevaluatedAt))
 	for unevaluatedKey := range checkCollector.unevaluatedAt {
 		unevaluatedKeys = append(unevaluatedKeys, unevaluatedKey)
@@ -183,9 +217,13 @@ func (checkCollector *failureCollector) addCheck(addedCheck failedCheck) {
 	checkCollector.failedChecks = append(checkCollector.failedChecks, addedCheck)
 }
 
-func (checkCollector *failureCollector) collectNode(errorNode *jsonschema.ValidationError, reliableLocation []string) {
+func (checkCollector *failureCollector) collectNode(
+	errorNode *jsonschema.ValidationError,
+	reliableLocation []string,
+	valueSchemaPointer string,
+) {
 	loadedSchema := checkCollector.loadedSchema
-	if checkCollector.requiresNoKey && failsOnlyByRequiredKeys(errorNode) {
+	if checkCollector.requiresNoKeyAt(pointerOfLocation(errorNode.InstanceLocation)) && failsOnlyByRequiredKeys(errorNode) {
 		return
 	}
 	if _, isPropertyNames := errorNode.ErrorKind.(*kind.PropertyNames); !isPropertyNames {
@@ -195,14 +233,19 @@ func (checkCollector *failureCollector) collectNode(errorNode *jsonschema.Valida
 		}
 	}
 	nodeCheck := failedCheck{
-		instancePointer: pointerOfLocation(errorNode.InstanceLocation),
-		schemaPointer:   loadedSchema.keywordPointer(errorNode),
-		errorKind:       errorNode.ErrorKind,
+		instancePointer:    pointerOfLocation(errorNode.InstanceLocation),
+		schemaPointer:      loadedSchema.keywordPointer(errorNode),
+		valueSchemaPointer: valueSchemaPointer,
+		errorKind:          errorNode.ErrorKind,
 	}
 	switch errorKind := errorNode.ErrorKind.(type) {
 	case *kind.Schema, *kind.Group, *kind.Reference, *kind.AllOf:
 		for _, causeNode := range errorNode.Causes {
-			checkCollector.collectNode(causeNode, reliableLocation)
+			causeValuePointer := valueSchemaPointer
+			if len(causeNode.InstanceLocation) != len(errorNode.InstanceLocation) {
+				causeValuePointer = loadedSchema.nodePointer(causeNode)
+			}
+			checkCollector.collectNode(causeNode, reliableLocation, causeValuePointer)
 		}
 	case *kind.PropertyNames:
 		checkCollector.collectPropertyName(errorNode, errorKind.Property, reliableLocation)
@@ -226,6 +269,10 @@ func (checkCollector *failureCollector) collectNode(errorNode *jsonschema.Valida
 	case *kind.Not:
 		nodeCheck.failedKeyword = "not"
 		checkCollector.addCheck(nodeCheck)
+	case *kind.AnyOf, *kind.OneOf:
+		nodeCheck.failedKeyword = failureKeyword(errorNode.ErrorKind)
+		nodeCheck.formsFailCertainly = checkCollector.formsFailCertainly(errorNode, valueSchemaPointer)
+		checkCollector.addCheck(nodeCheck)
 	case *kind.FalseSchema:
 		checkCollector.collectFalseSchema(nodeCheck, errorNode.InstanceLocation)
 	case *kind.RefCycle:
@@ -233,6 +280,31 @@ func (checkCollector *failureCollector) collectNode(errorNode *jsonschema.Valida
 		nodeCheck.failedKeyword = failureKeyword(errorNode.ErrorKind)
 		checkCollector.addCheck(nodeCheck)
 	}
+}
+
+func (checkCollector *failureCollector) formsFailCertainly(
+	errorNode *jsonschema.ValidationError,
+	valueSchemaPointer string,
+) bool {
+	if oneOfKind, isOneOf := errorNode.ErrorKind.(*kind.OneOf); isOneOf && len(oneOfKind.Subschemas) > 0 {
+		return false
+	}
+	documentRecord := checkCollector.documentRecord
+	if !documentRecord.holdsUnknownBelow(pointerOfLocation(errorNode.InstanceLocation)) {
+		return false
+	}
+	failsCertainly := func(formFailure failedCheck) bool {
+		return !formFailure.readsUnknownValue(checkCollector.loadedSchema, documentRecord)
+	}
+	for _, formNode := range errorNode.Causes {
+		formCollector := newFailureCollector(checkCollector.loadedSchema, checkCollector.documentJSON, documentRecord)
+		formCollector.requiresNoKeyAt = checkCollector.requiresNoKeyAt
+		formCollector.collectNode(formNode, errorNode.InstanceLocation, valueSchemaPointer)
+		if !slices.ContainsFunc(formCollector.collectedChecks(), failsCertainly) {
+			return false
+		}
+	}
+	return len(errorNode.Causes) > 0
 }
 
 func failsOnlyByRequiredKeys(errorNode *jsonschema.ValidationError) bool {
@@ -355,7 +427,7 @@ func (checkCollector *failureCollector) collectPropertyName(
 	}
 	innerCollector := newFailureCollector(checkCollector.loadedSchema, propertyName, checkCollector.documentRecord)
 	for _, causeNode := range errorNode.Causes {
-		innerCollector.collectNode(causeNode, nil)
+		innerCollector.collectNode(causeNode, nil, checkCollector.loadedSchema.nodePointer(causeNode))
 	}
 	innerPointer := propertyNamesPointer
 	if len(innerCollector.failedChecks) > 0 {

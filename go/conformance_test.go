@@ -208,7 +208,24 @@ func schemaReading(testingContext *testing.T, caseFolder string) any {
 			unknownPointers = append(unknownPointers, pointerValue.(string))
 		}
 	}
-	documentValue := withUnknownValues(ResolvedValueFromNode(rootNode), "", unknownPointers)
+	mergeCalls := map[string]string{}
+	if callsValue, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "merge-calls.json")); isPresent {
+		for callPointer, macroName := range callsValue.(map[string]any) {
+			mergeCalls[callPointer] = macroName.(string)
+		}
+	}
+	valueReadAt := func(valuePointer string, writtenValue ResolvedValue) (ResolvedValue, bool) {
+		if slices.Contains(unknownPointers, valuePointer) {
+			return unknownReference(writtenValue), true
+		}
+		if macroName, isCall := mergeCalls[valuePointer]; isCall {
+			callArguments := []ResolvedValue{unknownReference(writtenValue), writtenValue}
+			mergeCall := &FunctionCall{Function: macroName, Arguments: callArguments}
+			return ResolvedValue{Kind: ResolvedCall, Position: writtenValue.Position, Call: mergeCall}, true
+		}
+		return ResolvedValue{}, false
+	}
+	documentValue := withValuesRead(ResolvedValueFromNode(rootNode), "", valueReadAt)
 	subjectProblems := loadedSchema.Problems(documentValue, validationRules)
 	if fragmentValue, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "fragment.json")); isPresent {
 		fragmentPointer, _ := fragmentValue.(map[string]any)["pointer"].(string)
@@ -228,32 +245,40 @@ func schemaReading(testingContext *testing.T, caseFolder string) any {
 	return map[string]any{"problems": problemsJSON(readProblems)}
 }
 
-func withUnknownValues(documentValue ResolvedValue, valuePointer string, unknownPointers []string) ResolvedValue {
-	if slices.Contains(unknownPointers, valuePointer) {
-		referenceText, _ := documentValue.ScalarText()
-		declarationPosition := documentValue.Position
-		return ResolvedValue{
-			Kind:     ResolvedReference,
-			Position: documentValue.Position,
-			Reference: &Reference{
-				Scope:  "mock",
-				Name:   "mock",
-				Text:   referenceText,
-				Target: ReferenceTarget{Kind: TargetDeclaration, DeclarationPosition: &declarationPosition},
-			},
-		}
+func unknownReference(writtenValue ResolvedValue) ResolvedValue {
+	referenceText, _ := writtenValue.ScalarText()
+	declarationPosition := writtenValue.Position
+	return ResolvedValue{
+		Kind:     ResolvedReference,
+		Position: writtenValue.Position,
+		Reference: &Reference{
+			Scope:  "mock",
+			Name:   "mock",
+			Text:   referenceText,
+			Target: ReferenceTarget{Kind: TargetDeclaration, DeclarationPosition: &declarationPosition},
+		},
+	}
+}
+
+func withValuesRead(
+	documentValue ResolvedValue,
+	valuePointer string,
+	valueReadAt func(string, ResolvedValue) (ResolvedValue, bool),
+) ResolvedValue {
+	if replacementValue, isReplaced := valueReadAt(valuePointer, documentValue); isReplaced {
+		return replacementValue
 	}
 	readValue := documentValue
 	readValue.Entries = nil
 	for _, mapEntry := range documentValue.Entries {
 		entryPointer := valuePointer + "/" + escapePointer(mapEntry.Key)
-		mapEntry.Value = withUnknownValues(mapEntry.Value, entryPointer, unknownPointers)
+		mapEntry.Value = withValuesRead(mapEntry.Value, entryPointer, valueReadAt)
 		readValue.Entries = append(readValue.Entries, mapEntry)
 	}
 	readValue.Items = nil
 	for itemIndex, listItem := range documentValue.Items {
 		itemPointer := valuePointer + "/" + strconv.Itoa(itemIndex)
-		readValue.Items = append(readValue.Items, withUnknownValues(listItem, itemPointer, unknownPointers))
+		readValue.Items = append(readValue.Items, withValuesRead(listItem, itemPointer, valueReadAt))
 	}
 	return readValue
 }

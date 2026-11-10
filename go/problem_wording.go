@@ -144,22 +144,46 @@ func keyNeedingField(schemaValue any, dependencyPointer string, holderValue any,
 	return "", false
 }
 
-func dependencyMessage(schemaValue any, keywordPointer, dependencyKey string) string {
-	holderPointer := keywordPointer[:max(strings.LastIndexByte(keywordPointer, '/'), 0)]
-	var neededTexts []string
-	if holderNode, isFound := jsonPointerValue(schemaValue, holderPointer); isFound {
-		for _, dependencyKeyword := range dependencyKeywords {
-			keywordValue, _ := objectField(holderNode, dependencyKeyword)
-			if neededValue, hasKey := objectField(keywordValue, dependencyKey); hasKey {
-				neededTexts = append(neededTexts, neededText(neededValue))
-			}
-		}
-	}
+func dependencyMessage(schemaValue any, valueSchemaPointer, dependencyKey string) string {
+	neededTexts := gatheredNeeds(schemaValue, valueSchemaPointer, dependencyKey, map[string]bool{})
 	neededSummary := unstatedCondition
 	if len(neededTexts) > 0 {
 		neededSummary = strings.Join(neededTexts, "; ")
 	}
 	return CodeSpan(dependencyKey) + " needs " + neededSummary
+}
+
+func gatheredNeeds(schemaValue any, nodePointer, dependencyKey string, visitedPointers map[string]bool) []string {
+	schemaNode, isFound := jsonPointerValue(schemaValue, nodePointer)
+	if !isFound || visitedPointers[nodePointer] {
+		return nil
+	}
+	visitedPointers[nodePointer] = true
+	var neededTexts []string
+	for _, schemaKeyword := range objectKeys(schemaNode) {
+		keywordValue, _ := objectField(schemaNode, schemaKeyword)
+		if neededValue, hasKey := objectField(keywordValue, dependencyKey); hasKey &&
+			slices.Contains(dependencyKeywords, schemaKeyword) {
+			neededTexts = append(neededTexts, neededText(neededValue))
+		}
+	}
+	for _, schemaKeyword := range objectKeys(schemaNode) {
+		keywordValue, _ := objectField(schemaNode, schemaKeyword)
+		switch referenceText, isText := keywordValue.(string); {
+		case schemaKeyword == "$ref" && isText:
+			targetPointer, isPointerReference := referenceTargetPointer(schemaValue, nodePointer, referenceText)
+			if isPointerReference {
+				neededTexts = append(neededTexts, gatheredNeeds(schemaValue, targetPointer, dependencyKey, visitedPointers)...)
+			}
+		case schemaKeyword == "allOf":
+			allOfParts, _ := keywordValue.([]any)
+			for partIndex := range allOfParts {
+				partPointer := nodePointer + "/allOf/" + strconv.Itoa(partIndex)
+				neededTexts = append(neededTexts, gatheredNeeds(schemaValue, partPointer, dependencyKey, visitedPointers)...)
+			}
+		}
+	}
+	return neededTexts
 }
 
 func neededText(neededValue any) string {

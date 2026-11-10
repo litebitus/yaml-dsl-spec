@@ -95,7 +95,16 @@ function schemaReading(folder) {
     return { error: error.message };
   }
   const unknownPointers = readJson(path.join(folder, 'unknown-values.json')) || [];
-  const documentValue = withUnknownValues(resolved.Value.fromNode(node), '', unknownPointers);
+  const mergeCalls = readJson(path.join(folder, 'merge-calls.json')) || {};
+  const documentValue = withValuesRead(resolved.Value.fromNode(node), '', (value, pointer) => {
+    if (unknownPointers.includes(pointer)) return declarationReference(value);
+    if (Object.hasOwn(mergeCalls, pointer)) {
+      const callArguments = [declarationReference(value), value];
+      const mergeCall = resolved.call(mergeCalls[pointer], callArguments);
+      return new resolved.Value('call', mergeCall, value.position);
+    }
+    return value;
+  });
   const fragment = readJson(path.join(folder, 'fragment.json'));
   const problems = fragment === null
     ? loaded.problems(documentValue, rules)
@@ -111,31 +120,34 @@ function schemaReading(folder) {
   return { problems: problems.map((problem) => problemJson(problem.diagnostic)) };
 }
 
-function withUnknownValues(value, pointer, unknownPointers) {
-  if (unknownPointers.includes(pointer)) {
-    const reference = resolved.reference({
-      scope: 'mock',
-      name: 'mock',
-      path: '',
-      text: value.scalarText() || '',
-      target: { kind: 'declaration', position: value.position },
-    });
-    return new resolved.Value('reference', reference, value.position);
-  }
+/** A reference to a declaration, a value not known until the document compiles, at `value`. */
+function declarationReference(value) {
+  const reference = resolved.reference({
+    scope: 'mock',
+    name: 'mock',
+    path: '',
+    text: value.scalarText() || '',
+    target: { kind: 'declaration', position: value.position },
+  });
+  return new resolved.Value('reference', reference, value.position);
+}
+
+/** `value` with each value at or below `pointer` read by `reading`, its own values read first. */
+function withValuesRead(value, pointer, reading) {
   if (value.kind === 'map') {
     const entries = value.value.map((entry) => {
       const child = `${pointer}/${entry.key.replace(/~/gu, '~0').replace(/\//gu, '~1')}`;
-      return { ...entry, value: withUnknownValues(entry.value, child, unknownPointers) };
+      return { ...entry, value: withValuesRead(entry.value, child, reading) };
     });
-    return new resolved.Value('map', entries, value.position);
+    return reading(new resolved.Value('map', entries, value.position), pointer);
   }
   if (value.kind === 'list') {
     const items = value.value.map(
-      (item, index) => withUnknownValues(item, `${pointer}/${index}`, unknownPointers),
+      (item, index) => withValuesRead(item, `${pointer}/${index}`, reading),
     );
-    return new resolved.Value('list', items, value.position);
+    return reading(new resolved.Value('list', items, value.position), pointer);
   }
-  return value;
+  return reading(value, pointer);
 }
 
 function patternReading(entry) {

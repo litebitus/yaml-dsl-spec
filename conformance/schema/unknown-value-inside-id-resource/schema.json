@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "mock": { "$ref": "#/$defs/mock_resource" }
+  },
+  "$defs": {
+    "mock_resource": {
+      "$id": "https://mock.example/mock-resource.json",
+      "type": "object",
+      "properties": { "mock_mode": { "type": "string" } },
+      "$ref": "#/$defs/mock_wide",
+      "unevaluatedProperties": false,
+      "$defs": {
+        "mock_wide": {
+          "if": { "properties": { "mock_mode": { "const": "mock-wide" } } },
+          "then": { "properties": { "mock_width": { "type": "integer" } } }
+        }
+      }
+    }
+  }
+}

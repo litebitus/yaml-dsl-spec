@@ -6,7 +6,7 @@
       "message": "`size` matches none of its allowed forms",
       "label": "breaks `oneOf`",
       "rule": "oneOf, at schema.json#/$defs/number_or_ref/oneOf",
-      "schema": "A literal number, or a `ref` resolving to one. More words."
+      "schema": "[optional] A literal number, or a `ref` resolving to one. More words."
     },
     {
       "line": 2,

@@ -9,6 +9,12 @@
   - An unknown field reads `` `name` is not defined in the schema ``, with no label.
   - The schema cache takes a capacity, the least recently asked for schema dropped first, and a store the caller supplies, where it keeps the information it prepares from each schema across runs.
   - `problems` gives each problem with its subject, the JSON pointer of the value it is about, and `fragment_problems` validates a document against a fragment of its schema.
+  - A merge base key's content requires no key, as a fragment requires none.
+  - A `merge` macro call with a content not known is validated as its known maps, requiring no key.
+  - An `anyOf` or `oneOf` is reported when each form fails a check that reads no unknown value.
+  - A dependency message names what every `allOf` part and reference of the value's schema needs for the key.
+  - A schema note is the description verbatim, its requiredness marker included.
+  - A `$ref` naming no node and a pattern that does not compile are worded by the package; no name of the package's own reaches a message.
 
 ## v0.2.1 — 2026-11-08
 

@@ -1,0 +1,5 @@
+queue:
+  orders:
+    retention: forever
+  payments:
+    visibility: 30

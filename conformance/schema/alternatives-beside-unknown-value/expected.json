@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 3,
+      "message": "`doors` matches none of its allowed forms",
+      "label": "breaks `anyOf`",
+      "rule": "anyOf, at schema.json#/additionalProperties/anyOf"
+    }
+  ]
+}

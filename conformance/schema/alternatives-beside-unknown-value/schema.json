@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": {
+    "type": "object",
+    "properties": { "cors": { "type": "object" } },
+    "anyOf": [
+      {
+        "properties": {
+          "cors": { "required": ["origins", "methods"], "properties": { "origins": { "type": "array" } } }
+        }
+      },
+      { "properties": { "cors": { "required": ["wildcard"] } } }
+    ]
+  }
+}

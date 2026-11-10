@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 2,
+      "column": 3,
+      "message": "`label` needs `kind`; `size`, or a `mock_call_form`",
+      "label": "breaks `dependentRequired`",
+      "rule": "dependentRequired, at schema.json#/properties/mock/dependentRequired/label"
+    }
+  ]
+}

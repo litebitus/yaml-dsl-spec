@@ -1,0 +1,4 @@
+mock:
+  mock_mode: mock-mode
+  mock_width: 5
+  mock_stray: 1

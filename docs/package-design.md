@@ -98,6 +98,18 @@ Each entry is named in each language's own case. A version is a minor, such as `
 
 A document is read, then validated against its schema in the draft its `$schema` names.
 
+### A schema that does not load
+
+Why a schema does not load reads `schema <name>: <why>`, `<name>` the name it was loaded with. The package states why in its own words, the same in every language:
+
+| Why | Reads |
+|---|---|
+| a `$ref` whose JSON pointer names no node of the schema | `` `#/$defs/missing` names no node of the schema `` |
+| a `pattern`, or a `patternProperties` key, the standard's pattern dialect does not compile | `` `(_x` is not a pattern `` |
+| a draft the package does not read | `declares <draft>, a draft this reader does not read; it reads <drafts>` |
+
+Any other failure is the validator library's text, naming the schema by the name it was loaded with.
+
 ### Reading before validation
 
 In order, each by the DSL's `validator` block:
@@ -107,8 +119,11 @@ In order, each by the DSL's `validator` block:
 3. A quoted value that spells a type `allow_quoted_values` lists, where the schema expects that type, is validated as that type: `true` and `false` a boolean, `-?(0|[1-9][0-9]*)` an integer, and a number a fraction and an exponent beside. One that spells none stays a string.
 
 - A value not known until the document compiles, a call, a reference or a template, is not checked, nor a check that reads a value below it through a subschema or compares the values below it.
+- An `anyOf` or `oneOf` none of whose forms holds is reported when each form fails a check that reads no unknown value.
+- A call of a `merge` macro of the schema's function table is validated as the known maps among its arguments, merged in order by the macro's `merge_behavior`. With an argument not known, it requires no key, as a merge base key's content does, since that argument may supply any. A call with no known map among its arguments is not checked.
 - An unknown field or item of a map or list holding such a value is reported unless the schema could read it by a keyword below, reached through `$ref`, `allOf`, `anyOf`, `oneOf`, `if`, `then`, `else` or `dependentSchemas`. A field or item the schema could read depends on a branch that reads the unknown value, and is not checked.
 - A problem on a value an entry has only from a merge base key is not reported.
+- A merge base key's content requires no key: a missing field under it is not reported, nor an `anyOf` or `oneOf` with a form that fails only by fields it requires.
 - Formats are not validated.
 
 | Unknown | Read by |
@@ -135,7 +150,7 @@ A field's `description` may open with a requiredness marker:
 
 A problem is placed at the value it is about; a missing field at its map's key, and an unknown field, a key that is not valid, and a key whose dependency is not met at that key. A problem names its field by the field's key, then `[<index>]` for each list index below the key, such as `` `tags[1]` ``; the root is `the document`.
 
-A message is the package's own sentence. Every key and value it names is fenced, so a reader tells them from its prose; an item number, a position the package counts, is not. A schema's own words never enter a message: a description the problem reports is its schema note, as written, and a reader shows it apart from the message, prefixed `[schema]`.
+A message is the package's own sentence. Every key and value it names is fenced, so a reader tells them from its prose; an item number, a position the package counts, is not. A schema's own words never enter a message: a description the problem reports is its schema note, verbatim, its requiredness marker included, and a reader shows it apart from the message, prefixed `[schema]`.
 
 | Failure | Message | Schema note |
 |---|---|---|
@@ -147,7 +162,7 @@ A message is the package's own sentence. Every key and value it names is fenced,
 | `const` | `` <field> must be `"a"` ``, the value as JSON | |
 | `anyOf` or `oneOf`, no form holds | `<field> matches none of its allowed forms` | where the alternatives are those of a definition, `#/$defs/<name>` or `#/definitions/<name>`, the definition's description |
 | `oneOf`, several forms hold | `<field> matches more than one of its allowed forms` | |
-| a dependency not met | `` `key` needs <what> ``: the fields it needs, joined by `and`, a forbidden one as `` `x` must not be set `` | |
+| a dependency not met | `` `key` needs <what> ``: what each dependency of the key needs, from the value's schema and every `allOf` part and reference of it, in the order the schema writes them, joined by `;`. A dependency needs the fields it lists, joined by `and`, a forbidden one as `` `x` must not be set ``, a definition it names as `` a `name` ``, and its forms joined by `, or` | |
 | `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | `` <field> must be >= `1` ``, with `<=`, `>` and `<` | |
 | `multipleOf` | `` <field> must be multiple of `5` `` | |
 | `minLength`, `maxLength` | `` <field> must NOT have fewer than `3` characters ``, or `more than` | |
@@ -288,3 +303,10 @@ A line is each line the renderer divides: the headline, a source line, a label, 
 
 - Schema resolution joins the core: a document's schema found and read as the specification's "Finding the schema" and "Schema URLs" state, through a schema cache, least recently used dropped first, in place of each reader's own copy. The schema cache's capacity is the consumer's to set.
 - Deprecation warnings join the core as an opt-in: a deprecated field or value a document uses is reported as a warning.
+- Message bundles, a separate pass and release. Every message the packages write comes from a bundle, one per language, shared by all three languages:
+  - A bundle is `messages/<tag>.json`, the tag a BCP 47 language tag such as `en` or `zh-Hant-TW`. Each package's build copies the bundles in, as it copies the schemas.
+  - An entry is a sentence with named slots, `{field} needs {needs}`, keyed by what it reports. The words of a language are the bundle's: the list joiners, `the document`, a label's fixed parts. The code fills the slots: fences, JSON pointers, item numbers.
+  - Every bundle holds every key; a package's test fails on a bundle missing one or holding an extra one.
+  - The covered messages: the definition reader's, schema validation's, a schema that does not load, and the diagnostic renderer's own words.
+  - A caller passes a messages value loaded for a tag to the schema cache and the definition reader; without one, messages are `en`. A tag is matched to a bundle by RFC 4647 Lookup, written by the package: the tag loses its last subtag until a bundle matches, and one that matches none is an error. A tag is parsed and canonicalized by `Intl.Locale` in JavaScript, `golang.org/x/text/language` in Go and `icu_locale` in Rust.
+  - Conformance runs in `en`, and a case of its own covers Lookup.

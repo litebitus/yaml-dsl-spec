@@ -7,6 +7,7 @@ use fancy_regex::Regex;
 use serde_json::Value as JsonValue;
 
 use crate::definition::MarkerFunction;
+use crate::resolved::{MapEntry, Value, ValueKind};
 
 pub const FUNCTION_TABLE_POINTER: &str = "/x-yaml-dsl-functions";
 
@@ -49,6 +50,46 @@ pub enum MergeBehavior {
     Shallow,
     Deep,
     Join,
+}
+
+impl MergeBehavior {
+    /// The entries of `contents` merged in order: `Shallow` replaces a key's value
+    /// whole, `Deep` merges nested maps key by key, `Join` takes each key once.
+    pub(crate) fn merge_contents(self, contents: &[&[MapEntry]]) -> Vec<MapEntry> {
+        let mut merged_entries: Vec<MapEntry> = Vec::new();
+        for content in contents {
+            self.merge_entries_into(&mut merged_entries, content);
+        }
+        merged_entries
+    }
+
+    fn merge_entries_into(self, target: &mut Vec<MapEntry>, entries: &[MapEntry]) {
+        for entry in entries {
+            let Some(held) = target.iter_mut().find(|held| held.key == entry.key) else {
+                target.push(entry.clone());
+                continue;
+            };
+            let nested_maps = (
+                held.value.local_value().entries(),
+                entry.value.local_value().entries(),
+            );
+            match (self, nested_maps) {
+                (Self::Join, _) => {}
+                (Self::Deep, (Some(held_entries), Some(entry_entries))) => {
+                    let mut nested_entries = held_entries.to_vec();
+                    self.merge_entries_into(&mut nested_entries, entry_entries);
+                    *held = MapEntry {
+                        value: Value::new(
+                            ValueKind::Map(nested_entries),
+                            entry.value.position.clone(),
+                        ),
+                        ..entry.clone()
+                    };
+                }
+                _ => *held = entry.clone(),
+            }
+        }
+    }
 }
 
 const ROLE_NAMES: [&str; 6] = [
@@ -275,6 +316,72 @@ mod tests {
         assert_eq!(macro_entry.kind, MacroKind::Loop);
         assert_eq!(macro_entry.role("collection"), Some("in"));
         assert_eq!(entry.arguments[2].default, Some(serde_json::json!(["it"])));
+    }
+
+    #[test]
+    fn merge_contents_combines_maps_in_order_by_the_behavior() {
+        use crate::position::Position;
+        use std::sync::Arc;
+
+        let file: Arc<str> = Arc::from("mock.yml");
+        let at = |line: usize| Position::new(&file, line, 1);
+        let entry = |key: &str, line: usize, value: Value| MapEntry {
+            key: key.to_owned(),
+            key_position: at(line),
+            value,
+        };
+        let text = |text: &str, line: usize| Value::string(text, at(line));
+        let map =
+            |line: usize, entries: Vec<MapEntry>| Value::new(ValueKind::Map(entries), at(line));
+        let first = vec![
+            entry("name", 1, text("mock-first", 1)),
+            entry(
+                "tags",
+                2,
+                map(2, vec![entry("team", 3, text("mock-team", 3))]),
+            ),
+        ];
+        let second = vec![
+            entry("name", 11, text("mock-second", 11)),
+            entry(
+                "tags",
+                12,
+                map(12, vec![entry("tier", 13, text("mock-tier", 13))]),
+            ),
+        ];
+        let entry_lines = |entries: &[MapEntry]| -> Vec<String> {
+            entries
+                .iter()
+                .map(|entry| {
+                    let nested_lines: Vec<String> = entry
+                        .value
+                        .entries()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|nested| format!("{} at {}", nested.key, nested.key_position.line))
+                        .collect();
+                    format!(
+                        "{} at {} [{}]",
+                        entry.key,
+                        entry.key_position.line,
+                        nested_lines.join(", ")
+                    )
+                })
+                .collect()
+        };
+        let contents: [&[MapEntry]; 2] = [&first, &second];
+        assert_eq!(
+            entry_lines(&MergeBehavior::Deep.merge_contents(&contents)),
+            ["name at 11 []", "tags at 12 [team at 3, tier at 13]"]
+        );
+        assert_eq!(
+            entry_lines(&MergeBehavior::Shallow.merge_contents(&contents)),
+            ["name at 11 []", "tags at 12 [tier at 13]"]
+        );
+        assert_eq!(
+            entry_lines(&MergeBehavior::Join.merge_contents(&contents)),
+            ["name at 1 []", "tags at 2 [team at 3]"]
+        );
     }
 
     #[test]

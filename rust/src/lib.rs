@@ -18,6 +18,7 @@ mod requiredness_markers;
 pub mod resolved;
 pub mod schema;
 mod schema_cache;
+mod schema_resources;
 pub mod validation_rules;
 pub mod yaml_reader;
 

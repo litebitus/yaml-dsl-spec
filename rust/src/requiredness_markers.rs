@@ -87,17 +87,6 @@ pub fn requiredness_marker(node: &JsonValue) -> Option<&'static str> {
         .find(|marker| description.starts_with(marker))
 }
 
-/// A node's description without the marker it opens with.
-pub fn description_text(node: &JsonValue) -> Option<String> {
-    let description = node.get("description")?.as_str()?;
-    let text = match requiredness_marker(node) {
-        Some(marker) => &description.trim_start()[marker.len()..],
-        None => description,
-    };
-    let text = text.trim();
-    (!text.is_empty()).then(|| text.to_owned())
-}
-
 /// `schema` with each `required` array decided by the markers of the fields it lists.
 pub fn marked_schema(schema: &JsonValue, draft: Draft) -> JsonValue {
     marked_node(schema, None, &DraftKeywords::of(draft))

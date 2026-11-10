@@ -6,12 +6,15 @@
 //!   `tag-keys.json`, to its node tree or its problem;
 //! - `conformance/schema/`: a `document.yml` validated against a `schema.json`, read
 //!   by the DSL `validator` block of an optional `validator.json`, each value at a
-//!   pointer of an optional `unknown-values.json` read as a reference, against
-//!   the schema node an optional `fragment.json` points at, to its problems and
+//!   pointer of an optional `unknown-values.json` read as a reference, each map
+//!   at a pointer of an optional `merge-calls.json` read as a call of the macro
+//!   it names, its content not known, against the schema node an optional
+//!   `fragment.json` points at, to its problems and
 //!   the subjects of an optional `subjects.json`, or to why the schema is not read;
 //! - `conformance/patterns/cases.json`: each pattern, to its named groups and the
 //!   captures of each text, or to not compiling.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -19,7 +22,9 @@ use std::sync::Arc;
 use fancy_regex::Regex;
 use serde_json::{Map, Value, json};
 use yaml_dsl_spec::definition::{TagKey, Validator};
-use yaml_dsl_spec::resolved::{MapEntry, Reference, Target, Value as ResolvedValue, ValueKind};
+use yaml_dsl_spec::resolved::{
+    Call, MapEntry, Reference, Target, Value as ResolvedValue, ValueKind,
+};
 use yaml_dsl_spec::schema::SchemaCache;
 use yaml_dsl_spec::{
     Diagnostic, Node, NodeKind, ValidationRules, read_dsl_definitions, yaml_reader,
@@ -175,10 +180,15 @@ fn schema_reading(folder: &Path) -> Value {
         Ok(loaded) => loaded,
         Err(message) => return json!({ "error": message }),
     };
-    let unknown_pointers: Vec<String> = optional_json(&folder.join("unknown-values.json"))
-        .map(|pointers| serde_json::from_value(pointers).unwrap())
-        .unwrap_or_default();
-    let document = with_unknown_values(ResolvedValue::from_node(&root), "", &unknown_pointers);
+    let unknown_values = UnknownValues {
+        pointers: optional_json(&folder.join("unknown-values.json"))
+            .map(|pointers| serde_json::from_value(pointers).unwrap())
+            .unwrap_or_default(),
+        merge_calls: optional_json(&folder.join("merge-calls.json"))
+            .map(|merge_calls| serde_json::from_value(merge_calls).unwrap())
+            .unwrap_or_default(),
+    };
+    let document = with_unknown_values(ResolvedValue::from_node(&root), "", &unknown_values);
     let fragment_pointer = optional_json(&folder.join("fragment.json"))
         .map(|fragment| fragment["pointer"].as_str().unwrap().to_owned());
     let problems = match &fragment_pointer {
@@ -199,24 +209,56 @@ fn schema_reading(folder: &Path) -> Value {
     json!({ "problems": problems })
 }
 
+/// The values of a case not known when its document compiles: a reference to a
+/// declaration at each pointer, and a call of the named `merge` macro at each
+/// pointer of `merge_calls`, its arguments a reference and the map as written.
+struct UnknownValues {
+    pointers: Vec<String>,
+    merge_calls: BTreeMap<String, String>,
+}
+
+fn declaration_reference(value: &ResolvedValue) -> ResolvedValue {
+    let reference = Reference {
+        scope: "mock".to_owned(),
+        scope_key: None,
+        name: "mock".to_owned(),
+        path: String::new(),
+        text: value.scalar_text().unwrap_or_default(),
+        target: Target::Declaration {
+            position: value.position.clone(),
+        },
+    };
+    ResolvedValue::new(ValueKind::Reference(reference), value.position.clone())
+}
+
 fn with_unknown_values(
     value: ResolvedValue,
     pointer: &str,
-    unknown_pointers: &[String],
+    unknown_values: &UnknownValues,
 ) -> ResolvedValue {
-    if unknown_pointers.iter().any(|unknown| unknown == pointer) {
-        let reference = Reference {
-            scope: "mock".to_owned(),
-            scope_key: None,
-            name: "mock".to_owned(),
-            path: String::new(),
-            text: value.scalar_text().unwrap_or_default(),
-            target: Target::Declaration {
-                position: value.position.clone(),
-            },
-        };
-        return ResolvedValue::new(ValueKind::Reference(reference), value.position);
+    if unknown_values
+        .pointers
+        .iter()
+        .any(|unknown| unknown == pointer)
+    {
+        return declaration_reference(&value);
     }
+    let value = with_unknown_values_below(value, pointer, unknown_values);
+    match unknown_values.merge_calls.get(pointer) {
+        Some(macro_name) => {
+            let position = value.position.clone();
+            let call = Call::new(macro_name, vec![declaration_reference(&value), value]);
+            ResolvedValue::new(ValueKind::Call(call), position)
+        }
+        None => value,
+    }
+}
+
+fn with_unknown_values_below(
+    value: ResolvedValue,
+    pointer: &str,
+    unknown_values: &UnknownValues,
+) -> ResolvedValue {
     let position = value.position.clone();
     let kind = match value.kind {
         ValueKind::Map(entries) => ValueKind::Map(
@@ -228,7 +270,7 @@ fn with_unknown_values(
                         entry.key.replace('~', "~0").replace('/', "~1")
                     );
                     MapEntry {
-                        value: with_unknown_values(entry.value, &child, unknown_pointers),
+                        value: with_unknown_values(entry.value, &child, unknown_values),
                         ..entry
                     }
                 })
@@ -239,7 +281,7 @@ fn with_unknown_values(
                 .into_iter()
                 .enumerate()
                 .map(|(index, item)| {
-                    with_unknown_values(item, &format!("{pointer}/{index}"), unknown_pointers)
+                    with_unknown_values(item, &format!("{pointer}/{index}"), unknown_values)
                 })
                 .collect(),
         ),

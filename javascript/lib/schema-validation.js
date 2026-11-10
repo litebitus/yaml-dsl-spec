@@ -6,6 +6,7 @@ const AjvDraft202012 = require('ajv/dist/2020').default;
 
 const { Diagnostic } = require('./diagnostic-report');
 const { FunctionTable } = require('./function-table');
+const { mapMergeResult } = require('./resolved-value');
 const { numberJson, integerOfText } = require('./yaml-node');
 const { descriptionText, markedSchema } = require('./requiredness-markers');
 const { compilePattern } = require('./pattern-dialect');
@@ -19,6 +20,7 @@ const {
   duplicateItems,
   containsMessage,
   schemaNodeAt,
+  referencePointer,
 } = require('./problem-wording');
 const {
   ValidationRules,
@@ -86,7 +88,17 @@ const LENGTH_LIMITS = {
 };
 const KEYWORD_NAMES = { 'false schema': 'falseSchema' };
 const FALSE_SCHEMA_STEP = /\/false schema$/;
-const DOCUMENT_SCHEMA_KEY = 'urn:yaml-dsl-spec:document-schema';
+const SCHEMA_LOOKUP_KEY = 'urn:yaml-dsl-spec:schema-lookup';
+const UNKNOWN_VALUE_KINDS = new Set(['call', 'reference', 'template']);
+const SCHEMA_DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
+const SCHEMA_NAME_MAP_KEYWORDS = new Set([
+  '$defs',
+  'definitions',
+  'dependencies',
+  'dependentSchemas',
+  'patternProperties',
+  'properties',
+]);
 
 const hasOwn = (object, field) => Object.prototype.hasOwnProperty.call(object, field);
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -107,12 +119,55 @@ function draftOfSchema(schema) {
   throw new Error(`declares ${jsonText(schema.$schema)}, a draft this reader does not read; it reads ${readDrafts}`);
 }
 
+/**
+ * Why a schema does not load, before the validator library reads it: the first, in
+ * the schema's document order, local `$ref` naming no node of the schema, or
+ * pattern the standard's dialect does not compile; else `null`. `node` is the
+ * schema's node at `pointer`, and `mapKeyword` the keyword whose map of schemas it
+ * is, `null` for a schema.
+ */
+function schemaLoadFailure(schema, node = schema, pointer = '', mapKeyword = null) {
+  const childPointer = (key) => `${pointer}/${escapePointer(String(key))}`;
+  if (Array.isArray(node)) {
+    for (const [index, item] of node.entries()) {
+      const failure = schemaLoadFailure(schema, item, childPointer(index));
+      if (failure !== null) return failure;
+    }
+    return null;
+  }
+  if (!isObject(node)) return null;
+  for (const [key, value] of Object.entries(node)) {
+    let failure;
+    if (mapKeyword === null) failure = keywordLoadFailure(schema, pointer, key, value);
+    else if (mapKeyword === 'patternProperties' && compilePattern(key) === null) {
+      failure = `${codeSpan(key)} is not a pattern`;
+    } else failure = schemaLoadFailure(schema, value, childPointer(key));
+    if (failure !== null) return failure;
+  }
+  return null;
+}
+
+function keywordLoadFailure(schema, holderPointer, keyword, value) {
+  if (SCHEMA_DATA_KEYWORDS.has(keyword)) return null;
+  const isLocalReference = keyword === '$ref'
+    && typeof value === 'string'
+    && (value === '#' || value.startsWith('#/'));
+  if (isLocalReference && referencePointer(schema, holderPointer, value) === undefined) {
+    return `${codeSpan(value)} names no node of the schema`;
+  }
+  if (keyword === 'pattern' && typeof value === 'string' && compilePattern(value) === null) {
+    return `${codeSpan(value)} is not a pattern`;
+  }
+  const mapKeyword = SCHEMA_NAME_MAP_KEYWORDS.has(keyword) ? keyword : null;
+  return schemaLoadFailure(schema, value, `${holderPointer}/${escapePointer(keyword)}`, mapKeyword);
+}
+
 /** A document's schema, as its caller hands it over: its function table, and the validation against it. */
 class LoadedSchema {
   constructor(table, validatorInstance, schema, marked, name, pointersBySchemaObject) {
     this.table = table;
     this.validatorInstance = validatorInstance;
-    this.validator = validatorInstance.getSchema(DOCUMENT_SCHEMA_KEY);
+    this.validator = validatorInstance.getSchema(SCHEMA_LOOKUP_KEY);
     this.fragmentValidators = new Map();
     this.schema = schema;
     this.marked = marked;
@@ -177,8 +232,13 @@ class LoadedSchema {
       const draft = DRAFTS.find((known) => known.preparedName === prepared.draft);
       if (!draft) throw new Error(`prepared in an unknown draft ${prepared.draft}`);
       const table = FunctionTable.fromSchema(prepared.schema);
+      const loadFailure = schemaLoadFailure(prepared.schema);
+      if (loadFailure !== null) throw new Error(loadFailure);
       const validatorInstance = new draft.ValidatorClass(VALIDATOR_OPTIONS);
-      validatorInstance.addSchema(prepared.marked, DOCUMENT_SCHEMA_KEY);
+      validatorInstance.addSchema(prepared.marked, name);
+      if (name !== SCHEMA_LOOKUP_KEY) {
+        validatorInstance.addSchema(prepared.marked, SCHEMA_LOOKUP_KEY);
+      }
       const pointers = schemaObjectPointers(prepared.marked);
       return new LoadedSchema(
         table,
@@ -231,7 +291,7 @@ class LoadedSchema {
       const node = schemaNodeAt(this.marked, fragmentPointer);
       const isSchemaNode = isObject(node) || typeof node === 'boolean';
       const encodedPointer = fragmentPointer.split('/').map(encodeURIComponent).join('/');
-      const fragmentReference = `${DOCUMENT_SCHEMA_KEY}#${encodedPointer}`;
+      const fragmentReference = `${SCHEMA_LOOKUP_KEY}#${encodedPointer}`;
       const validator = isSchemaNode ? this.validatorInstance.getSchema(fragmentReference) : null;
       this.fragmentValidators.set(fragmentPointer, validator || null);
     }
@@ -243,16 +303,19 @@ class LoadedSchema {
    * read as the fragment at `fragmentPointer` where there is one.
    */
   validatorProblems(validator, document, rules, fragmentPointer = null) {
-    const instance = new InstanceRecord(rules);
+    const instance = new InstanceRecord(rules, this.table);
     const documentJson = instance.json(document, '', document.position);
     const json = this.withQuotedValuesRead(validator, documentJson, rules);
     validator(json);
     const checkedErrors = (validator.errors || []).filter((error) => error.keyword !== 'if');
-    const fragmentErrors = fragmentPointer === null
-      ? checkedErrors
-      : withoutRequiredness(checkedErrors, this.marked);
-    const errors = reportedErrors(fragmentErrors, this.marked)
-      .filter((error) => !instance.readsUnknown(error.instancePath, error.keyword));
+    const requiresNoKeyAt = fragmentPointer === null
+      ? (instancePath) => instance.requiresNoKey(instancePath)
+      : () => true;
+    const schemaReach = new SchemaReach(this.marked, this.pointersBySchemaObject);
+    const keptErrors = withoutRequiredness(checkedErrors, schemaReach, requiresNoKeyAt);
+    const alternatives = new FailingAlternatives(keptErrors, schemaReach);
+    const errors = reportedErrors(keptErrors, schemaReach)
+      .filter((error) => failsCertainly(error, alternatives, instance));
     const reported = { dependencies: new Set(), itemLists: new Set(), propertyNames: new Set() };
     const schemaPointer = fragmentPointer === null ? '' : fragmentPointer;
     const problems = errors
@@ -315,7 +378,12 @@ class LoadedSchema {
         subject,
         diagnostic: Diagnostic.at(
           instance.position(subject),
-          dependencyMessage(this.marked, dependency.keywordPointer, dependency.key),
+          dependencyMessage(
+            this.marked,
+            dependency.keywordPointer,
+            dependency.key,
+            pointer === '' ? null : pointerSteps(pointer).at(-1),
+          ),
         )
           .withLabel(`breaks ${codeSpan(dependencyKeyword)}`)
           .withRule(ruleAt(dependencyKeyword, at)),
@@ -499,12 +567,7 @@ function keywordName(error) {
  * check's failure, and never an `if`. A property name's failure is reported by the
  * check the name fails, never again as the `propertyNames` it fails through.
  */
-function reportedErrors(errors, schema) {
-  const reachable = new Map();
-  const reaches = (start, target) => {
-    if (!reachable.has(start)) reachable.set(start, reachableSchemaObjects(start, schema));
-    return reachable.get(start).has(target);
-  };
+function reportedErrors(errors, schemaReach) {
   const explainers = errors.filter((error) =>
     ALTERNATIVE_KEYWORDS.has(error.keyword) || error.keyword === 'contains');
   const explains = (outer, inner) => {
@@ -512,7 +575,7 @@ function reportedErrors(errors, schema) {
     const below = inner.instancePath === outer.instancePath
       || inner.instancePath.startsWith(`${outer.instancePath}/`);
     if (outer.keyword === 'contains' && inner.instancePath === outer.instancePath) return false;
-    return below && reaches(outer.schema, inner.parentSchema);
+    return below && schemaReach.reaches(outer.schema, inner.parentSchema);
   };
   return errors.filter((error) => error.keyword !== 'if'
     && !(error.keyword === 'propertyNames' && error.propertyName === undefined)
@@ -520,56 +583,115 @@ function reportedErrors(errors, schema) {
 }
 
 /**
- * The errors a fragment reports, as a fragment requires no field: none for a
- * missing field, and no failing `anyOf` or `oneOf` with a form failing only by
- * fields it requires, nor the errors inside one.
+ * The errors reported where `requiresNoKeyAt` says a value requires no field, in a
+ * fragment, a merge base key's content or a merge call's: none for a missing field,
+ * and no failing `anyOf` or `oneOf` with a form failing only by fields it requires,
+ * nor the errors inside one.
  */
-function withoutRequiredness(errors, schema) {
-  const reachable = new Map();
-  const schemaReaches = (start, target) => {
-    if (!reachable.has(start)) reachable.set(start, reachableSchemaObjects(start, schema));
-    return reachable.get(start).has(target);
-  };
-  const instanceHolds = (outer, inner) => inner !== outer
-    && (inner.instancePath === outer.instancePath
-      || inner.instancePath.startsWith(`${outer.instancePath}/`));
-  const isInsideAlternative = (alternative, inner) => instanceHolds(alternative, inner)
-    && schemaReaches(alternative.schema, inner.parentSchema);
-  const failingAlternatives = [];
+function withoutRequiredness(errors, schemaReach, requiresNoKeyAt) {
+  const alternatives = new FailingAlternatives(errors, schemaReach);
   const fieldOnlyAlternatives = [];
   const failsOnlyByFields = (error) => REQUIRED_KEYWORDS.has(error.keyword)
     || fieldOnlyAlternatives.includes(error);
-  for (const error of errors) {
-    if (!ALTERNATIVE_KEYWORDS.has(error.keyword) || !Array.isArray(error.schema)) continue;
-    if (Array.isArray(error.params.passingSchemas)) continue;
-    const innerErrors = errors.filter((inner) => instanceHolds(error, inner));
-    const formFailsOnlyByFields = (form) => {
-      const formErrors = innerErrors.filter((inner) => schemaReaches(form, inner.parentSchema));
-      const ownErrors = formErrors.filter((inner) => !failingAlternatives.some((nested) =>
-        formErrors.includes(nested) && isInsideAlternative(nested, inner)));
-      return ownErrors.length > 0 && ownErrors.every(failsOnlyByFields);
-    };
-    failingAlternatives.push(error);
-    if (error.schema.some(formFailsOnlyByFields)) fieldOnlyAlternatives.push(error);
+  for (const [alternative, formFailures] of alternatives.formFailures) {
+    const failsByFieldsAlone = formFailures
+      .some((ownErrors) => ownErrors.length > 0 && ownErrors.every(failsOnlyByFields));
+    if (failsByFieldsAlone) fieldOnlyAlternatives.push(alternative);
   }
-  return errors.filter((error) => !failsOnlyByFields(error)
-    && !fieldOnlyAlternatives.some((alternative) => isInsideAlternative(alternative, error)));
+  const droppedAlternatives = fieldOnlyAlternatives
+    .filter((alternative) => requiresNoKeyAt(alternative.instancePath));
+  const isDropped = (error) => (
+    REQUIRED_KEYWORDS.has(error.keyword) || droppedAlternatives.includes(error)
+  ) && requiresNoKeyAt(error.instancePath);
+  return errors.filter((error) => !isDropped(error)
+    && !droppedAlternatives.some((alternative) => alternatives.isInside(alternative, error)));
 }
 
-/** Every schema object reachable from `start`, through local references. */
-function reachableSchemaObjects(start, root) {
-  const reached = new Set();
-  const pending = [start];
-  while (pending.length > 0) {
-    const node = pending.pop();
-    if (node === null || typeof node !== 'object' || reached.has(node)) continue;
-    reached.add(node);
-    if (!Array.isArray(node) && typeof node.$ref === 'string' && node.$ref.startsWith('#')) {
-      pending.push(schemaNodeAt(root, pointerOfSchemaPath(node.$ref)));
-    }
-    pending.push(...Object.values(node));
+/**
+ * The failing `anyOf` and `oneOf` errors among `errors`, inner ones first, each
+ * with the own failures of each of its forms: the errors inside the form, none
+ * inside a failing alternative nested in it.
+ */
+class FailingAlternatives {
+  constructor(errors, schemaReach) {
+    this.schemaReach = schemaReach;
+    const failing = errors.filter((error) => ALTERNATIVE_KEYWORDS.has(error.keyword)
+      && Array.isArray(error.schema)
+      && !Array.isArray(error.params.passingSchemas));
+    this.formFailures = new Map(failing.map((alternative) => {
+      const innerErrors = errors.filter((inner) => instanceHolds(alternative, inner));
+      const ownFailures = (form) => {
+        const formErrors = innerErrors
+          .filter((inner) => schemaReach.reaches(form, inner.parentSchema));
+        return formErrors.filter((inner) => !failing.some((nested) =>
+          formErrors.includes(nested) && this.isInside(nested, inner)));
+      };
+      return [alternative, alternative.schema.map(ownFailures)];
+    }));
   }
-  return reached;
+
+  /** Whether `inner` is an error inside a form of `alternative`. */
+  isInside(alternative, inner) {
+    return instanceHolds(alternative, inner)
+      && this.schemaReach.reaches(alternative.schema, inner.parentSchema);
+  }
+}
+
+/** Whether `inner` is an error other than `outer` at its value or below it. */
+function instanceHolds(outer, inner) {
+  return inner !== outer
+    && (inner.instancePath === outer.instancePath
+      || inner.instancePath.startsWith(`${outer.instancePath}/`));
+}
+
+/**
+ * Whether `error` stands whatever a value not known when the document compiles
+ * turns out to be: a failing `anyOf` or `oneOf` over one when each of its forms
+ * has an own failure that stands, any other error when it reads none.
+ */
+function failsCertainly(error, alternatives, instance) {
+  const formFailures = alternatives.formFailures.get(error);
+  const isOverUnknown = formFailures !== undefined
+    && !instance.isUnknown(error.instancePath)
+    && instance.holdsUnknownBelow(error.instancePath);
+  if (!isOverUnknown) return !instance.readsUnknown(error.instancePath, error.keyword);
+  return formFailures.every((ownErrors) =>
+    ownErrors.some((inner) => failsCertainly(inner, alternatives, instance)));
+}
+
+/**
+ * Which objects of `schema` each of its objects reaches, below it and through local
+ * references read in the schema resource holding them, worked out once per start.
+ */
+class SchemaReach {
+  constructor(schema, pointersBySchemaObject) {
+    this.schema = schema;
+    this.pointersBySchemaObject = pointersBySchemaObject;
+    this.reachable = new Map();
+  }
+
+  /** Whether `target` is `start` or an object it reaches. */
+  reaches(start, target) {
+    if (!this.reachable.has(start)) this.reachable.set(start, this.reachableObjects(start));
+    return this.reachable.get(start).has(target);
+  }
+
+  reachableObjects(start) {
+    const reached = new Set();
+    const pending = [start];
+    while (pending.length > 0) {
+      const node = pending.pop();
+      if (node === null || typeof node !== 'object' || reached.has(node)) continue;
+      reached.add(node);
+      if (!Array.isArray(node) && typeof node.$ref === 'string') {
+        const holderPointer = this.pointersBySchemaObject.get(node) || '';
+        const targetPointer = referencePointer(this.schema, holderPointer, node.$ref);
+        if (targetPointer !== undefined) pending.push(schemaNodeAt(this.schema, targetPointer));
+      }
+      pending.push(...Object.values(node));
+    }
+    return reached;
+  }
 }
 
 /** A schema path or a local reference as a JSON pointer, without its `#`. */
@@ -637,34 +759,39 @@ function reachableSchemas(schema, keywordPointer) {
   const holderPointer = keywordPointer.includes('/')
     ? keywordPointer.slice(0, keywordPointer.lastIndexOf('/'))
     : '';
-  const holder = schemaNodeAt(schema, holderPointer);
-  if (holder === undefined) return null;
+  if (schemaNodeAt(schema, holderPointer) === undefined) return null;
   const reachable = { schemaNodes: [], reachesOtherDocument: false };
-  collectReachable(schema, holder, true, reachable, new Set());
+  collectReachable(schema, holderPointer, true, reachable, new Set());
   return reachable;
 }
 
-function collectReachable(schema, node, isHolder, reachable, visited) {
+function collectReachable(schema, pointer, isHolder, reachable, visited) {
+  const node = schemaNodeAt(schema, pointer);
   if (!isObject(node)) return;
   reachable.schemaNodes.push({ node, isHolder });
   if (typeof node.$ref === 'string') {
-    const pointer = node.$ref.startsWith('#') ? node.$ref.slice(1) : null;
-    if (pointer === null) reachable.reachesOtherDocument = true;
-    else if (!visited.has(pointer)) {
-      visited.add(pointer);
-      const target = schemaNodeAt(schema, pointer);
-      if (target !== undefined) collectReachable(schema, target, false, reachable, visited);
+    const targetPointer = referencePointer(schema, pointer, node.$ref);
+    if (!node.$ref.startsWith('#')) reachable.reachesOtherDocument = true;
+    else if (targetPointer !== undefined && !visited.has(targetPointer)) {
+      visited.add(targetPointer);
+      collectReachable(schema, targetPointer, false, reachable, visited);
     }
   }
-  const branches = [
-    ...['allOf', 'anyOf', 'oneOf']
-      .flatMap((combinator) => (Array.isArray(node[combinator]) ? node[combinator] : [])),
+  const branchPointers = [
+    ...['allOf', 'anyOf', 'oneOf'].flatMap((combinator) => (Array.isArray(node[combinator])
+      ? node[combinator].map((_, index) => `${pointer}/${combinator}/${index}`)
+      : [])),
     ...['if', 'then', 'else']
       .filter((keyword) => node[keyword] !== undefined)
-      .map((keyword) => node[keyword]),
-    ...(isObject(node.dependentSchemas) ? Object.values(node.dependentSchemas) : []),
+      .map((keyword) => `${pointer}/${keyword}`),
+    ...(isObject(node.dependentSchemas)
+      ? Object.keys(node.dependentSchemas)
+        .map((key) => `${pointer}/dependentSchemas/${escapePointer(key)}`)
+      : []),
   ];
-  for (const branch of branches) collectReachable(schema, branch, false, reachable, visited);
+  for (const branchPointer of branchPointers) {
+    collectReachable(schema, branchPointer, false, reachable, visited);
+  }
 }
 
 /**
@@ -783,13 +910,15 @@ function withValueAt(json, pointer, value) {
 
 /** The document as JSON, and where each of its values was written. */
 class InstanceRecord {
-  constructor(rules) {
+  constructor(rules, table) {
     this.rules = rules;
+    this.table = table;
     this.positions = new Map();
     this.valuePositions = new Map();
     this.numberTexts = new Map();
     this.unknown = [];
     this.copied = [];
+    this.partlyKnownMergeCalls = [];
   }
 
   json(value, pointer, keyPosition) {
@@ -816,10 +945,46 @@ class InstanceRecord {
         this.mergeBaseKeys(object, pointer);
         return object;
       }
-      default:
-        this.unknown.push(pointer);
-        return null;
+      default: {
+        const mergeCall = this.mergeCallReading(local);
+        if (mergeCall === null) {
+          this.unknown.push(pointer);
+          return null;
+        }
+        if (mergeCall.holdsUnknownArgument) this.partlyKnownMergeCalls.push(pointer);
+        return this.json(mergeCall.content, pointer, keyPosition);
+      }
     }
+  }
+
+  /**
+   * A call of a `merge` macro as `{ content, holdsUnknownArgument }`: the known maps
+   * among its arguments merged by its `merge_behavior` at the call, and whether an
+   * argument is not known; `null` for any other value, or a call with no known map.
+   */
+  mergeCallReading(value) {
+    if (value.kind !== 'call') return null;
+    const entry = this.table.entry(value.value.function);
+    const macro = entry && entry.macroEntry;
+    if (!macro || macro.kind !== 'merge') return null;
+    const callArguments = value.value.arguments.map((argument) => argument.localValue());
+    const knownMaps = callArguments.filter((argument) => argument.kind === 'map');
+    if (knownMaps.length === 0) return null;
+    return {
+      content: mapMergeResult(knownMaps, macro.mergeBehavior, value.position),
+      holdsUnknownArgument: callArguments
+        .some((argument) => UNKNOWN_VALUE_KINDS.has(argument.kind)),
+    };
+  }
+
+  /**
+   * Whether the value at `pointer` requires no key: it lies in a merge base key's
+   * content, or in a merge call's with an argument not known.
+   */
+  requiresNoKey(pointer) {
+    return pointerSteps(pointer).some((step) => this.rules.mergeBaseKeys.includes(step))
+      || this.partlyKnownMergeCalls
+        .some((call) => pointer === call || pointer.startsWith(`${call}/`));
   }
 
   /** A key such as `name mock-orders` sets the field `name` of the entry it keys, unless it writes the field. */

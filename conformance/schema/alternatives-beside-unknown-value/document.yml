@@ -1,0 +1,7 @@
+doors:
+  cors:
+    origins: mock-origins
+gates:
+  cors:
+    origins: mock-origins
+    methods: [GET]

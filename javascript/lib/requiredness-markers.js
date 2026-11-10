@@ -73,12 +73,10 @@ function requirednessMarker(node) {
   return REQUIREDNESS_MARKERS.find((marker) => description.startsWith(marker)) || null;
 }
 
-/** A node's description without the marker it opens with, or `null`. */
+/** A node's description as written, or `null` where it is empty or only whitespace. */
 function descriptionText(node) {
   if (!isObject(node) || typeof node.description !== 'string') return null;
-  const marker = requirednessMarker(node);
-  const text = marker ? node.description.trimStart().slice(marker.length) : node.description;
-  return text.trim() || null;
+  return node.description.trim() === '' ? null : node.description;
 }
 
 /** `schema`, read in the draft named `draftName`, with each `required` array decided by markers. */

@@ -14,6 +14,17 @@ const SCHEMA_MAP_KEYWORDS = [
   'properties',
 ];
 const DEFINITION_KEYWORDS = ['$defs', 'definitions'];
+const SAME_VALUE_SCHEMA_LISTS = ['allOf', 'anyOf', 'oneOf'];
+const SAME_VALUE_SCHEMA_KEYWORDS = ['else', 'if', 'not', 'then'];
+const VALUE_ENTRY_KEYWORDS = [
+  'additionalItems',
+  'additionalProperties',
+  'contains',
+  'items',
+  'propertyNames',
+  'unevaluatedItems',
+  'unevaluatedProperties',
+];
 const UNSTATED_CONDITION = 'a condition the schema states';
 
 const hasOwn = (object, field) => Object.prototype.hasOwnProperty.call(object, field);
@@ -115,18 +126,154 @@ function dependencyOf(schema, keywordPointer, holder, missingField) {
 }
 
 /**
- * `` `key` needs <what> ``: what each dependency of the node holding
- * `keywordPointer` states for `key`.
+ * `` `key` needs <what> ``: what each dependency states for `key`, in the order the
+ * schema writes them, in the schema the value enters by, keyed `instanceKey` where
+ * it has a key, and every `allOf` part and reference of it, then in the schema
+ * holding `keywordPointer`.
  */
-function dependencyMessage(schema, keywordPointer, key) {
-  const holder = schemaNodeAt(schema, keywordPointer.slice(0, keywordPointer.lastIndexOf('/')));
-  const statesKey = (keyword) => isObject(holder)
-    && isObject(holder[keyword])
-    && hasOwn(holder[keyword], key);
-  const neededTexts = DEPENDENCY_KEYWORDS
-    .filter(statesKey)
-    .map((keyword) => neededText(holder[keyword][key]));
+function dependencyMessage(schema, keywordPointer, key, instanceKey) {
+  const holderPointer = keywordPointer.slice(0, keywordPointer.lastIndexOf('/'));
+  const entryPointers = valueEntryPointers(schema, holderPointer, instanceKey, new Set());
+  const visited = new Set();
+  const startPointers = entryPointers.length > 0
+    ? entryPointers
+    : [sameValueRoot(schema, holderPointer)];
+  const valueSchemas = startPointers
+    .flatMap((pointer) => sameValueSchemas(schema, pointer, visited));
+  const holder = schemaNodeAt(schema, holderPointer);
+  if (isObject(holder) && !visited.has(holder)) valueSchemas.push(holder);
+  const neededTexts = valueSchemas.flatMap((node) => Object.keys(node)
+    .filter((keyword) => DEPENDENCY_KEYWORDS.includes(keyword)
+      && isObject(node[keyword])
+      && hasOwn(node[keyword], key))
+    .map((keyword) => neededText(node[keyword][key])));
   return `${codeSpan(key)} needs ${neededTexts.length > 0 ? neededTexts.join('; ') : UNSTATED_CONDITION}`;
+}
+
+/**
+ * The pointers of the schemas a value keyed `instanceKey`, `null` for the root,
+ * enters by, reaching the schema at `pointer` through the keywords that read the
+ * same value and through references to it.
+ */
+function valueEntryPointers(schema, pointer, instanceKey, visited) {
+  const root = sameValueRoot(schema, pointer);
+  if (visited.has(root)) return [];
+  visited.add(root);
+  const steps = pointerSteps(root);
+  const keywords = keywordSteps(schema, steps);
+  const last = steps.length - 1;
+  const isKeywordAt = (at, names) => at >= 0 && keywords[at] && names.includes(steps[at]);
+  if (steps.length === 0 && instanceKey === null) return [root];
+  if (isKeywordAt(last - 1, ['properties'])) return steps[last] === instanceKey ? [root] : [];
+  if (isKeywordAt(last, VALUE_ENTRY_KEYWORDS)) return [root];
+  if (isKeywordAt(last - 1, ['items', 'patternProperties', 'prefixItems'])) return [root];
+  return referrerPointers(schema, root)
+    .flatMap((referrer) => valueEntryPointers(schema, referrer, instanceKey, visited));
+}
+
+/** The pointer of the outermost schema reading the same value as the schema at `pointer`. */
+function sameValueRoot(schema, pointer) {
+  const steps = pointerSteps(pointer);
+  const keywords = keywordSteps(schema, steps);
+  let end = steps.length;
+  for (;;) {
+    const isKeywordAt = (at, names) => at >= 0 && keywords[at] && names.includes(steps[at]);
+    if (isKeywordAt(end - 2, SAME_VALUE_SCHEMA_LISTS)) end -= 2;
+    else if (isKeywordAt(end - 2, ['dependencies', 'dependentSchemas'])) end -= 2;
+    else if (isKeywordAt(end - 1, SAME_VALUE_SCHEMA_KEYWORDS)) end -= 1;
+    else break;
+  }
+  return steps.slice(0, end).map((step) => `/${escapePointer(step)}`).join('');
+}
+
+/** Whether each of `steps` names a keyword of a schema, read from the root of `schema`. */
+function keywordSteps(schema, steps) {
+  return schemaPathSteps(schema, steps).map((step) => step.isKeyword);
+}
+
+/**
+ * Each of `steps` read from the root of `schema`, `{ isKeyword, node, isSchema }`:
+ * whether it names a keyword of a schema, the node it reaches, and whether that
+ * node is a schema rather than a map or a list of schemas.
+ */
+function schemaPathSteps(schema, steps) {
+  let node = schema;
+  let isKeyword = true;
+  return steps.map((step) => {
+    const stepIsKeyword = isKeyword;
+    const child = node !== null && typeof node === 'object' ? node[step] : undefined;
+    isKeyword = !(stepIsKeyword && (SCHEMA_MAP_KEYWORDS.includes(step) || Array.isArray(child)));
+    node = child;
+    return { isKeyword: stepIsKeyword, node, isSchema: isKeyword };
+  });
+}
+
+/**
+ * The pointer of the schema resource holding the schema at `pointer`: the nearest
+ * schema on its path, itself included, with its own `$id`; else the root.
+ */
+function resourcePointerAt(schema, pointer) {
+  const steps = pointerSteps(pointer);
+  const pathSteps = schemaPathSteps(schema, steps);
+  let resourceEnd = 0;
+  pathSteps.forEach(({ node, isSchema }, at) => {
+    if (isSchema && isObject(node) && typeof node.$id === 'string' && !node.$id.startsWith('#')) {
+      resourceEnd = at + 1;
+    }
+  });
+  return steps.slice(0, resourceEnd).map((step) => `/${escapePointer(step)}`).join('');
+}
+
+/**
+ * The pointer of the schema a local `$ref`, `#` or `#/…`, written in the schema at
+ * `holderPointer` names, read in the schema resource holding it; `undefined` where
+ * it names no node of the schema, or is not local.
+ */
+function referencePointer(schema, holderPointer, reference) {
+  if (typeof reference !== 'string' || !(reference === '#' || reference.startsWith('#/'))) {
+    return undefined;
+  }
+  let fragment;
+  try {
+    fragment = decodeURIComponent(reference.slice(1));
+  } catch {
+    return undefined;
+  }
+  const pointer = `${resourcePointerAt(schema, holderPointer)}${fragment}`;
+  return schemaNodeAt(schema, pointer) === undefined ? undefined : pointer;
+}
+
+/** The pointers of the schemas whose local `$ref` names the one at `targetPointer`, in order. */
+function referrerPointers(schema, targetPointer, node = schema, pointer = '') {
+  if (node === null || typeof node !== 'object') return [];
+  const namesTarget = !Array.isArray(node)
+    && referencePointer(schema, pointer, node.$ref) === targetPointer;
+  return [...(namesTarget ? [pointer] : []), ...Object.entries(node).flatMap(([key, child]) =>
+    referrerPointers(schema, targetPointer, child, `${pointer}/${escapePointer(key)}`))];
+}
+
+function pointerSteps(pointer) {
+  return pointer === '' ? [] : pointer.slice(1).split('/').map(unescapePointer);
+}
+
+/**
+ * The schema at `pointer`, then its `allOf` parts and local reference targets in
+ * schema order, each followed by its own, every schema once.
+ */
+function sameValueSchemas(schema, pointer, visited = new Set()) {
+  const node = schemaNodeAt(schema, pointer);
+  if (!isObject(node) || visited.has(node)) return [];
+  visited.add(node);
+  const partPointers = Object.entries(node).flatMap(([keyword, value]) => {
+    if (keyword === 'allOf' && Array.isArray(value)) {
+      return value.map((_, index) => `${pointer}/allOf/${index}`);
+    }
+    if (keyword === '$ref') return [referencePointer(schema, pointer, value)];
+    return [];
+  });
+  return [node, ...partPointers
+    .filter((partPointer) => partPointer !== undefined)
+    .flatMap((partPointer) => sameValueSchemas(schema, partPointer, visited))];
 }
 
 function neededText(needed) {
@@ -225,5 +372,6 @@ module.exports = {
   duplicateItems,
   containsMessage,
   schemaNodeAt,
+  referencePointer,
   escapePointer,
 };
