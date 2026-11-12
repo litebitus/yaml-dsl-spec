@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.2 — 2026-11-12
+
 - Documentation
   - The specification defines the format function: a layout's verbs written from its operands, with Go's printing verbs and the standard's own `%u`, `%l`, `%A`, `%B` and `%C`.
 - Packages

@@ -22,7 +22,7 @@ sha2 = "0.11.1"
 members = ["diagnostic-renderer"]
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 
 [workspace.dependencies]
-yaml-dsl-spec = { path = ".", version = "=0.3.1" }
+yaml-dsl-spec = { path = ".", version = "=0.3.2" }
