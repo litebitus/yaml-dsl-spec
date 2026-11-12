@@ -99,7 +99,8 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []Sch
 			WithRule(checkRule)
 		return atSubject(subjectPointer, keyProblem)
 	case "enum":
-		return problemBuilder.enumProblems(checkFailure, schemaValue, holderValue, namedField, checkRule)
+		listedOptions, _ := schemaValue.([]any)
+		return problemBuilder.listedValueProblems(checkFailure, listedOptions, holderValue, namedField, checkRule, nil)
 	case "type":
 		var expectedSpans []string
 		for _, expectedType := range loadedSchema.expectedTypes(checkFailure.schemaPointer) {
@@ -125,6 +126,9 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []Sch
 		}
 		holderSchemaPointer := checkFailure.schemaPointer[:max(strings.LastIndexByte(checkFailure.schemaPointer, '/'), 0)]
 		definitionNote := definitionDescription(loadedSchema.originalSchema, holderSchemaPointer)
+		if constantOptions, areConstants := alternativeConstants(schemaValue); areConstants {
+			return problemBuilder.listedValueProblems(checkFailure, constantOptions, holderValue, namedField, checkRule, definitionNote)
+		}
 		return atValue(namedField+" matches none of its allowed forms", definitionNote)
 	case "const":
 		return atValue(namedField+" must be "+CodeSpan(jsonText(schemaValue)), nil)
@@ -193,12 +197,13 @@ func (problemBuilder failureProblems) dependencyProblems(checkFailure failedChec
 	return []SchemaProblem{{Subject: subjectPointer, Diagnostic: dependencyProblem}}, true
 }
 
-func (problemBuilder failureProblems) enumProblems(
+func (problemBuilder failureProblems) listedValueProblems(
 	checkFailure failedCheck,
-	schemaValue, holderValue any,
+	listedOptions []any,
+	holderValue any,
 	namedField, checkRule string,
+	schemaNote *string,
 ) []SchemaProblem {
-	listedOptions, _ := schemaValue.([]any)
 	var allowedTexts, shownOptions []string
 	for _, listedOption := range listedOptions {
 		if optionText, isText := listedOption.(string); isText {
@@ -212,8 +217,9 @@ func (problemBuilder failureProblems) enumProblems(
 	}
 	valuePosition := problemBuilder.documentRecord.valuePosition(checkFailure.instancePointer)
 	enumProblem := DiagnosticAt(valuePosition, namedField+" must be one of "+strings.Join(shownOptions, ", ")).
-		WithLabel(fmt.Sprintf("not one of the %d values `enum` allows", len(listedOptions))).
+		WithLabel(fmt.Sprintf("not one of the %d values %s allows", len(listedOptions), CodeSpan(checkFailure.failedKeyword))).
 		WithRule(checkRule).
+		WithSchema(schemaNote).
 		WithHelp(enumHelp)
 	return []SchemaProblem{{Subject: checkFailure.instancePointer, Diagnostic: enumProblem}}
 }

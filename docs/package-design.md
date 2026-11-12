@@ -161,6 +161,7 @@ A message is the package's own sentence. Every key and value it names is fenced,
 | `enum` | `` <field> must be one of `"a"`, `"b"` ``, each value as JSON | |
 | `const` | `` <field> must be `"a"` ``, the value as JSON | |
 | `anyOf` or `oneOf`, no form holds | `<field> matches none of its allowed forms` | where the alternatives are those of a definition, `#/$defs/<name>` or `#/definitions/<name>`, the definition's description |
+| `anyOf` or `oneOf`, no form holds, and every alternative states a `const` | `` <field> must be one of `"a"`, `"b"` ``, each alternative's `const` as JSON, in the schema's order, as an `enum` of them reads | as the row above |
 | `oneOf`, several forms hold | `<field> matches more than one of its allowed forms` | |
 | a dependency not met | `` `key` needs <what> ``: what each dependency of the key needs, from the value's schema and every `allOf` part and reference of it, in the order the schema writes them, joined by `;`. A dependency needs the fields it lists, joined by `and`, a forbidden one as `` `x` must not be set ``, a definition it names as `` a `name` ``, and its forms joined by `, or` | |
 | `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum` | `` <field> must be >= `1` ``, with `<=`, `>` and `<` | |

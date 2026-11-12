@@ -94,6 +94,19 @@ func definitionDescription(schemaValue any, holderPointer string) *string {
 	return descriptionText(holderNode)
 }
 
+func alternativeConstants(alternativesValue any) ([]any, bool) {
+	alternativeSchemas, _ := alternativesValue.([]any)
+	var constantOptions []any
+	for _, alternativeSchema := range alternativeSchemas {
+		constantOption, statesConstant := objectField(alternativeSchema, "const")
+		if !statesConstant {
+			return nil, false
+		}
+		constantOptions = append(constantOptions, constantOption)
+	}
+	return constantOptions, len(constantOptions) > 0
+}
+
 func dependencyOf(schemaValue any, keywordPointer string, holderValue any, missingField *string) (string, string, bool) {
 	var pointerSteps []string
 	if keywordPointer != "" {

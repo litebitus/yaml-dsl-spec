@@ -100,6 +100,19 @@ function definitionDescription(schema, holderPointer) {
 }
 
 /**
+ * The constants an `anyOf` or `oneOf` allows, in the schema's order, where every
+ * alternative states a `const`; else `null`.
+ */
+function alternativeConstants(alternatives) {
+  if (!Array.isArray(alternatives) || alternatives.length === 0) return null;
+  const statesConstant = (alternative) => alternative !== null && typeof alternative === 'object'
+    && Object.prototype.hasOwnProperty.call(alternative, 'const');
+  return alternatives.every(statesConstant)
+    ? alternatives.map((alternative) => alternative.const)
+    : null;
+}
+
+/**
  * The dependency keyword's pointer and the key it names, `{ keywordPointer, key }`,
  * where `keywordPointer` lies inside a dependency: the key read from the pointer,
  * or, for a dependency listing fields, from the field `holder` misses; else `null`.
@@ -367,6 +380,7 @@ module.exports = {
   codeSpan,
   numberText,
   definitionDescription,
+  alternativeConstants,
   dependencyOf,
   dependencyMessage,
   duplicateItems,

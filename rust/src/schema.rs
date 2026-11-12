@@ -15,8 +15,9 @@ use crate::function_table::{FunctionTable, MacroKind};
 use crate::node::number_json;
 use crate::position::Position;
 use crate::problem_wording::{
-    code_span, contains_message, definition_description, dependency_message, dependency_of,
-    dependency_value_path, duplicate_items, field_name, number_text, schema_note, unescape_pointer,
+    alternative_constants, code_span, contains_message, definition_description, dependency_message,
+    dependency_of, dependency_value_path, duplicate_items, field_name, number_text, schema_note,
+    unescape_pointer,
 };
 use crate::requiredness_markers::marked_schema;
 use crate::resolved::{Call, MapEntry, Value, ValueKind};
@@ -496,6 +497,36 @@ impl LoadedSchema {
             }]
         };
         let at_value = |message: String| at_value_with_schema(message, None);
+        let listed_value_problems = |listed: Vec<&JsonValue>, schema_note: Option<String>| {
+            let allowed: Vec<String> = listed
+                .iter()
+                .filter_map(|option| option.as_str().map(str::to_owned))
+                .collect();
+            let shown: Vec<String> = listed
+                .iter()
+                .map(|option| code_span(&option.to_string()))
+                .collect();
+            let help = error
+                .instance()
+                .as_str()
+                .and_then(|text| suggestion(text, allowed));
+            let diagnostic = Diagnostic::at(
+                instance.value_position(pointer),
+                format!("{field} must be one of {}", shown.join(", ")),
+            )
+            .with_label(format!(
+                "not one of the {} values {} allows",
+                listed.len(),
+                code_span(error.kind().keyword())
+            ))
+            .with_rule(rule.clone())
+            .with_schema(schema_note)
+            .with_help(help);
+            vec![SchemaProblem {
+                subject: pointer.to_owned(),
+                diagnostic,
+            }]
+        };
         let list_limit = |limit: usize| {
             format!(
                 "{field} must NOT have more than {} items",
@@ -550,32 +581,7 @@ impl LoadedSchema {
             }
             ValidationErrorKind::Enum { options } => {
                 let listed = options.as_array().map(Vec::as_slice).unwrap_or_default();
-                let allowed: Vec<String> = listed
-                    .iter()
-                    .filter_map(|option| option.as_str().map(str::to_owned))
-                    .collect();
-                let shown: Vec<String> = listed
-                    .iter()
-                    .map(|option| code_span(&option.to_string()))
-                    .collect();
-                let help = error
-                    .instance()
-                    .as_str()
-                    .and_then(|text| suggestion(text, allowed));
-                let diagnostic = Diagnostic::at(
-                    instance.value_position(pointer),
-                    format!("{field} must be one of {}", shown.join(", ")),
-                )
-                .with_label(format!(
-                    "not one of the {} values `enum` allows",
-                    listed.len()
-                ))
-                .with_rule(rule)
-                .with_help(help);
-                vec![SchemaProblem {
-                    subject: pointer.to_owned(),
-                    diagnostic,
-                }]
+                listed_value_problems(listed.iter().collect(), None)
             }
             ValidationErrorKind::Type { .. } => {
                 let expected: Vec<String> = self
@@ -611,10 +617,18 @@ impl LoadedSchema {
                 let holder = schema_path
                     .rsplit_once('/')
                     .map_or("", |(holder, _)| holder);
-                at_value_with_schema(
-                    format!("{field} matches none of its allowed forms"),
-                    definition_description(&self.schema, holder),
-                )
+                let definition_note = definition_description(&self.schema, holder);
+                match self
+                    .schema
+                    .pointer(schema_path)
+                    .and_then(alternative_constants)
+                {
+                    Some(constants) => listed_value_problems(constants, definition_note),
+                    None => at_value_with_schema(
+                        format!("{field} matches none of its allowed forms"),
+                        definition_note,
+                    ),
+                }
             }
             ValidationErrorKind::OneOfMultipleValid { .. } => at_value(format!(
                 "{field} matches more than one of its allowed forms"

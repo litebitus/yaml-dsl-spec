@@ -1,0 +1,42 @@
+{
+  "problems": [
+    {
+      "line": 1,
+      "column": 7,
+      "message": "`tier` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",
+      "label": "not one of the 3 values `oneOf` allows",
+      "rule": "oneOf, at schema.json#/properties/tier/oneOf",
+      "help": "did you mean `gold`?"
+    },
+    {
+      "line": 2,
+      "column": 6,
+      "message": "`far` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",
+      "label": "not one of the 3 values `oneOf` allows",
+      "rule": "oneOf, at schema.json#/properties/far/oneOf"
+    },
+    {
+      "line": 3,
+      "column": 8,
+      "message": "`level` must be one of `1`, `2`",
+      "label": "not one of the 2 values `anyOf` allows",
+      "rule": "anyOf, at schema.json#/properties/level/anyOf"
+    },
+    {
+      "line": 4,
+      "column": 8,
+      "message": "`named` must be one of `\"gold\"`, `\"silver\"`",
+      "label": "not one of the 2 values `oneOf` allows",
+      "rule": "oneOf, at schema.json#/$defs/tier_name/oneOf",
+      "schema": "A tier, by its name.",
+      "help": "did you mean `silver`?"
+    },
+    {
+      "line": 5,
+      "column": 8,
+      "message": "`mixed` matches none of its allowed forms",
+      "label": "breaks `oneOf`",
+      "rule": "oneOf, at schema.json#/properties/mixed/oneOf"
+    }
+  ]
+}

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Packages
+  - An `anyOf` or `oneOf` whose every alternative states a `const` reads `` `tier` must be one of `"a"`, `"b"` ``, as an `enum` of those constants does.
+
 ## v0.3.0 — 2026-11-10
 
 - Schemas

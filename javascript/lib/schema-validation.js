@@ -15,6 +15,7 @@ const {
   codeSpan,
   numberText,
   definitionDescription,
+  alternativeConstants,
   dependencyOf,
   dependencyMessage,
   duplicateItems,
@@ -453,8 +454,7 @@ class LoadedSchema {
           .withHelp(suggestion(name, allowed)),
       }];
     }
-    if (error.keyword === 'enum') {
-      const options = Array.isArray(error.schema) ? error.schema : [];
+    const listedValueProblems = (options, schemaNote = null) => {
       const allowed = options.filter((option) => typeof option === 'string');
       const shown = options.map((option) => codeSpan(jsonText(option))).join(', ');
       return [{
@@ -463,10 +463,14 @@ class LoadedSchema {
           instance.valuePosition(pointer),
           `${field} must be one of ${shown}`,
         )
-          .withLabel(`not one of the ${options.length} values \`enum\` allows`)
+          .withLabel(`not one of the ${options.length} values ${codeSpan(error.keyword)} allows`)
           .withRule(rule)
+          .withSchema(schemaNote)
           .withHelp(typeof error.data === 'string' ? suggestion(error.data, allowed) : null),
       }];
+    };
+    if (error.keyword === 'enum') {
+      return listedValueProblems(Array.isArray(error.schema) ? error.schema : []);
     }
     if (error.keyword === 'type') {
       const expected = [].concat(error.schema).map(codeSpan);
@@ -494,10 +498,10 @@ class LoadedSchema {
         return atValue(`${field} matches more than one of its allowed forms`);
       }
       const holderPointer = schemaPointer.slice(0, schemaPointer.lastIndexOf('/'));
-      return atValue(
-        `${field} matches none of its allowed forms`,
-        definitionDescription(this.schema, holderPointer),
-      );
+      const definitionNote = definitionDescription(this.schema, holderPointer);
+      const constants = alternativeConstants(error.schema);
+      if (constants !== null) return listedValueProblems(constants, definitionNote);
+      return atValue(`${field} matches none of its allowed forms`, definitionNote);
     }
     if (hasOwn(BOUND_COMPARISONS, error.keyword)) {
       const comparison = BOUND_COMPARISONS[error.keyword];

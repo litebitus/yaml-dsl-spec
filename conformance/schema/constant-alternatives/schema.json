@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "tier": {
+      "oneOf": [
+        { "const": "gold", "description": "The highest tier." },
+        { "const": "silver", "description": "The middle tier." },
+        { "const": "bronze" }
+      ]
+    },
+    "far": {
+      "oneOf": [
+        { "const": "gold", "description": "The highest tier." },
+        { "const": "silver", "description": "The middle tier." },
+        { "const": "bronze" }
+      ]
+    },
+    "level": { "anyOf": [{ "const": 1 }, { "const": 2 }] },
+    "named": { "$ref": "#/$defs/tier_name" },
+    "mixed": { "oneOf": [{ "const": "auto" }, { "type": "number" }] }
+  },
+  "$defs": {
+    "tier_name": {
+      "description": "A tier, by its name.",
+      "oneOf": [{ "const": "gold" }, { "const": "silver" }]
+    }
+  }
+}

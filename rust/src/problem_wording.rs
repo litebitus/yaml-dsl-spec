@@ -88,6 +88,18 @@ pub fn definition_description(schema: &JsonValue, holder_pointer: &str) -> Optio
     schema_note(schema.pointer(holder_pointer)?)
 }
 
+/// The constants an `anyOf` or `oneOf` allows, in the schema's order, where every
+/// alternative states a `const`.
+pub fn alternative_constants(alternatives: &JsonValue) -> Option<Vec<&JsonValue>> {
+    let alternatives = alternatives
+        .as_array()
+        .filter(|listed| !listed.is_empty())?;
+    alternatives
+        .iter()
+        .map(|alternative| alternative.get("const"))
+        .collect()
+}
+
 /// A node's `description` as a problem reports it: verbatim, its requiredness
 /// marker included; none where it is empty or only whitespace.
 pub fn schema_note(node: &JsonValue) -> Option<String> {
@@ -478,5 +490,22 @@ mod tests {
             Some("ARN of a role.\nOr a ref to one.")
         );
         assert_eq!(definition_description(&schema, "/properties/size"), None);
+    }
+
+    #[test]
+    fn alternatives_that_each_state_a_constant_list_their_constants_in_order() {
+        let constants = json!([{"const": "b", "description": "A value."}, {"const": 1}]);
+        assert_eq!(
+            alternative_constants(&constants),
+            Some(vec![&json!("b"), &json!(1)])
+        );
+        for not_constants in [
+            json!([{"const": "b"}, {"type": "number"}]),
+            json!([{"const": "b"}, true]),
+            json!([]),
+            json!({"const": "b"}),
+        ] {
+            assert_eq!(alternative_constants(&not_constants), None);
+        }
     }
 }
