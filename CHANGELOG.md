@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.3 — 2026-11-12
+
 - Documentation
   - The format function's layout is defined by a grammar.
   - `%C` writes a time by its required date format, such as `%{%Y-%02m-%02dT%02H:%02M:%02S%z|+08:00}C`: date verbs padded as verbs are, an optional time offset, in the years `0000` to `9999`.
