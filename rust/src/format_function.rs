@@ -5,7 +5,8 @@ use serde_json::Value as JsonValue;
 use crate::problem_wording::code_span;
 
 const FORMAT_PART_LIMIT: usize = 1000;
-const EARLIEST_FORMAT_SECONDS: i64 = -62_135_596_800;
+const MAXIMUM_TIME_DIGITS: usize = 9;
+const EARLIEST_FORMAT_SECONDS: i64 = -62_167_219_200;
 const LATEST_FORMAT_SECONDS: i64 = 253_402_300_800;
 const SECONDS_PER_DAY: i64 = 86_400;
 const TEXT_KINDS: &str = "text";
@@ -34,6 +35,7 @@ struct VerbRule {
     reads_precision: bool,
     reads_zero_padding: bool,
     reads_plus_sign: bool,
+    reads_date_format: bool,
 }
 
 /// One part of a layout: its literal text, or a verb.
@@ -43,8 +45,8 @@ pub enum LayoutPart {
     Verb(LayoutVerb),
 }
 
-/// A verb as a layout writes it: its letter, its flags, and its width and
-/// precision, none where left out.
+/// A verb as a layout writes it: its letter, its flags, its width and
+/// precision, and its date format, none where left out.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LayoutVerb {
     pub letter: char,
@@ -53,13 +55,42 @@ pub struct LayoutVerb {
     pub zero_padded: bool,
     pub width: Option<usize>,
     pub precision: Option<usize>,
+    pub date_format: Option<DateFormat>,
 }
+
+/// A date format: its parts, and its time offset as written, none where left
+/// out.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DateFormat {
+    pub parts: Vec<DateFormatPart>,
+    pub offset: Option<String>,
+}
+
+/// One part of a date format: its literal text, `%%` read as text, or a date
+/// verb.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DateFormatPart {
+    Text(String),
+    DateVerb(DateVerb),
+}
+
+/// A date verb: its letter, its flags and its width, none where left out.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DateVerb {
+    pub letter: char,
+    pub left_aligned: bool,
+    pub zero_padded: bool,
+    pub width: Option<usize>,
+}
+
+const DATE_VERB_LETTERS: &str = "YymdHMSLz";
 
 #[derive(Default)]
 struct Directive {
     verb: LayoutVerb,
     written_text: String,
     over_part_limit: bool,
+    date_format_problem: Option<String>,
 }
 
 struct Operand<'operand> {
@@ -118,7 +149,11 @@ pub fn parse_layout(layout: &str) -> Result<Vec<LayoutPart>, String> {
             position += 1;
             continue;
         }
-        let Some((directive, end_position)) = read_directive(&layout_characters, position) else {
+        let (directive, end_position) = read_directive(&layout_characters, position);
+        if let Some(date_format_problem) = directive.date_format_problem {
+            return Err(date_format_problem);
+        }
+        let Some(end_position) = end_position else {
             return Err(format!("layout {} ends inside a verb", code_span(layout)));
         };
         position = end_position + 1;
@@ -201,15 +236,47 @@ fn verb_rule_of(verb: char) -> Option<VerbRule> {
             accepts_whole: true,
             accepts_number: true,
             reads_width: true,
+            reads_precision: true,
+            reads_date_format: true,
             ..VerbRule::default()
         },
         _ => return None,
     })
 }
 
-fn read_directive(layout_characters: &[char], start_position: usize) -> Option<(Directive, usize)> {
+fn read_directive(layout_characters: &[char], start_position: usize) -> (Directive, Option<usize>) {
     let mut directive = Directive::default();
-    let mut position = start_position + 1;
+    let end_position = read_directive_parts(layout_characters, start_position, &mut directive);
+    (directive, end_position)
+}
+
+fn read_directive_parts(
+    layout_characters: &[char],
+    start_position: usize,
+    directive: &mut Directive,
+) -> Option<usize> {
+    let mut position = read_flags_and_width(layout_characters, start_position + 1, directive);
+    if layout_characters.get(position) == Some(&'{') {
+        let (date_format, after_date_format) =
+            read_date_format(layout_characters, position + 1, directive)?;
+        directive.verb.date_format = Some(date_format);
+        position = after_date_format;
+    }
+    position = read_precision(layout_characters, position, directive);
+    directive.verb.letter = *layout_characters.get(position)?;
+    directive.written_text = layout_characters[start_position..=position]
+        .iter()
+        .collect();
+    Some(position)
+}
+
+/// Reads a verb's or a date verb's flags and width, answering where they end.
+fn read_flags_and_width(
+    layout_characters: &[char],
+    start_position: usize,
+    directive: &mut Directive,
+) -> usize {
+    let mut position = start_position;
     while let Some(&flag) = layout_characters.get(position) {
         match flag {
             '-' => directive.verb.left_aligned = true,
@@ -219,20 +286,165 @@ fn read_directive(layout_characters: &[char], start_position: usize) -> Option<(
         }
         position += 1;
     }
-    let (width, after_width) = read_number(layout_characters, position, &mut directive);
+    let (width, after_width) = read_number(layout_characters, position, directive);
     directive.verb.width = width;
-    position = after_width;
-    if layout_characters.get(position) == Some(&'.') {
-        let (precision, after_precision) =
-            read_number(layout_characters, position + 1, &mut directive);
-        directive.verb.precision = Some(precision.unwrap_or(0));
-        position = after_precision;
+    after_width
+}
+
+/// Reads a precision where one is written, `.` alone being 0, answering where
+/// it ends.
+fn read_precision(layout_characters: &[char], position: usize, directive: &mut Directive) -> usize {
+    if layout_characters.get(position) != Some(&'.') {
+        return position;
     }
-    directive.verb.letter = *layout_characters.get(position)?;
-    directive.written_text = layout_characters[start_position..=position]
+    let (precision, after_precision) = read_number(layout_characters, position + 1, directive);
+    directive.verb.precision = Some(precision.unwrap_or(0));
+    after_precision
+}
+
+/// Reads a date format from after its opening brace to its closing one,
+/// answering it and where it ends; none where it is not closed. Its first
+/// problem is kept for the directive's.
+fn read_date_format(
+    layout_characters: &[char],
+    start_position: usize,
+    directive: &mut Directive,
+) -> Option<(DateFormat, usize)> {
+    let mut date_format = DateFormat::default();
+    let mut literal_text = String::new();
+    let mut position = start_position;
+    while let Some(&character) = layout_characters.get(position) {
+        if character == '}' || character == '|' {
+            break;
+        }
+        if character != '%' {
+            literal_text.push(character);
+            position += 1;
+            continue;
+        }
+        if layout_characters.get(position + 1) == Some(&'%') {
+            literal_text.push('%');
+            position += 2;
+            continue;
+        }
+        let (date_verb, after_date_verb) = read_date_verb(
+            layout_characters,
+            position,
+            &mut directive.date_format_problem,
+        )?;
+        position = after_date_verb;
+        if !literal_text.is_empty() {
+            date_format
+                .parts
+                .push(DateFormatPart::Text(std::mem::take(&mut literal_text)));
+        }
+        date_format.parts.push(DateFormatPart::DateVerb(date_verb));
+    }
+    if !literal_text.is_empty() {
+        date_format.parts.push(DateFormatPart::Text(literal_text));
+    }
+    if layout_characters.get(position) == Some(&'|') {
+        let offset_start = position + 1;
+        while layout_characters
+            .get(position)
+            .is_some_and(|character| *character != '}')
+        {
+            position += 1;
+        }
+        let offset_text: String = layout_characters[offset_start..position].iter().collect();
+        if offset_text.is_empty() {
+            keep_problem(
+                &mut directive.date_format_problem,
+                "a date format's `|` takes an offset, such as `+08:00`".to_owned(),
+            );
+        } else if offset_minutes_of(&offset_text).is_none() {
+            keep_problem(
+                &mut directive.date_format_problem,
+                format!(
+                    "{} is not an offset, such as `Z` or `+08:00`",
+                    code_span(&offset_text)
+                ),
+            );
+        }
+        date_format.offset = Some(offset_text);
+    }
+    layout_characters.get(position)?;
+    Some((date_format, position + 1))
+}
+
+/// Reads a date verb from its `%` through its letter, answering it and where
+/// it ends; none where the layout ends first. Its first problem is kept.
+fn read_date_verb(
+    layout_characters: &[char],
+    start_position: usize,
+    kept_problem: &mut Option<String>,
+) -> Option<(DateVerb, usize)> {
+    let mut directive = Directive::default();
+    let mut position = read_flags_and_width(layout_characters, start_position + 1, &mut directive);
+    position = read_precision(layout_characters, position, &mut directive);
+    let date_letter = *layout_characters.get(position)?;
+    let written_date_verb: String = layout_characters[start_position..=position]
         .iter()
         .collect();
-    Some((directive, position))
+    let fenced_date_verb = code_span(&written_date_verb);
+    let verb = &directive.verb;
+    let problem = if !DATE_VERB_LETTERS.contains(date_letter) {
+        Some(format!(
+            "{fenced_date_verb} is not a date verb `format` writes"
+        ))
+    } else if directive.over_part_limit {
+        Some(format!(
+            "{fenced_date_verb} has a width or a precision over {FORMAT_PART_LIMIT}"
+        ))
+    } else if verb.plus_signed {
+        Some(format!("{fenced_date_verb} takes no `+` flag"))
+    } else if verb.zero_padded && date_letter == 'z' {
+        Some(format!("{fenced_date_verb} takes no `0` flag"))
+    } else if verb.precision.is_some() {
+        Some(format!("{fenced_date_verb} takes no precision"))
+    } else {
+        None
+    };
+    if let Some(problem) = problem {
+        keep_problem(kept_problem, problem);
+    }
+    let date_verb = DateVerb {
+        letter: date_letter,
+        left_aligned: verb.left_aligned,
+        zero_padded: verb.zero_padded,
+        width: verb.width,
+    };
+    Some((date_verb, position + 1))
+}
+
+fn keep_problem(kept_problem: &mut Option<String>, problem: String) {
+    if kept_problem.is_none() {
+        *kept_problem = Some(problem);
+    }
+}
+
+/// Reads a time offset in minutes: `Z`, or a sign, hours `00` to `23`, `:` and
+/// minutes `00` to `59`; none where it is not one.
+fn offset_minutes_of(offset_text: &str) -> Option<i64> {
+    if offset_text == "Z" {
+        return Some(0);
+    }
+    let offset_characters: Vec<char> = offset_text.chars().collect();
+    let [sign, hour_tens, hour_ones, ':', minute_tens, minute_ones] = offset_characters[..] else {
+        return None;
+    };
+    let two_digit_value =
+        |tens: char, ones: char| Some(tens.to_digit(10)? * 10 + ones.to_digit(10)?);
+    let hours = i64::from(two_digit_value(hour_tens, hour_ones)?);
+    let minutes = i64::from(two_digit_value(minute_tens, minute_ones)?);
+    if hours > 23 || minutes > 59 {
+        return None;
+    }
+    match sign {
+        '+' => Some(hours * 60 + minutes),
+        '-' => Some(-(hours * 60 + minutes)),
+        _ => None,
+    }
 }
 
 fn read_number(
@@ -282,9 +494,26 @@ fn directive_part_problem(directive: &Directive, verb_rule: &VerbRule) -> Result
     if verb.precision.is_some() && !verb_rule.reads_precision {
         return Err(format!("{fenced} takes no precision"));
     }
+    if verb.date_format.is_some() && !verb_rule.reads_date_format {
+        return Err(format!("{fenced} takes no date format"));
+    }
     if verb.letter == 'B' && verb.precision.is_none_or(|precision| precision < 1) {
         return Err(format!(
             "{fenced} takes a precision of at least 1, such as `%.64B`"
+        ));
+    }
+    if verb.letter == 'C'
+        && verb
+            .precision
+            .is_some_and(|precision| precision > MAXIMUM_TIME_DIGITS)
+    {
+        return Err(format!(
+            "{fenced} takes a precision of at most {MAXIMUM_TIME_DIGITS}, such as `.3` for milliseconds"
+        ));
+    }
+    if verb_rule.reads_date_format && verb.date_format.is_none() {
+        return Err(format!(
+            "{fenced} takes a date format, such as `%{{%Y-%m-%d}}C`"
         ));
     }
     Ok(())
@@ -384,7 +613,12 @@ fn formatted_verb_text(
             fixed_point_text(operand, verb.precision.unwrap_or(6)),
             verb.plus_signed,
         ),
-        _ => date_text(operand, operand_number)?,
+        _ => date_text(
+            operand,
+            verb.precision.unwrap_or(0),
+            verb.date_format.as_ref().unwrap_or(&DateFormat::default()),
+            operand_number,
+        )?,
     })
 }
 
@@ -456,27 +690,86 @@ fn fixed_point_text(operand: &Operand<'_>, precision: usize) -> String {
     format!("{:.precision$}", operand.number_value)
 }
 
-fn date_text(operand: &Operand<'_>, operand_number: usize) -> Result<String, String> {
-    let range = EARLIEST_FORMAT_SECONDS..LATEST_FORMAT_SECONDS;
-    let seconds = if operand.kind == OperandKind::Whole {
-        Some(operand.whole_value).filter(|seconds| range.contains(seconds))
+fn date_text(
+    operand: &Operand<'_>,
+    time_digits: usize,
+    date_format: &DateFormat,
+    operand_number: usize,
+) -> Result<String, String> {
+    let range_problem = || {
+        format!(
+            "`%C` writes a time in the years 0000 to 9999, and operand {operand_number} is outside them"
+        )
+    };
+    let near_range =
+        EARLIEST_FORMAT_SECONDS - SECONDS_PER_DAY..LATEST_FORMAT_SECONDS + SECONDS_PER_DAY;
+    let units_per_second = 10_i64.pow(time_digits as u32);
+    let (seconds, milliseconds) = if operand.kind == OperandKind::Whole {
+        let whole_value = operand.whole_value;
+        (
+            whole_value.div_euclid(units_per_second),
+            whole_value.rem_euclid(units_per_second) * 1000 / units_per_second,
+        )
     } else {
-        let floored = operand.number_value.floor();
-        (floored >= EARLIEST_FORMAT_SECONDS as f64 && floored < LATEST_FORMAT_SECONDS as f64)
-            .then_some(floored as i64)
+        let time_in_seconds = operand.number_value / units_per_second as f64;
+        let floored_seconds = time_in_seconds.floor();
+        let is_near_range =
+            floored_seconds >= near_range.start as f64 && floored_seconds < near_range.end as f64;
+        if !is_near_range {
+            return Err(range_problem());
+        }
+        (
+            floored_seconds as i64,
+            ((time_in_seconds - floored_seconds) * 1000.0).floor() as i64,
+        )
     };
-    let Some(seconds) = seconds else {
-        return Err(format!(
-            "`%C` writes a time in the years 1 to 9999, and operand {operand_number} is outside them"
-        ));
+    if !near_range.contains(&seconds) {
+        return Err(range_problem());
+    }
+    let written_offset = match date_format.offset.as_deref() {
+        None | Some("+00:00") => "Z",
+        Some(offset) => offset,
     };
+    let seconds = seconds + offset_minutes_of(written_offset).unwrap_or(0) * 60;
+    if !(EARLIEST_FORMAT_SECONDS..LATEST_FORMAT_SECONDS).contains(&seconds) {
+        return Err(range_problem());
+    }
     let (year, month, day) = civil_date_of_days(seconds.div_euclid(SECONDS_PER_DAY));
-    Ok(format!("{year:04}-{month:02}-{day:02}"))
+    let second_of_day = seconds.rem_euclid(SECONDS_PER_DAY);
+    let date_verb_value = |letter: char| match letter {
+        'Y' => year,
+        'y' => year % 100,
+        'm' => month,
+        'd' => day,
+        'H' => second_of_day / 3600,
+        'M' => second_of_day % 3600 / 60,
+        'S' => second_of_day % 60,
+        _ => milliseconds,
+    };
+    Ok(date_format
+        .parts
+        .iter()
+        .map(|part| match part {
+            DateFormatPart::Text(text) => text.clone(),
+            DateFormatPart::DateVerb(date_verb) if date_verb.letter == 'z' => padded_text(
+                written_offset.to_owned(),
+                date_verb.width,
+                date_verb.left_aligned,
+                false,
+            ),
+            DateFormatPart::DateVerb(date_verb) => padded_text(
+                date_verb_value(date_verb.letter).to_string(),
+                date_verb.width,
+                date_verb.left_aligned,
+                date_verb.zero_padded,
+            ),
+        })
+        .collect())
 }
 
 fn civil_date_of_days(days: i64) -> (i64, i64, i64) {
     let shifted_days = days + 719_468;
-    let era = shifted_days / 146_097;
+    let era = shifted_days.div_euclid(146_097);
     let day_of_era = shifted_days - era * 146_097;
     let year_of_era =
         (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
@@ -517,17 +810,33 @@ fn go_quoted_text(text: &str) -> String {
 }
 
 fn padded_verb_text(verb: &LayoutVerb, verb_rule: &VerbRule, verb_text: String) -> String {
-    let length = verb_text.chars().count();
-    let Some(padding) = verb.width.and_then(|width| width.checked_sub(length)) else {
-        return verb_text;
+    padded_text(
+        verb_text,
+        verb.width,
+        verb.left_aligned,
+        verb.zero_padded && verb_rule.reads_zero_padding,
+    )
+}
+
+/// Pads text to a width: on the right where left-aligned, else with leading
+/// zeros after its sign where zero-padded, else with spaces on the left.
+fn padded_text(
+    text: String,
+    width: Option<usize>,
+    left_aligned: bool,
+    zero_padded: bool,
+) -> String {
+    let length = text.chars().count();
+    let Some(padding) = width.and_then(|width| width.checked_sub(length)) else {
+        return text;
     };
-    if verb.left_aligned {
-        return format!("{verb_text}{}", " ".repeat(padding));
+    if left_aligned {
+        return format!("{text}{}", " ".repeat(padding));
     }
-    if verb.zero_padded && verb_rule.reads_zero_padding {
-        let sign_length = usize::from(verb_text.starts_with(['-', '+']));
-        let (sign_text, digits) = verb_text.split_at(sign_length);
+    if zero_padded {
+        let sign_length = usize::from(text.starts_with(['-', '+']));
+        let (sign_text, digits) = text.split_at(sign_length);
         return format!("{sign_text}{}{digits}", "0".repeat(padding));
     }
-    format!("{}{verb_text}", " ".repeat(padding))
+    format!("{}{text}", " ".repeat(padding))
 }

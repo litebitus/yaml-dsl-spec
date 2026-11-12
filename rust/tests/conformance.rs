@@ -27,8 +27,8 @@ use yaml_dsl_spec::resolved::{
 };
 use yaml_dsl_spec::schema::SchemaCache;
 use yaml_dsl_spec::{
-    Diagnostic, LayoutPart, Node, NodeKind, ValidationRules, format_layout, parse_layout,
-    read_dsl_definitions, yaml_reader,
+    DateFormat, DateFormatPart, Diagnostic, LayoutPart, Node, NodeKind, ValidationRules,
+    format_layout, parse_layout, read_dsl_definitions, yaml_reader,
 };
 
 fn conformance_folder() -> PathBuf {
@@ -341,6 +341,23 @@ fn every_schema_case_validates_as_expected() {
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 
+fn date_format_reading(date_format: DateFormat) -> Value {
+    let parts: Vec<Value> = date_format
+        .parts
+        .into_iter()
+        .map(|part| match part {
+            DateFormatPart::Text(text) => json!({ "text": text }),
+            DateFormatPart::DateVerb(date_verb) => json!({
+                "date_verb": date_verb.letter.to_string(),
+                "left_aligned": date_verb.left_aligned,
+                "zero_padded": date_verb.zero_padded,
+                "width": date_verb.width,
+            }),
+        })
+        .collect();
+    json!({ "parts": parts, "offset": date_format.offset })
+}
+
 fn layout_reading(layout: &Value) -> Value {
     let layout = layout.as_str().unwrap();
     let parts = match parse_layout(layout) {
@@ -358,6 +375,7 @@ fn layout_reading(layout: &Value) -> Value {
                 "zero_padded": verb.zero_padded,
                 "width": verb.width,
                 "precision": verb.precision,
+                "date_format": verb.date_format.map(date_format_reading),
             }),
         })
         .collect();

@@ -1,6 +1,7 @@
 package yamldslspec
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -12,7 +13,8 @@ import (
 
 const (
 	formatPartLimit       = 1000
-	earliestFormatSeconds = -62135596800
+	maximumTimeDigits     = 9
+	earliestFormatSeconds = -62167219200
 	latestFormatSeconds   = 253402300800
 	secondsPerDay         = 86400
 	textOperandKinds      = "text"
@@ -31,6 +33,7 @@ type formatVerbRule struct {
 	readsPrecision   bool
 	readsZeroPadding bool
 	readsPlusSign    bool
+	readsDateFormat  bool
 }
 
 var formatVerbRules = map[rune]formatVerbRule{
@@ -61,8 +64,13 @@ var formatVerbRules = map[rune]formatVerbRule{
 		acceptedKinds: numberOperandKinds, takesOperand: true, acceptsWhole: true, acceptsNumber: true,
 		readsWidth: true, readsPrecision: true, readsZeroPadding: true, readsPlusSign: true,
 	},
-	'C': {acceptedKinds: numberOperandKinds, takesOperand: true, acceptsWhole: true, acceptsNumber: true, readsWidth: true},
+	'C': {
+		acceptedKinds: numberOperandKinds, takesOperand: true, acceptsWhole: true, acceptsNumber: true,
+		readsWidth: true, readsPrecision: true, readsDateFormat: true,
+	},
 }
+
+const dateVerbLetters = "YymdHMSLz"
 
 // LayoutPart is one part of a layout: its literal text, or a verb.
 type LayoutPart struct {
@@ -70,8 +78,8 @@ type LayoutPart struct {
 	Verb *LayoutVerb
 }
 
-// LayoutVerb is a verb as a layout writes it: its letter, its flags, and its
-// width and precision, nil where left out.
+// LayoutVerb is a verb as a layout writes it: its letter, its flags, its width
+// and precision, and its date format, nil where left out.
 type LayoutVerb struct {
 	Letter      rune
 	LeftAligned bool
@@ -79,12 +87,31 @@ type LayoutVerb struct {
 	ZeroPadded  bool
 	Width       *int
 	Precision   *int
+	DateFormat  *DateFormat
+}
+
+// DateFormat is a date format: its parts, and its time offset as written, nil
+// where left out.
+type DateFormat struct {
+	Parts  []DateFormatPart
+	Offset *string
+}
+
+// DateFormatPart is one part of a date format: its literal text, `%%` read as
+// text, or a date verb's letter, with its flags and width.
+type DateFormatPart struct {
+	Text        string
+	DateVerb    rune
+	LeftAligned bool
+	ZeroPadded  bool
+	Width       *int
 }
 
 type formatDirective struct {
 	LayoutVerb
-	writtenText   string
-	overPartLimit bool
+	writtenText       string
+	overPartLimit     bool
+	dateFormatProblem error
 }
 
 type formatOperandKind int
@@ -151,6 +178,9 @@ func ParseLayout(layout string) ([]LayoutPart, error) {
 			continue
 		}
 		directive, endPosition, isComplete := readFormatDirective(layoutRunes, position)
+		if directive.dateFormatProblem != nil {
+			return nil, directive.dateFormatProblem
+		}
 		if !isComplete {
 			return nil, fmt.Errorf("layout %s ends inside a verb", CodeSpan(layout))
 		}
@@ -181,7 +211,26 @@ func ParseLayout(layout string) ([]LayoutPart, error) {
 
 func readFormatDirective(layoutRunes []rune, startPosition int) (formatDirective, int, bool) {
 	directive := formatDirective{}
-	position := startPosition + 1
+	position := readFlagsAndWidth(layoutRunes, startPosition+1, &directive)
+	if position < len(layoutRunes) && layoutRunes[position] == '{' {
+		var isClosed bool
+		position, isClosed = readDateFormat(layoutRunes, position+1, &directive)
+		if !isClosed {
+			return directive, position, false
+		}
+	}
+	position = readPrecision(layoutRunes, position, &directive)
+	if position >= len(layoutRunes) {
+		return directive, position, false
+	}
+	directive.Letter = layoutRunes[position]
+	directive.writtenText = string(layoutRunes[startPosition : position+1])
+	return directive, position, true
+}
+
+// readFlagsAndWidth reads a verb's or a date verb's flags and width, answering where they end.
+func readFlagsAndWidth(layoutRunes []rune, startPosition int, directive *formatDirective) int {
+	position := startPosition
 	for position < len(layoutRunes) && strings.ContainsRune("-+0", layoutRunes[position]) {
 		switch layoutRunes[position] {
 		case '-':
@@ -193,20 +242,133 @@ func readFormatDirective(layoutRunes []rune, startPosition int) (formatDirective
 		}
 		position++
 	}
-	directive.Width, position = readFormatNumber(layoutRunes, position, &directive)
-	if position < len(layoutRunes) && layoutRunes[position] == '.' {
-		directive.Precision, position = readFormatNumber(layoutRunes, position+1, &directive)
-		if directive.Precision == nil {
-			noPrecision := 0
-			directive.Precision = &noPrecision
+	directive.Width, position = readFormatNumber(layoutRunes, position, directive)
+	return position
+}
+
+// readPrecision reads a precision where one is written, `.` alone being 0, answering where it ends.
+func readPrecision(layoutRunes []rune, position int, directive *formatDirective) int {
+	if position >= len(layoutRunes) || layoutRunes[position] != '.' {
+		return position
+	}
+	directive.Precision, position = readFormatNumber(layoutRunes, position+1, directive)
+	if directive.Precision == nil {
+		noPrecision := 0
+		directive.Precision = &noPrecision
+	}
+	return position
+}
+
+// readDateFormat reads a date format from its opening brace to its closing one, answering where it ends and
+// whether it is closed; its first problem is kept for the directive's.
+func readDateFormat(layoutRunes []rune, startPosition int, directive *formatDirective) (int, bool) {
+	dateFormat := DateFormat{Parts: []DateFormatPart{}}
+	var literalText strings.Builder
+	position := startPosition
+	keepProblem := func(problem error) {
+		if directive.dateFormatProblem == nil {
+			directive.dateFormatProblem = problem
 		}
 	}
-	if position >= len(layoutRunes) {
-		return directive, position, false
+	for position < len(layoutRunes) && layoutRunes[position] != '}' && layoutRunes[position] != '|' {
+		if layoutRunes[position] != '%' {
+			literalText.WriteRune(layoutRunes[position])
+			position++
+			continue
+		}
+		if position+1 < len(layoutRunes) && layoutRunes[position+1] == '%' {
+			literalText.WriteRune('%')
+			position += 2
+			continue
+		}
+		dateFormatPart, endPosition, isComplete := readDateVerb(layoutRunes, position, keepProblem)
+		if !isComplete {
+			return endPosition, false
+		}
+		position = endPosition
+		if literalText.Len() > 0 {
+			dateFormat.Parts = append(dateFormat.Parts, DateFormatPart{Text: literalText.String()})
+			literalText.Reset()
+		}
+		dateFormat.Parts = append(dateFormat.Parts, dateFormatPart)
 	}
-	directive.Letter = layoutRunes[position]
-	directive.writtenText = string(layoutRunes[startPosition : position+1])
-	return directive, position, true
+	if literalText.Len() > 0 {
+		dateFormat.Parts = append(dateFormat.Parts, DateFormatPart{Text: literalText.String()})
+	}
+	if position < len(layoutRunes) && layoutRunes[position] == '|' {
+		offsetStart := position + 1
+		for position < len(layoutRunes) && layoutRunes[position] != '}' {
+			position++
+		}
+		offsetText := string(layoutRunes[offsetStart:min(position, len(layoutRunes))])
+		_, isOffset := offsetMinutesOf(offsetText)
+		switch {
+		case offsetText == "":
+			keepProblem(errors.New("a date format's `|` takes an offset, such as `+08:00`"))
+		case !isOffset:
+			keepProblem(fmt.Errorf("%s is not an offset, such as `Z` or `+08:00`", CodeSpan(offsetText)))
+		}
+		dateFormat.Offset = &offsetText
+	}
+	if position >= len(layoutRunes) {
+		return position, false
+	}
+	directive.DateFormat = &dateFormat
+	return position + 1, true
+}
+
+// readDateVerb reads a date verb from its `%` through its letter, answering it, where it ends and whether the
+// layout holds its letter; its first problem is kept.
+func readDateVerb(
+	layoutRunes []rune, startPosition int, keepProblem func(error),
+) (DateFormatPart, int, bool) {
+	directive := formatDirective{}
+	position := readFlagsAndWidth(layoutRunes, startPosition+1, &directive)
+	position = readPrecision(layoutRunes, position, &directive)
+	if position >= len(layoutRunes) {
+		return DateFormatPart{}, position, false
+	}
+	dateLetter := layoutRunes[position]
+	fencedDateVerb := CodeSpan(string(layoutRunes[startPosition : position+1]))
+	switch {
+	case !strings.ContainsRune(dateVerbLetters, dateLetter):
+		keepProblem(fmt.Errorf("%s is not a date verb `format` writes", fencedDateVerb))
+	case directive.overPartLimit:
+		keepProblem(fmt.Errorf("%s has a width or a precision over %d", fencedDateVerb, formatPartLimit))
+	case directive.PlusSigned:
+		keepProblem(fmt.Errorf("%s takes no `+` flag", fencedDateVerb))
+	case directive.ZeroPadded && dateLetter == 'z':
+		keepProblem(fmt.Errorf("%s takes no `0` flag", fencedDateVerb))
+	case directive.Precision != nil:
+		keepProblem(fmt.Errorf("%s takes no precision", fencedDateVerb))
+	}
+	return DateFormatPart{
+		DateVerb:    dateLetter,
+		LeftAligned: directive.LeftAligned,
+		ZeroPadded:  directive.ZeroPadded,
+		Width:       directive.Width,
+	}, position + 1, true
+}
+
+// offsetMinutesOf reads a time offset: `Z`, or a sign, hours `00` to `23`, `:` and minutes `00` to `59`.
+func offsetMinutesOf(offsetText string) (int, bool) {
+	if offsetText == "Z" {
+		return 0, true
+	}
+	offsetRunes := []rune(offsetText)
+	isDigit := func(character rune) bool { return character >= '0' && character <= '9' }
+	isWritten := len(offsetRunes) == 6 && (offsetRunes[0] == '+' || offsetRunes[0] == '-') && offsetRunes[3] == ':' &&
+		isDigit(offsetRunes[1]) && isDigit(offsetRunes[2]) && isDigit(offsetRunes[4]) && isDigit(offsetRunes[5])
+	if !isWritten {
+		return 0, false
+	}
+	hours := int(offsetRunes[1]-'0')*10 + int(offsetRunes[2]-'0')
+	minutes := int(offsetRunes[4]-'0')*10 + int(offsetRunes[5]-'0')
+	offsetMinutes := hours*60 + minutes
+	if offsetRunes[0] == '-' {
+		offsetMinutes = -offsetMinutes
+	}
+	return offsetMinutes, hours <= 23 && minutes <= 59
 }
 
 func readFormatNumber(layoutRunes []rune, startPosition int, directive *formatDirective) (*int, int) {
@@ -243,8 +405,14 @@ func directivePartProblem(directive formatDirective, verbRule formatVerbRule) er
 		return fmt.Errorf("%s takes no width", fencedDirective)
 	case directive.Precision != nil && !verbRule.readsPrecision:
 		return fmt.Errorf("%s takes no precision", fencedDirective)
+	case directive.DateFormat != nil && !verbRule.readsDateFormat:
+		return fmt.Errorf("%s takes no date format", fencedDirective)
 	case directive.Letter == 'B' && (directive.Precision == nil || *directive.Precision < 1):
 		return fmt.Errorf("%s takes a precision of at least 1, such as `%%.64B`", fencedDirective)
+	case directive.Letter == 'C' && directive.Precision != nil && *directive.Precision > maximumTimeDigits:
+		return fmt.Errorf("%s takes a precision of at most %d, such as `.3` for milliseconds", fencedDirective, maximumTimeDigits)
+	case verbRule.readsDateFormat && directive.DateFormat == nil:
+		return fmt.Errorf("%s takes a date format, such as `%%{%%Y-%%m-%%d}C`", fencedDirective)
 	}
 	return nil
 }
@@ -302,7 +470,9 @@ func operandIsAccepted(verbRule formatVerbRule, operand formatOperand) bool {
 	return false
 }
 
-func formattedVerbText(layoutVerb LayoutVerb, verbRule formatVerbRule, operand formatOperand, operandNumber int) (string, error) {
+func formattedVerbText(
+	layoutVerb LayoutVerb, verbRule formatVerbRule, operand formatOperand, operandNumber int,
+) (string, error) {
 	if !operandIsAccepted(verbRule, operand) {
 		return "", fmt.Errorf(
 			"%s writes %s, and operand %d is %s",
@@ -335,7 +505,11 @@ func formattedVerbText(layoutVerb LayoutVerb, verbRule formatVerbRule, operand f
 	case 'f':
 		return signedWholeText(fixedPointText(operand, layoutVerb), layoutVerb.PlusSigned), nil
 	}
-	return dateText(operand, operandNumber)
+	timeDigits := 0
+	if layoutVerb.Precision != nil {
+		timeDigits = *layoutVerb.Precision
+	}
+	return dateText(operand, timeDigits, *layoutVerb.DateFormat, operandNumber)
 }
 
 func leadingCodePoints(text string, count int) string {
@@ -404,35 +578,79 @@ func fixedPointText(operand formatOperand, layoutVerb LayoutVerb) string {
 	return strconv.FormatFloat(operand.numberValue, 'f', precision, 64)
 }
 
-func dateText(operand formatOperand, operandNumber int) (string, error) {
-	var seconds int64
+func dateText(operand formatOperand, timeDigits int, dateFormat DateFormat, operandNumber int) (string, error) {
+	unitsPerSecond := int64(math.Pow10(timeDigits))
+	var seconds, milliseconds int64
 	if operand.kind == wholeOperand {
-		seconds = operand.wholeValue
+		seconds = operand.wholeValue / unitsPerSecond
+		remainder := operand.wholeValue % unitsPerSecond
+		if remainder < 0 {
+			seconds, remainder = seconds-1, remainder+unitsPerSecond
+		}
+		milliseconds = remainder * 1000 / unitsPerSecond
 	} else {
-		flooredSeconds := math.Floor(operand.numberValue)
-		if flooredSeconds < earliestFormatSeconds || flooredSeconds >= latestFormatSeconds {
+		timeInSeconds := operand.numberValue / float64(unitsPerSecond)
+		flooredSeconds := math.Floor(timeInSeconds)
+		if flooredSeconds < earliestFormatSeconds-secondsPerDay || flooredSeconds >= latestFormatSeconds+secondsPerDay {
 			return "", dateRangeProblem(operandNumber)
 		}
 		seconds = int64(flooredSeconds)
+		milliseconds = int64(math.Floor((timeInSeconds - flooredSeconds) * 1000))
 	}
+	if seconds < earliestFormatSeconds-secondsPerDay || seconds >= latestFormatSeconds+secondsPerDay {
+		return "", dateRangeProblem(operandNumber)
+	}
+	writtenOffset := "Z"
+	if dateFormat.Offset != nil && *dateFormat.Offset != "+00:00" {
+		writtenOffset = *dateFormat.Offset
+	}
+	offsetMinutes, _ := offsetMinutesOf(writtenOffset)
+	seconds += int64(offsetMinutes) * 60
 	if seconds < earliestFormatSeconds || seconds >= latestFormatSeconds {
 		return "", dateRangeProblem(operandNumber)
 	}
-	days := seconds / secondsPerDay
-	if seconds%secondsPerDay < 0 {
-		days--
+	days, secondOfDay := seconds/secondsPerDay, seconds%secondsPerDay
+	if secondOfDay < 0 {
+		days, secondOfDay = days-1, secondOfDay+secondsPerDay
 	}
 	year, month, day := civilDateOfDays(days)
-	return fmt.Sprintf("%04d-%02d-%02d", year, month, day), nil
+	dateVerbValues := map[rune]int64{
+		'Y': year,
+		'y': year % 100,
+		'm': month,
+		'd': day,
+		'H': secondOfDay / 3600,
+		'M': secondOfDay % 3600 / 60,
+		'S': secondOfDay % 60,
+		'L': milliseconds,
+	}
+	var writtenDate strings.Builder
+	for _, dateFormatPart := range dateFormat.Parts {
+		switch dateFormatPart.DateVerb {
+		case 0:
+			writtenDate.WriteString(dateFormatPart.Text)
+		case 'z':
+			writtenDate.WriteString(paddedText(writtenOffset, dateFormatPart.Width, dateFormatPart.LeftAligned, false))
+		default:
+			dateVerbText := strconv.FormatInt(dateVerbValues[dateFormatPart.DateVerb], 10)
+			writtenDate.WriteString(paddedText(
+				dateVerbText, dateFormatPart.Width, dateFormatPart.LeftAligned, dateFormatPart.ZeroPadded,
+			))
+		}
+	}
+	return writtenDate.String(), nil
 }
 
 func dateRangeProblem(operandNumber int) error {
-	return fmt.Errorf("`%%C` writes a time in the years 1 to 9999, and operand %d is outside them", operandNumber)
+	return fmt.Errorf("`%%C` writes a time in the years 0000 to 9999, and operand %d is outside them", operandNumber)
 }
 
 func civilDateOfDays(days int64) (int64, int64, int64) {
 	shiftedDays := days + 719468
 	era := shiftedDays / 146097
+	if shiftedDays%146097 < 0 {
+		era--
+	}
 	dayOfEra := shiftedDays - era*146097
 	yearOfEra := (dayOfEra - dayOfEra/1460 + dayOfEra/36524 - dayOfEra/146096) / 365
 	dayOfYear := dayOfEra - (365*yearOfEra + yearOfEra/4 - yearOfEra/100)
@@ -485,22 +703,30 @@ func goQuotedText(text string) string {
 }
 
 func paddedVerbText(layoutVerb LayoutVerb, verbRule formatVerbRule, verbText string) string {
-	if layoutVerb.Width == nil {
-		return verbText
+	return paddedText(
+		verbText, layoutVerb.Width, layoutVerb.LeftAligned, layoutVerb.ZeroPadded && verbRule.readsZeroPadding,
+	)
+}
+
+// paddedText is text padded to a width: on the right where left-aligned, else with leading zeros after its sign
+// where zero-padded, else with spaces on the left.
+func paddedText(text string, width *int, leftAligned, zeroPadded bool) string {
+	if width == nil {
+		return text
 	}
-	padding := *layoutVerb.Width - utf8.RuneCountInString(verbText)
+	padding := *width - utf8.RuneCountInString(text)
 	if padding <= 0 {
-		return verbText
+		return text
 	}
 	switch {
-	case layoutVerb.LeftAligned:
-		return verbText + strings.Repeat(" ", padding)
-	case layoutVerb.ZeroPadded && verbRule.readsZeroPadding:
+	case leftAligned:
+		return text + strings.Repeat(" ", padding)
+	case zeroPadded:
 		signText := ""
-		if strings.HasPrefix(verbText, "-") || strings.HasPrefix(verbText, "+") {
-			signText, verbText = verbText[:1], verbText[1:]
+		if strings.HasPrefix(text, "-") || strings.HasPrefix(text, "+") {
+			signText, text = text[:1], text[1:]
 		}
-		return signText + strings.Repeat("0", padding) + verbText
+		return signText + strings.Repeat("0", padding) + text
 	}
-	return strings.Repeat(" ", padding) + verbText
+	return strings.Repeat(" ", padding) + text
 }

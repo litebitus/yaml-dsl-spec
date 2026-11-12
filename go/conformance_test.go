@@ -371,9 +371,30 @@ func layoutReading(layoutText string) map[string]any {
 			"zero_padded":  layoutPart.Verb.ZeroPadded,
 			"width":        layoutPart.Verb.Width,
 			"precision":    layoutPart.Verb.Precision,
+			"date_format":  dateFormatReading(layoutPart.Verb.DateFormat),
 		})
 	}
 	return map[string]any{"layout": layoutText, "parts": readParts}
+}
+
+func dateFormatReading(dateFormat *DateFormat) any {
+	if dateFormat == nil {
+		return nil
+	}
+	readParts := []any{}
+	for _, dateFormatPart := range dateFormat.Parts {
+		if dateFormatPart.DateVerb == 0 {
+			readParts = append(readParts, map[string]any{"text": dateFormatPart.Text})
+		} else {
+			readParts = append(readParts, map[string]any{
+				"date_verb":    string(dateFormatPart.DateVerb),
+				"left_aligned": dateFormatPart.LeftAligned,
+				"zero_padded":  dateFormatPart.ZeroPadded,
+				"width":        dateFormatPart.Width,
+			})
+		}
+	}
+	return map[string]any{"parts": readParts, "offset": dateFormat.Offset}
 }
 
 func TestEveryLayoutCaseReadsAsExpected(testingContext *testing.T) {

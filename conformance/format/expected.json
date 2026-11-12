@@ -25,40 +25,168 @@
       "text": "-"
     },
     {
-      "layout": "checked %C",
+      "layout": "checked %{%Y-%02m-%02d}C",
       "text": "checked 2026-11-12"
     },
     {
-      "layout": "%C",
-      "text": "2026-11-12"
+      "layout": "%{%Y-%02m-%02d %02H:%02M:%02S}C|%{%Y-%m-%d %H:%M:%S}C",
+      "text": "2026-11-12 08:26:04|2026-11-12 8:26:4"
     },
     {
-      "layout": "%C %C",
-      "text": "1969-12-31 1969-12-31"
+      "layout": "%{%Y-%02m-%02d %02H:%02M:%02S.%03L}C",
+      "text": "2026-11-12 08:26:04.900"
     },
     {
-      "layout": "%C %C",
-      "text": "0001-01-01 9999-12-31"
+      "layout": "%{%Y-%m-%d %H:%M:%S}C|%{%Y-%m-%d %H:%M:%S}C",
+      "text": "1969-12-31 23:59:59|1969-12-31 23:59:59"
     },
     {
-      "layout": "%C",
-      "problem": "`%C` writes a time in the years 1 to 9999, and operand 1 is outside them"
+      "layout": "%{%04Y-%02m-%02d %02H:%02M:%02S}C|%{%Y-%m-%d %H:%M:%S}C",
+      "text": "0000-01-01 00:00:00|9999-12-31 23:59:59"
     },
     {
-      "layout": "%C",
-      "problem": "`%C` writes a time in the years 1 to 9999, and operand 1 is outside them"
+      "layout": "%{%Y-%m-%d}C|%{%04Y-%02m-%02d}C",
+      "text": "0-12-31|0001-01-01"
     },
     {
-      "layout": "%C",
-      "problem": "`%C` writes a time in the years 1 to 9999, and operand 1 is outside them"
+      "layout": "%{%d/%m/%Y, %H%%}C",
+      "text": "1/1/1970, 0%"
     },
     {
-      "layout": "%12C|",
-      "text": "  1970-01-01|"
+      "layout": "%{%m/%d/%y [%3m] [%-3d] %03y %02y}C",
+      "text": "1/1/26 [  1] [1  ] 026 26"
     },
     {
-      "layout": "%C",
+      "layout": "%{%L %03L [%-4L]}C|%{%L %03L}C|%{%L}C",
+      "text": "99 099 [99  ]|0 000|250"
+    },
+    {
+      "layout": "%{%Y-%02m-%02d %02H:%02M %z|+08:00}C",
+      "text": "2026-11-12 16:26 +08:00"
+    },
+    {
+      "layout": "%{%Y-%02m-%02d %02H:%02M %z|-05:00}C|%{%02H:%02M (UTC%z)|+05:30}C|%{%z}C",
+      "text": "2026-11-12 03:26 -05:00|13:56 (UTC+05:30)|Z"
+    },
+    {
+      "layout": "%{%Y-%02m-%02dT%02H:%02M:%02S%z}C|%{%02H:%02M%z|Z}C|%{%02H:%02M%z|+00:00}C|%{%02H:%02M%z|-00:00}C",
+      "text": "2026-11-12T08:26:04Z|00:00Z|00:00Z|00:00-00:00"
+    },
+    {
+      "layout": "%{%10z|+08:00}C|%{%-4z}C|",
+      "text": "    +08:00|Z   |"
+    },
+    {
+      "layout": "%{%Y-%02m-%02d %02H:%02M|+23:59}C|%{%Y-%02m-%02d %02H:%02M|-23:59}C",
+      "text": "1970-01-01 23:59|1969-12-31 00:01"
+    },
+    {
+      "layout": "%{%+m}C",
+      "problem": "`%+m` takes no `+` flag"
+    },
+    {
+      "layout": "%{%0z}C",
+      "problem": "`%0z` takes no `0` flag"
+    },
+    {
+      "layout": "%{%2000m}C",
+      "problem": "`%2000m` has a width or a precision over 1000"
+    },
+    {
+      "layout": "%{%3Q}C",
+      "problem": "`%3Q` is not a date verb `format` writes"
+    },
+    {
+      "layout": "%{%02%}C",
+      "problem": "`%02%` is not a date verb `format` writes"
+    },
+    {
+      "layout": "%{%Y|+23:59}C",
+      "problem": "`%C` writes a time in the years 0000 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%{%Y|-23:59}C",
+      "problem": "`%C` writes a time in the years 0000 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%{%Y|+24:00}C",
+      "problem": "`+24:00` is not an offset, such as `Z` or `+08:00`"
+    },
+    {
+      "layout": "%{%Y|+08:60}C",
+      "problem": "`+08:60` is not an offset, such as `Z` or `+08:00`"
+    },
+    {
+      "layout": "%{%Y|+8:00}C",
+      "problem": "`+8:00` is not an offset, such as `Z` or `+08:00`"
+    },
+    {
+      "layout": "%{%Y|Asia/Shanghai}C",
+      "problem": "`Asia/Shanghai` is not an offset, such as `Z` or `+08:00`"
+    },
+    {
+      "layout": "%{%Y|z}C",
+      "problem": "`z` is not an offset, such as `Z` or `+08:00`"
+    },
+    {
+      "layout": "%{%Y|}C",
+      "problem": "a date format's `|` takes an offset, such as `+08:00`"
+    },
+    {
+      "layout": "%{%Y|+08:00",
+      "problem": "layout `%{%Y|+08:00` ends inside a verb"
+    },
+    {
+      "layout": "%{}C|%{at %H}C",
+      "text": "|at 1"
+    },
+    {
+      "layout": "%{%Y}C",
+      "problem": "`%C` writes a time in the years 0000 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%{%Y}C",
+      "problem": "`%C` writes a time in the years 0000 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%{%Y}C",
+      "problem": "`%C` writes a time in the years 0000 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%12{%Y-%m-%d}C|%-6{%Y}C|",
+      "text": "    1970-1-1|1970  |"
+    },
+    {
+      "layout": "%{%Y}C",
       "problem": "`%C` writes a number, and operand 1 is text"
+    },
+    {
+      "layout": "%C",
+      "problem": "`%C` takes a date format, such as `%{%Y-%m-%d}C`"
+    },
+    {
+      "layout": "%{%Y}s",
+      "problem": "`%{%Y}s` takes no date format"
+    },
+    {
+      "layout": "%{%Y}%",
+      "problem": "`%{%Y}%` takes no date format"
+    },
+    {
+      "layout": "%{%Q}C",
+      "problem": "`%Q` is not a date verb `format` writes"
+    },
+    {
+      "layout": "%{%Y-%}C",
+      "problem": "`%}` is not a date verb `format` writes"
+    },
+    {
+      "layout": "%{%Y",
+      "problem": "layout `%{%Y` ends inside a verb"
+    },
+    {
+      "layout": "%{%Y%",
+      "problem": "layout `%{%Y%` ends inside a verb"
     },
     {
       "layout": "%q",
@@ -241,8 +369,28 @@
       "problem": "`%.2d` takes no precision"
     },
     {
-      "layout": "%.2C",
-      "problem": "`%.2C` takes no precision"
+      "layout": "%{%Y}.10C",
+      "problem": "`%{%Y}.10C` takes a precision of at most 9, such as `.3` for milliseconds"
+    },
+    {
+      "layout": "%{%Y-%02m-%02d %02H:%02M:%02S.%03L}.3C|%{%02H:%02M:%02S.%03L}.3C|%{%03L}.3C",
+      "text": "2026-11-12 08:26:04.250|23:59:59.999|250"
+    },
+    {
+      "layout": "%{%02S.%03L}.6C|%{%S.%03L}.9C|%{%S.%L}.1C|%{%S}.0C",
+      "text": "04.250|5.250|5.900|5"
+    },
+    {
+      "layout": "%12{%Y}.3C|%-6{%Y}.C|",
+      "text": "        1970|1970  |"
+    },
+    {
+      "layout": "%.3{%Y}C",
+      "problem": "`%.3{` is not a verb `format` writes"
+    },
+    {
+      "layout": "%{%.2m}C",
+      "problem": "`%.2m` takes no precision"
     },
     {
       "layout": "%B",

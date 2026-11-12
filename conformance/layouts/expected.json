@@ -13,12 +13,41 @@
       ]
     },
     {
-      "layout": "checked %C",
+      "layout": "checked %{%Y-%02m-%02d}C",
       "parts": [
         {
           "text": "checked "
         },
         {
+          "date_format": {
+            "offset": null,
+            "parts": [
+              {
+                "date_verb":"Y",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": "-"
+              },
+              {
+                "date_verb":"m",
+                "left_aligned": false,
+                "width": 2,
+                "zero_padded": true
+              },
+              {
+                "text": "-"
+              },
+              {
+                "date_verb":"d",
+                "left_aligned": false,
+                "width": 2,
+                "zero_padded": true
+              }
+            ]
+          },
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -29,9 +58,119 @@
       ]
     },
     {
-      "layout": "%C",
+      "layout": "%-12{%-3d/%02m/%Y %H:%M:%S.%03L %%}C",
       "parts": [
         {
+          "date_format": {
+            "offset": null,
+            "parts": [
+              {
+                "date_verb":"d",
+                "left_aligned": true,
+                "width": 3,
+                "zero_padded": false
+              },
+              {
+                "text": "/"
+              },
+              {
+                "date_verb":"m",
+                "left_aligned": false,
+                "width": 2,
+                "zero_padded": true
+              },
+              {
+                "text": "/"
+              },
+              {
+                "date_verb":"Y",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": " "
+              },
+              {
+                "date_verb":"H",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": ":"
+              },
+              {
+                "date_verb":"M",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": ":"
+              },
+              {
+                "date_verb":"S",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": "."
+              },
+              {
+                "date_verb":"L",
+                "left_aligned": false,
+                "width": 3,
+                "zero_padded": true
+              },
+              {
+                "text": " %"
+              }
+            ]
+          },
+          "left_aligned": true,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "C",
+          "width": 12,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "%{%H:%M %z|-05:30}C",
+      "parts": [
+        {
+          "date_format": {
+            "offset": "-05:30",
+            "parts": [
+              {
+                "date_verb":"H",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": ":"
+              },
+              {
+                "date_verb":"M",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              },
+              {
+                "text": " "
+              },
+              {
+                "date_verb":"z",
+                "left_aligned": false,
+                "width": null,
+                "zero_padded": false
+              }
+            ]
+          },
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -40,6 +179,18 @@
           "zero_padded": false
         }
       ]
+    },
+    {
+      "layout": "%{%Y|+24:00}C",
+      "problem": "`+24:00` is not an offset, such as `Z` or `+08:00`"
+    },
+    {
+      "layout": "%C",
+      "problem": "`%C` takes a date format, such as `%{%Y-%m-%d}C`"
+    },
+    {
+      "layout": "%{%Q}C",
+      "problem": "`%Q` is not a date verb `format` writes"
     },
     {
       "layout": "100%% done: %s%%",
@@ -48,6 +199,7 @@
           "text": "100% done: "
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -64,6 +216,7 @@
       "layout": "%-08.3f|%+5d",
       "parts": [
         {
+          "date_format": null,
           "left_aligned": true,
           "plus_signed": false,
           "precision": 3,
@@ -75,6 +228,7 @@
           "text": "|"
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": true,
           "precision": null,
@@ -88,6 +242,7 @@
       "layout": "%.s|%.12B",
       "parts": [
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": 0,
@@ -99,6 +254,7 @@
           "text": "|"
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": 12,
@@ -112,6 +268,7 @@
       "layout": "%u-%l %A",
       "parts": [
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -123,6 +280,7 @@
           "text": "-"
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -134,6 +292,7 @@
           "text": " "
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -147,6 +306,7 @@
       "layout": "%v %x %X %q",
       "parts": [
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -158,6 +318,7 @@
           "text": " "
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -169,6 +330,7 @@
           "text": " "
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,
@@ -180,6 +342,7 @@
           "text": " "
         },
         {
+          "date_format": null,
           "left_aligned": false,
           "plus_signed": false,
           "precision": null,

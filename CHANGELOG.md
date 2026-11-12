@@ -2,10 +2,20 @@
 
 ## Unreleased
 
+- Documentation
+  - The format function's layout is defined by a grammar.
+  - `%C` writes a time by its required date format, such as `%{%Y-%02m-%02dT%02H:%02M:%02S%z|+08:00}C`: date verbs padded as verbs are, an optional time offset, in the years `0000` to `9999`.
+  - `%C`'s precision states the digits of a second its operand counts in, such as `.3` for milliseconds.
+- Packages
+  - `format_layout`, `formatLayout` and `FormatLayout` write `%C` by its date format, time offset and precision.
+  - `parse_layout`, `parseLayout` and `ParseLayout` read a date format's parts, each date verb with its flags and width, and its time offset.
+- Conformance
+  - `format/` and `layouts/` cover date formats, time offsets and `%C`'s precision.
+
 ## v0.3.2 — 2026-11-12
 
 - Documentation
-  - The specification defines the format function: a layout's verbs written from its operands, with Go's printing verbs and the standard's own `%u`, `%l`, `%A`, `%B` and `%C`.
+  - The specification defines the format function: a layout's verbs written from its operands.
 - Packages
   - `format_layout`, `formatLayout` and `FormatLayout` write the format function.
   - `parse_layout`, `parseLayout` and `ParseLayout` read a layout into its literal text and verbs.

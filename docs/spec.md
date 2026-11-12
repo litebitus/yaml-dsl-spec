@@ -439,43 +439,103 @@ Terraform's signatures are read into the same table:
 
 `format` is the one function the standard defines: text made from a layout and the operands that fill its verbs, in order. A tool that computes `format` computes it as stated here; its table entry is the one above.
 
-A layout is text holding verbs. A verb is `%`, then its flags, its width and its precision, each optional, then its letter, as Go's `fmt` package writes one. Each verb takes the next operand, and `%%` writes a percent sign and takes none.
+### Grammar
 
-An operand is text, a whole number, a number or a boolean. A number with no fraction from -2^63 up to 2^63 is a whole number, wherever a whole number is read; a whole number is also a number.
+The grammar is written in EBNF: juxtaposition is sequence, `|` alternation, `[ ]` option, `{ }` repetition, `…` a range of characters, and `.` ends a production. A lowercase production is a single character.
 
-| Part | Written | Holds |
-|---|---|---|
-| flags | `-`, `+`, `0` | `-` pads on the right; `+` always writes the sign of a `%d` or `%f`; `0` pads a `%d`, `%x`, `%X` or `%f` with leading zeros, after its sign |
-| width | a whole number up to 1000 | the fewest characters written, padded with spaces on the left |
-| precision | `.` and a whole number up to 1000, `.` alone being 0 | for `%s`, `%q`, `%u`, `%l` and `%A`, the most characters of the operand read; for `%f`, the digits after the decimal point, 6 where left out; for `%B`, as it states |
+```ebnf
+Layout     = { Text | Percent | Verb } .
+Text       = textCharacter { textCharacter } .
+Percent    = "%" "%" .
+Verb       = "%" { Flag } [ Width ] [ DateFormat ] [ Precision ] Letter .
+Flag       = "-" | "+" | "0" .
+Width      = nonZeroDigit { digit } .
+Precision  = "." { digit } .
+Letter     = "s" | "q" | "v" | "d" | "x" | "X" | "f" | "u" | "l" | "A" | "B" | "C" .
+
+DateFormat     = "{" { dateText | Percent | DateVerb } [ "|" TimeOffset ] "}" .
+DateVerb       = "%" { Flag } [ Width ] [ Precision ] DateLetter .
+DateLetter     = "Y" | "y" | "m" | "d" | "H" | "M" | "S" | "L" | "z" .
+TimeOffset     = "Z" | TimeNumOffset .
+TimeNumOffset  = ( "+" | "-" ) digit digit ":" digit digit .
+
+nonZeroDigit = "1" … "9" .
+digit        = "0" … "9" .
+```
+
+| Character | Is |
+|---|---|
+| `textCharacter` | any character but `%` |
+| `dateText` | any character but `%`, `\|` and `}` |
+
+The verb's parts:
+
+| Part | Holds |
+|---|---|
+| `Flag` | `-` pads on the right; `+` always writes a number's sign; `0` pads with leading zeros, after the sign |
+| `Width` | the fewest characters written, padded with spaces on the left; at most 1000 |
+| `Precision` | for a text verb, the most characters of the operand read; for `%f`, the digits after the decimal point, 6 where left out; for `%B`, as it states; for `%C`, the digits of a second its operand counts in, `0` to `9`: `.3` for milliseconds, `.6` for microseconds, `.9` for nanoseconds, seconds where left out; `.` alone is 0; at most 1000 |
+| `DateFormat` | the time's parts, each written by its `DateVerb`, the text between them, and the offset from UTC the time is written at |
+| `TimeOffset` | `Z` for UTC, or a `TimeNumOffset`; UTC where left out |
+| `TimeNumOffset` | a sign, the hours `00` to `23`, `:` and the minutes `00` to `59`, such as `+08:00`; `+00:00` is UTC, and `-00:00` is UTC with the local offset unknown |
 
 Width and precision count Unicode code points.
 
-Go's printing verbs it writes:
+### Verbs
 
-| Verb | Operand | Writes |
-|---|---|---|
-| `%s` | text | the text |
-| `%q` | text | the text in double quotes: `"` and `\` after a backslash, the control characters Go names as `\a`, `\b`, `\f`, `\n`, `\r`, `\t` and `\v`, the other control characters below U+0080 as `\x` and two digits, those from U+0080 to U+009F as `\u` and four |
-| `%v` | text, a whole number or a boolean | text as `%s`, a whole number as `%d`, a boolean as `true` or `false` |
-| `%d` | a whole number | base 10 |
-| `%x`, `%X` | a whole number or text | base 16, with lower-case or upper-case letters; text as its UTF-8 bytes, two digits each |
-| `%f` | a number | a decimal point and no exponent, its exact binary value rounded half to even |
+Each `Verb` takes the next operand, and a `Percent` writes a percent sign and takes none. An operand is text, a whole number, a number or a boolean. A number with no fraction from -2^63 up to 2^63 is a whole number, wherever a whole number is read; a whole number is also a number.
 
-The verbs the standard adds:
+Each verb, the operand it takes, what it writes, and the parts it reads; a part it does not read is a problem:
 
-| Verb | Operand | Writes its operand |
-|---|---|---|
-| `%u` | text | upper-cased |
-| `%l` | text | lower-cased |
-| `%A` | text | with each `/` as `_` |
-| `%B` | text | whole where it fits the precision, else `-` and its last characters, one fewer than the precision; the precision is required |
-| `%C` | a number, a time in seconds since the Unix epoch, its fraction dropped toward the past | as its date, year, month and day, `2026-11-12`, in the years 1 to 9999 |
+| Verb | Operand | Writes | `Flag` | `Width` | `Precision` | `DateFormat` |
+|---|---|---|---|---|---|---|
+| `%s` | text | the text | `-` | read | read | none |
+| `%q` | text | the text in double quotes: `"` and `\` after a backslash; U+0007, U+0008, U+000C, U+000A, U+000D, U+0009 and U+000B as `\a`, `\b`, `\f`, `\n`, `\r`, `\t` and `\v`; the other control characters below U+0080 as `\x` and two digits; those from U+0080 to U+009F as `\u` and four | `-` | read | read | none |
+| `%v` | text, a whole number or a boolean | text as `%s`, a whole number as `%d`, a boolean as `true` or `false` | `-` | read | none | none |
+| `%d` | a whole number | base 10 | `-`, `+`, `0` | read | none | none |
+| `%x` | a whole number or text | base 16, with lower-case letters; text as its UTF-8 bytes, two digits each | `-`, `0` | read | none | none |
+| `%X` | a whole number or text | base 16, with upper-case letters; text as its UTF-8 bytes, two digits each | `-`, `0` | read | none | none |
+| `%f` | a number | a decimal point and no exponent, its exact binary value rounded half to even | `-`, `+`, `0` | read | read | none |
+| `%u` | text | the text upper-cased | `-` | read | read | none |
+| `%l` | text | the text lower-cased | `-` | read | read | none |
+| `%A` | text | the text with each `/` as `_` | `-` | read | read | none |
+| `%B` | text | the text whole where it fits the precision, else `-` and its last characters, one fewer than the precision | `-` | read | required, at least 1 | none |
+| `%C` | a number, a time since the Unix epoch in seconds, or in the digits of a second its precision states | the time at its date format's offset, as its date format writes it, in the years `0000` to `9999` of the proleptic Gregorian calendar | `-` | read | read, `0` to `9` | required |
 
 - Upper and lower case are Unicode's simple case mappings, one character to one, in the Unicode version the language's runtime carries.
-- A `%C` date is the date in UTC; a tool that states the time zone it shows times in writes the date in that zone.
-- A verb the standard adds takes the next capital letter Go's printing verbs leave free.
-- These are problems, the layout's read before the operands' and the first one reported: a layout that ends inside a verb; a verb, a flag or a part this section does not state; a flag, a width or a precision on a verb that reads none; a width or a precision over 1000; an operand of a kind its verb does not write, a number that is not finite among them; a `%C` time outside its years; more verbs than operands, and more operands than verbs.
+- A verb added to the format function takes the next capital letter no verb holds.
+
+### Date verbs
+
+Each date verb in a `%C` date format, what it writes, and the parts it reads; a part it does not read is a problem:
+
+| `DateVerb` | Writes | `Flag` | `Width` | `Precision` |
+|---|---|---|---|---|
+| `%Y` | the year, `0` to `9999` | `-`, `0` | read | none |
+| `%y` | the year's last two digits as a number, `0` to `99` | `-`, `0` | read | none |
+| `%m` | the month, `1` to `12` | `-`, `0` | read | none |
+| `%d` | the day of the month, `1` to `31` | `-`, `0` | read | none |
+| `%H` | the hour, `0` to `23` | `-`, `0` | read | none |
+| `%M` | the minute, `0` to `59` | `-`, `0` | read | none |
+| `%S` | the second, `0` to `59` | `-`, `0` | read | none |
+| `%L` | the millisecond, `0` to `999`: the whole milliseconds of the second's fraction, never rounded up | `-`, `0` | read | none |
+| `%z` | the offset: `Z` for `Z` and `+00:00`, `-00:00` for `-00:00`, else the `TimeNumOffset`, such as `+08:00` | `-` | read | none |
+
+A date verb's parts mean what a verb's do: `%m` writes `1`, `%2m` writes ` 1`, and `%02m` writes `01`.
+
+### Problems
+
+The layout's problems are read before the operands', and the first one is reported:
+
+- a layout the grammar does not read, such as one that ends inside a verb;
+- a part a verb or a date verb does not read, a required part left out or below its least, and a `%C` precision over `9`;
+- a width or a precision over 1000;
+- a `TimeNumOffset` whose hours are over `23` or minutes over `59`;
+- an operand of a kind its verb does not write, a number that is not finite among them;
+- a `%C` time outside its years;
+- more verbs than operands, and more operands than verbs.
+
+### Examples
 
 | Layout | Operands | Text |
 |---|---|---|
@@ -483,7 +543,14 @@ The verbs the standard adds:
 | `%u-%03d` | `mock`, `7` | `MOCK-007` |
 | `mock_%A` | `services/mock-api` | `mock_services_mock-api` |
 | `%.12B` | `mock-session-name` | `-ession-name` |
-| `checked %C` | `1794471964` | `checked 2026-11-12` |
+| `checked %{%Y-%02m-%02d}C` | `1794471964` | `checked 2026-11-12` |
+| `%{%Y-%02m-%02d %02H:%02M:%02S}C` | `1794471964` | `2026-11-12 08:26:04` |
+| `%{%Y-%02m-%02d %02H:%02M %z\|+08:00}C` | `1794471964` | `2026-11-12 16:26 +08:00` |
+| `%{%02H:%02M\|-05:00}C` | `1794471964` | `03:26` |
+| `%{%Y-%02m-%02dT%02H:%02M:%02S%z}C` | `1794471964` | `2026-11-12T08:26:04Z` |
+| `%{%m/%d/%Y %H:%02M}C` | `1767225600` | `1/1/2026 0:00` |
+| `%{%02H:%02M:%02S.%03L}C` | `1794471964.25` | `08:26:04.250` |
+| `%{%02H:%02M:%02S.%03L}.3C` | `1794471964250` | `08:26:04.250` |
 
 ## Macros
 

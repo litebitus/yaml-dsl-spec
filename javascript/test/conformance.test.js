@@ -191,6 +191,18 @@ function formatReading({ layout, operands }) {
   }
 }
 
+function dateFormatReading({ parts, offset }) {
+  return {
+    parts: parts.map((datePart) => (datePart.dateVerb === undefined ? { text: datePart.text } : {
+      date_verb: datePart.dateVerb,
+      left_aligned: datePart.leftAligned,
+      zero_padded: datePart.zeroPadded,
+      width: datePart.width,
+    })),
+    offset,
+  };
+}
+
 function layoutReading(layout) {
   try {
     const parts = parseLayout(layout).map((part) => (part.verb === undefined ? { text: part.text } : {
@@ -200,6 +212,7 @@ function layoutReading(layout) {
       zero_padded: part.verb.zeroPadded,
       width: part.verb.width,
       precision: part.verb.precision,
+      date_format: part.verb.dateFormat === null ? null : dateFormatReading(part.verb.dateFormat),
     }));
     return { layout, parts };
   } catch (error) {

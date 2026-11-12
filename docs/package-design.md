@@ -79,7 +79,7 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
 | format | `format_layout(layout, operands)` | `formatLayout(layout, operands)` | `FormatLayout(layout, operands)` | the text the specification's format function writes; else its first problem |
-| read a layout | `parse_layout(layout)` | `parseLayout(layout)` | `ParseLayout(layout)` | the layout's parts, each its literal text, `%%` read as text, or a verb: its letter, its flags, and its width and precision, none where left out; else the layout's first problem |
+| read a layout | `parse_layout(layout)` | `parseLayout(layout)` | `ParseLayout(layout)` | the layout's parts, each its literal text, `%%` read as text, or a verb: its letter, its flags, its width and precision, and its date format, none where left out; a date format is its parts, each its literal text, `%%` read as text, or a date verb with its letter, flags and width, and its offset as written; else the layout's first problem |
 
 - An operand is the language's JSON value: `serde_json::Value` in Rust, and in JavaScript and Go the value its JSON parser reads, Go's integer types also read as whole numbers.
 

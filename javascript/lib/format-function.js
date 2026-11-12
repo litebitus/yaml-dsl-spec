@@ -3,7 +3,8 @@
 const { codeSpan } = require('./problem-wording');
 
 const FORMAT_PART_LIMIT = 1000;
-const EARLIEST_FORMAT_SECONDS = -62135596800;
+const MAXIMUM_TIME_DIGITS = 9;
+const EARLIEST_FORMAT_SECONDS = -62167219200;
 const LATEST_FORMAT_SECONDS = 253402300800;
 const SECONDS_PER_DAY = 86400;
 const WHOLE_NUMBER_LIMIT = 2 ** 63;
@@ -85,8 +86,11 @@ const FORMAT_VERB_RULES = new Map([
     takesOperand: true,
     kinds: ['whole', 'number'],
     readsWidth: true,
+    readsPrecision: true,
+    readsDateFormat: true,
   }],
 ]);
+const DATE_VERB_LETTERS = 'YymdHMSLz';
 
 /**
  * The standard's format function: the layout with each verb written from the
@@ -118,8 +122,10 @@ function formatLayout(layout, operands) {
 /**
  * The layout read into its parts, `{ text }` for literal text, `%%` read as
  * text, and `{ verb }` for a verb: its `letter`, `leftAligned`, `plusSigned`,
- * `zeroPadded`, and its `width` and `precision`, `null` where left out; throws
- * the first problem in the layout.
+ * `zeroPadded`, its `width` and `precision`, and its `dateFormat`, `null` where
+ * left out. A date format is its `parts`, `{ text }` with `%%` read as text and
+ * `{ dateVerb }` with its `leftAligned`, `zeroPadded` and `width`, and its
+ * `offset` as written; throws the first problem in the layout.
  */
 function parseLayout(layout) {
   const layoutCharacters = Array.from(layout);
@@ -131,7 +137,8 @@ function parseLayout(layout) {
       continue;
     }
     const directive = readFormatDirective(layoutCharacters, position);
-    if (directive === null) throw new Error(`layout ${codeSpan(layout)} ends inside a verb`);
+    if (directive.dateFormatProblem !== null) throw new Error(directive.dateFormatProblem);
+    if (!directive.isComplete) throw new Error(`layout ${codeSpan(layout)} ends inside a verb`);
     position = directive.endPosition;
     const verbRule = FORMAT_VERB_RULES.get(directive.verb.letter);
     if (verbRule === undefined) {
@@ -151,17 +158,44 @@ function parseLayout(layout) {
   return layoutParts;
 }
 
-function readFormatDirective(layoutCharacters, startPosition) {
-  const verb = {
-    letter: null,
-    leftAligned: false,
-    plusSigned: false,
-    zeroPadded: false,
-    width: null,
-    precision: null,
+function emptyFormatDirective() {
+  return {
+    verb: {
+      letter: null,
+      leftAligned: false,
+      plusSigned: false,
+      zeroPadded: false,
+      width: null,
+      precision: null,
+      dateFormat: null,
+    },
+    overPartLimit: false,
+    dateFormatProblem: null,
+    isComplete: false,
   };
-  const directive = { verb, overPartLimit: false };
-  let position = startPosition + 1;
+}
+
+function readFormatDirective(layoutCharacters, startPosition) {
+  const directive = emptyFormatDirective();
+  let position = readFlagsAndWidth(layoutCharacters, startPosition + 1, directive);
+  if (layoutCharacters[position] === '{') {
+    const dateFormatEnd = readDateFormat(layoutCharacters, position + 1, directive);
+    if (!dateFormatEnd.isClosed) return directive;
+    position = dateFormatEnd.endPosition;
+  }
+  position = readPrecision(layoutCharacters, position, directive);
+  if (position >= layoutCharacters.length) return directive;
+  directive.verb.letter = layoutCharacters[position];
+  directive.writtenText = layoutCharacters.slice(startPosition, position + 1).join('');
+  directive.endPosition = position;
+  directive.isComplete = true;
+  return directive;
+}
+
+/** A verb's or a date verb's flags and width read onto the directive; answers where they end. */
+function readFlagsAndWidth(layoutCharacters, startPosition, directive) {
+  const { verb } = directive;
+  let position = startPosition;
   while (position < layoutCharacters.length && '-+0'.includes(layoutCharacters[position])) {
     if (layoutCharacters[position] === '-') verb.leftAligned = true;
     else if (layoutCharacters[position] === '+') verb.plusSigned = true;
@@ -170,17 +204,108 @@ function readFormatDirective(layoutCharacters, startPosition) {
   }
   const width = readFormatNumber(layoutCharacters, position, directive);
   verb.width = width.value;
-  position = width.endPosition;
-  if (layoutCharacters[position] === '.') {
-    const precision = readFormatNumber(layoutCharacters, position + 1, directive);
-    verb.precision = precision.value === null ? 0 : precision.value;
-    position = precision.endPosition;
+  return width.endPosition;
+}
+
+/** A precision read onto the directive where one is written, `.` alone being 0; answers where it ends. */
+function readPrecision(layoutCharacters, position, directive) {
+  if (layoutCharacters[position] !== '.') return position;
+  const precision = readFormatNumber(layoutCharacters, position + 1, directive);
+  directive.verb.precision = precision.value === null ? 0 : precision.value;
+  return precision.endPosition;
+}
+
+/**
+ * The date format from after its opening brace to its closing one, set on the directive where closed;
+ * answers where it ends and whether it is closed. Its first problem is kept on the directive.
+ */
+function readDateFormat(layoutCharacters, startPosition, directive) {
+  const dateFormat = { parts: [], offset: null };
+  const keepProblem = (problem) => {
+    if (directive.dateFormatProblem === null) directive.dateFormatProblem = problem;
+  };
+  let literalText = '';
+  let position = startPosition;
+  const endsDateParts = (character) => character === '}' || character === '|';
+  while (position < layoutCharacters.length && !endsDateParts(layoutCharacters[position])) {
+    if (layoutCharacters[position] !== '%') {
+      literalText += layoutCharacters[position];
+      position += 1;
+      continue;
+    }
+    if (layoutCharacters[position + 1] === '%') {
+      literalText += '%';
+      position += 2;
+      continue;
+    }
+    const dateVerbRead = readDateVerb(layoutCharacters, position, keepProblem);
+    if (!dateVerbRead.isComplete) return { isClosed: false };
+    position = dateVerbRead.endPosition;
+    if (literalText !== '') dateFormat.parts.push({ text: literalText });
+    literalText = '';
+    dateFormat.parts.push(dateVerbRead.dateFormatPart);
   }
-  if (position >= layoutCharacters.length) return null;
-  verb.letter = layoutCharacters[position];
-  directive.writtenText = layoutCharacters.slice(startPosition, position + 1).join('');
-  directive.endPosition = position;
-  return directive;
+  if (literalText !== '') dateFormat.parts.push({ text: literalText });
+  if (layoutCharacters[position] === '|') {
+    const offsetStart = position + 1;
+    while (position < layoutCharacters.length && layoutCharacters[position] !== '}') position += 1;
+    const offsetText = layoutCharacters.slice(offsetStart, position).join('');
+    if (offsetText === '') {
+      keepProblem('a date format\'s `|` takes an offset, such as `+08:00`');
+    } else if (!offsetMinutesOf(offsetText).isOffset) {
+      keepProblem(`${codeSpan(offsetText)} is not an offset, such as \`Z\` or \`+08:00\``);
+    }
+    dateFormat.offset = offsetText;
+  }
+  if (position >= layoutCharacters.length) return { isClosed: false };
+  directive.verb.dateFormat = dateFormat;
+  return { isClosed: true, endPosition: position + 1 };
+}
+
+/**
+ * A date verb from its `%` through its letter: its date format part, where it ends and whether the layout
+ * holds its letter; its first problem is kept.
+ */
+function readDateVerb(layoutCharacters, startPosition, keepProblem) {
+  const directive = emptyFormatDirective();
+  let position = readFlagsAndWidth(layoutCharacters, startPosition + 1, directive);
+  position = readPrecision(layoutCharacters, position, directive);
+  if (position >= layoutCharacters.length) return { isComplete: false };
+  const { verb } = directive;
+  const dateLetter = layoutCharacters[position];
+  const fencedDateVerb = codeSpan(layoutCharacters.slice(startPosition, position + 1).join(''));
+  if (!DATE_VERB_LETTERS.includes(dateLetter)) {
+    keepProblem(`${fencedDateVerb} is not a date verb \`format\` writes`);
+  } else if (directive.overPartLimit) {
+    keepProblem(`${fencedDateVerb} has a width or a precision over ${FORMAT_PART_LIMIT}`);
+  } else if (verb.plusSigned) {
+    keepProblem(`${fencedDateVerb} takes no \`+\` flag`);
+  } else if (verb.zeroPadded && dateLetter === 'z') {
+    keepProblem(`${fencedDateVerb} takes no \`0\` flag`);
+  } else if (verb.precision !== null) {
+    keepProblem(`${fencedDateVerb} takes no precision`);
+  }
+  return {
+    isComplete: true,
+    endPosition: position + 1,
+    dateFormatPart: {
+      dateVerb: dateLetter,
+      leftAligned: verb.leftAligned,
+      zeroPadded: verb.zeroPadded,
+      width: verb.width,
+    },
+  };
+}
+
+/** A time offset read: `Z`, or a sign, hours `00` to `23`, `:` and minutes `00` to `59`. */
+function offsetMinutesOf(offsetText) {
+  if (offsetText === 'Z') return { offsetMinutes: 0, isOffset: true };
+  const written = /^([+-])([0-9]{2}):([0-9]{2})$/u.exec(offsetText);
+  if (written === null) return { offsetMinutes: 0, isOffset: false };
+  const hours = Number(written[2]);
+  const minutes = Number(written[3]);
+  const offsetMinutes = (written[1] === '-' ? -1 : 1) * (hours * 60 + minutes);
+  return { offsetMinutes, isOffset: hours <= 23 && minutes <= 59 };
 }
 
 function readFormatNumber(layoutCharacters, startPosition, directive) {
@@ -203,8 +328,15 @@ function directivePartProblem({ verb, writtenText, overPartLimit }, verbRule) {
   if (verb.zeroPadded && !verbRule.readsZeroPadding) return `${fenced} takes no \`0\` flag`;
   if (verb.width !== null && !verbRule.readsWidth) return `${fenced} takes no width`;
   if (verb.precision !== null && !verbRule.readsPrecision) return `${fenced} takes no precision`;
+  if (verb.dateFormat !== null && !verbRule.readsDateFormat) return `${fenced} takes no date format`;
   if (verb.letter === 'B' && (verb.precision === null || verb.precision < 1)) {
     return `${fenced} takes a precision of at least 1, such as \`%.64B\``;
+  }
+  if (verb.letter === 'C' && verb.precision !== null && verb.precision > MAXIMUM_TIME_DIGITS) {
+    return `${fenced} takes a precision of at most ${MAXIMUM_TIME_DIGITS}, such as \`.3\` for milliseconds`;
+  }
+  if (verbRule.readsDateFormat && verb.dateFormat === null) {
+    return `${fenced} takes a date format, such as \`%{%Y-%m-%d}C\``;
   }
   return null;
 }
@@ -256,7 +388,12 @@ function formattedVerbText(verb, verbRule, operand, operandNumber) {
     case 'x': return hexadecimalText(operand);
     case 'X': return hexadecimalText(operand).toUpperCase();
     case 'f': return signedNumberText(fixedPointText(operand, precision), verb.plusSigned);
-    default: return dateText(operand, operandNumber);
+    default: return dateText(
+      operand,
+      verb.precision === null ? 0 : verb.precision,
+      verb.dateFormat,
+      operandNumber,
+    );
   }
 }
 
@@ -324,18 +461,57 @@ function exactBinaryParts(positiveNumber) {
   return { mantissa: fraction | (1n << 52n), binaryExponent: storedExponent - 1075 };
 }
 
-function dateText(operand, operandNumber) {
-  const seconds = operand.kind === 'whole'
-    ? Number(operand.wholeValue)
-    : Math.floor(operand.numberValue);
-  if (seconds < EARLIEST_FORMAT_SECONDS || seconds >= LATEST_FORMAT_SECONDS) {
-    throw new Error(
-      `\`%C\` writes a time in the years 1 to 9999, and operand ${operandNumber} is outside them`,
-    );
+function dateText(operand, timeDigits, dateFormat, operandNumber) {
+  const unitsPerSecond = 10n ** BigInt(timeDigits);
+  const isNearRange = (seconds) => seconds >= EARLIEST_FORMAT_SECONDS - SECONDS_PER_DAY
+    && seconds < LATEST_FORMAT_SECONDS + SECONDS_PER_DAY;
+  let seconds;
+  let milliseconds;
+  if (operand.kind === 'whole') {
+    let wholeSeconds = operand.wholeValue / unitsPerSecond;
+    let remainder = operand.wholeValue % unitsPerSecond;
+    if (remainder < 0n) {
+      wholeSeconds -= 1n;
+      remainder += unitsPerSecond;
+    }
+    seconds = Number(wholeSeconds);
+    milliseconds = Number((remainder * 1000n) / unitsPerSecond);
+  } else {
+    const timeInSeconds = operand.numberValue / Number(unitsPerSecond);
+    seconds = Math.floor(timeInSeconds);
+    milliseconds = Math.floor((timeInSeconds - seconds) * 1000);
   }
-  const { year, month, day } = civilDateOfDays(Math.floor(seconds / SECONDS_PER_DAY));
-  const twoDigits = (value) => String(value).padStart(2, '0');
-  return `${String(year).padStart(4, '0')}-${twoDigits(month)}-${twoDigits(day)}`;
+  if (!isNearRange(seconds)) throw dateRangeProblem(operandNumber);
+  const { offset } = dateFormat;
+  const writtenOffset = offset === null || offset === '+00:00' ? 'Z' : offset;
+  seconds += offsetMinutesOf(writtenOffset).offsetMinutes * 60;
+  if (seconds < EARLIEST_FORMAT_SECONDS || seconds >= LATEST_FORMAT_SECONDS) {
+    throw dateRangeProblem(operandNumber);
+  }
+  const days = Math.floor(seconds / SECONDS_PER_DAY);
+  const secondOfDay = seconds - days * SECONDS_PER_DAY;
+  const { year, month, day } = civilDateOfDays(days);
+  const dateVerbValues = {
+    Y: year,
+    y: year % 100,
+    m: month,
+    d: day,
+    H: Math.floor(secondOfDay / 3600),
+    M: Math.floor((secondOfDay % 3600) / 60),
+    S: secondOfDay % 60,
+    L: milliseconds,
+  };
+  return dateFormat.parts.map((part) => {
+    if (part.dateVerb === undefined) return part.text;
+    if (part.dateVerb === 'z') return paddedText(writtenOffset, part.width, part.leftAligned, false);
+    return paddedText(String(dateVerbValues[part.dateVerb]), part.width, part.leftAligned, part.zeroPadded);
+  }).join('');
+}
+
+function dateRangeProblem(operandNumber) {
+  return new Error(
+    `\`%C\` writes a time in the years 0000 to 9999, and operand ${operandNumber} is outside them`,
+  );
 }
 
 function civilDateOfDays(days) {
@@ -372,15 +548,24 @@ function goQuotedText(text) {
 }
 
 function paddedVerbText(verb, verbRule, verbText) {
-  if (verb.width === null) return verbText;
-  const padding = verb.width - Array.from(verbText).length;
-  if (padding <= 0) return verbText;
-  if (verb.leftAligned) return verbText + ' '.repeat(padding);
-  if (verb.zeroPadded && verbRule.readsZeroPadding) {
-    const signText = verbText.startsWith('-') || verbText.startsWith('+') ? verbText[0] : '';
-    return signText + '0'.repeat(padding) + verbText.slice(signText.length);
+  const zeroPadded = verb.zeroPadded && verbRule.readsZeroPadding === true;
+  return paddedText(verbText, verb.width, verb.leftAligned, zeroPadded);
+}
+
+/**
+ * Text padded to a width: on the right where left-aligned, else with leading zeros after its sign where
+ * zero-padded, else with spaces on the left.
+ */
+function paddedText(text, width, leftAligned, zeroPadded) {
+  if (width === null) return text;
+  const padding = width - Array.from(text).length;
+  if (padding <= 0) return text;
+  if (leftAligned) return text + ' '.repeat(padding);
+  if (zeroPadded) {
+    const signText = text.startsWith('-') || text.startsWith('+') ? text[0] : '';
+    return signText + '0'.repeat(padding) + text.slice(signText.length);
   }
-  return ' '.repeat(padding) + verbText;
+  return ' '.repeat(padding) + text;
 }
 
 module.exports = { formatLayout, parseLayout };
