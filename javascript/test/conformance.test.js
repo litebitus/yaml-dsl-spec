@@ -5,7 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-const { readDslDefinitions, yamlReader, schemaValidation, resolved } = require('..');
+const {
+  formatLayout, parseLayout, readDslDefinitions, yamlReader, schemaValidation, resolved,
+} = require('..');
 const { compilePattern, groupNamesOf } = require('../lib/pattern-dialect');
 
 const CONFORMANCE = path.join(__dirname, '..', '..', 'conformance');
@@ -179,6 +181,42 @@ test('every yaml case reads as expected', () => {
 test('every schema case validates as expected', () => {
   const mismatches = mismatchesOf('schema', 'schema.json', schemaReading);
   assert.deepStrictEqual(mismatches, []);
+});
+
+function formatReading({ layout, operands }) {
+  try {
+    return { layout, text: formatLayout(layout, operands) };
+  } catch (error) {
+    return { layout, problem: error.message };
+  }
+}
+
+function layoutReading(layout) {
+  try {
+    const parts = parseLayout(layout).map((part) => (part.verb === undefined ? { text: part.text } : {
+      verb: part.verb.letter,
+      left_aligned: part.verb.leftAligned,
+      plus_signed: part.verb.plusSigned,
+      zero_padded: part.verb.zeroPadded,
+      width: part.verb.width,
+      precision: part.verb.precision,
+    }));
+    return { layout, parts };
+  } catch (error) {
+    return { layout, problem: error.message };
+  }
+}
+
+test('every layout case reads as expected', () => {
+  const cases = readJson(path.join(CONFORMANCE, 'layouts', 'cases.json'));
+  const actual = { cases: cases.layouts.map(layoutReading) };
+  assert.deepStrictEqual(actual, readJson(path.join(CONFORMANCE, 'layouts', 'expected.json')));
+});
+
+test('every format case writes as expected', () => {
+  const cases = readJson(path.join(CONFORMANCE, 'format', 'cases.json'));
+  const actual = { cases: cases.cases.map(formatReading) };
+  assert.deepStrictEqual(actual, readJson(path.join(CONFORMANCE, 'format', 'expected.json')));
 });
 
 test('every pattern case compiles and matches as expected', () => {

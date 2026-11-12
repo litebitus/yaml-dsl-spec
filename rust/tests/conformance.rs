@@ -27,7 +27,8 @@ use yaml_dsl_spec::resolved::{
 };
 use yaml_dsl_spec::schema::SchemaCache;
 use yaml_dsl_spec::{
-    Diagnostic, Node, NodeKind, ValidationRules, read_dsl_definitions, yaml_reader,
+    Diagnostic, LayoutPart, Node, NodeKind, ValidationRules, format_layout, parse_layout,
+    read_dsl_definitions, yaml_reader,
 };
 
 fn conformance_folder() -> PathBuf {
@@ -338,6 +339,84 @@ fn every_yaml_case_reads_as_expected() {
 fn every_schema_case_validates_as_expected() {
     let mismatches = mismatches_of("schema", "schema.json", schema_reading);
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
+
+fn layout_reading(layout: &Value) -> Value {
+    let layout = layout.as_str().unwrap();
+    let parts = match parse_layout(layout) {
+        Ok(parts) => parts,
+        Err(problem) => return json!({ "layout": layout, "problem": problem }),
+    };
+    let parts: Vec<Value> = parts
+        .into_iter()
+        .map(|part| match part {
+            LayoutPart::Text(text) => json!({ "text": text }),
+            LayoutPart::Verb(verb) => json!({
+                "verb": verb.letter.to_string(),
+                "left_aligned": verb.left_aligned,
+                "plus_signed": verb.plus_signed,
+                "zero_padded": verb.zero_padded,
+                "width": verb.width,
+                "precision": verb.precision,
+            }),
+        })
+        .collect();
+    json!({ "layout": layout, "parts": parts })
+}
+
+#[test]
+fn every_layout_case_reads_as_expected() {
+    let file = conformance_folder().join("layouts/cases.json");
+    let Some(cases) = optional_json(&file) else {
+        assert!(!conformance_folder().is_dir(), "no layout cases");
+        return;
+    };
+    let actual: Vec<Value> = cases["layouts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(layout_reading)
+        .collect();
+    let expected = optional_json(&conformance_folder().join("layouts/expected.json"));
+    let actual = json!({ "cases": actual });
+    assert_eq!(
+        expected.as_ref(),
+        Some(&actual),
+        "{}",
+        serde_json::to_string_pretty(&actual).unwrap()
+    );
+}
+
+fn format_reading(case: &Value) -> Value {
+    let layout = case["layout"].as_str().unwrap();
+    let operands = case["operands"].as_array().unwrap();
+    match format_layout(layout, operands) {
+        Ok(text) => json!({ "layout": layout, "text": text }),
+        Err(problem) => json!({ "layout": layout, "problem": problem }),
+    }
+}
+
+#[test]
+fn every_format_case_writes_as_expected() {
+    let file = conformance_folder().join("format/cases.json");
+    let Some(cases) = optional_json(&file) else {
+        assert!(!conformance_folder().is_dir(), "no format cases");
+        return;
+    };
+    let actual: Vec<Value> = cases["cases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(format_reading)
+        .collect();
+    let expected = optional_json(&conformance_folder().join("format/expected.json"));
+    let actual = json!({ "cases": actual });
+    assert_eq!(
+        expected.as_ref(),
+        Some(&actual),
+        "{}",
+        serde_json::to_string_pretty(&actual).unwrap()
+    );
 }
 
 #[test]

@@ -327,6 +327,74 @@ func TestEverySchemaCaseValidatesAsExpected(testingContext *testing.T) {
 	runCases(testingContext, "schema", "schema.json", schemaReading)
 }
 
+func TestEveryFormatCaseWritesAsExpected(testingContext *testing.T) {
+	casesValue, isPresent := readOptionalJSON(testingContext, filepath.Join(conformanceFolder, "format", "cases.json"))
+	if !isPresent {
+		testingContext.Fatal("no format cases")
+	}
+	listedCases, _ := casesValue.(map[string]any)["cases"].([]any)
+	actualCases := []any{}
+	for _, listedCase := range listedCases {
+		formatCase, _ := listedCase.(map[string]any)
+		layoutText, _ := formatCase["layout"].(string)
+		caseOperands, _ := formatCase["operands"].([]any)
+		writtenText, formatError := FormatLayout(layoutText, caseOperands)
+		if formatError != nil {
+			actualCases = append(actualCases, map[string]any{"layout": layoutText, "problem": formatError.Error()})
+		} else {
+			actualCases = append(actualCases, map[string]any{"layout": layoutText, "text": writtenText})
+		}
+	}
+	actualValue := normalizedJSON(testingContext, map[string]any{"cases": actualCases})
+	expectedValue, _ := readOptionalJSON(testingContext, filepath.Join(conformanceFolder, "format", "expected.json"))
+	if !reflect.DeepEqual(actualValue, expectedValue) {
+		prettyText, _ := json.MarshalIndent(actualValue, "", "  ")
+		testingContext.Errorf("format cases wrote:\n%s", prettyText)
+	}
+}
+
+func layoutReading(layoutText string) map[string]any {
+	layoutParts, layoutError := ParseLayout(layoutText)
+	if layoutError != nil {
+		return map[string]any{"layout": layoutText, "problem": layoutError.Error()}
+	}
+	readParts := []any{}
+	for _, layoutPart := range layoutParts {
+		if layoutPart.Verb == nil {
+			readParts = append(readParts, map[string]any{"text": layoutPart.Text})
+			continue
+		}
+		readParts = append(readParts, map[string]any{
+			"verb":         string(layoutPart.Verb.Letter),
+			"left_aligned": layoutPart.Verb.LeftAligned,
+			"plus_signed":  layoutPart.Verb.PlusSigned,
+			"zero_padded":  layoutPart.Verb.ZeroPadded,
+			"width":        layoutPart.Verb.Width,
+			"precision":    layoutPart.Verb.Precision,
+		})
+	}
+	return map[string]any{"layout": layoutText, "parts": readParts}
+}
+
+func TestEveryLayoutCaseReadsAsExpected(testingContext *testing.T) {
+	casesValue, isPresent := readOptionalJSON(testingContext, filepath.Join(conformanceFolder, "layouts", "cases.json"))
+	if !isPresent {
+		testingContext.Fatal("no layout cases")
+	}
+	listedLayouts, _ := casesValue.(map[string]any)["layouts"].([]any)
+	actualCases := []any{}
+	for _, listedLayout := range listedLayouts {
+		layoutText, _ := listedLayout.(string)
+		actualCases = append(actualCases, layoutReading(layoutText))
+	}
+	actualValue := normalizedJSON(testingContext, map[string]any{"cases": actualCases})
+	expectedValue, _ := readOptionalJSON(testingContext, filepath.Join(conformanceFolder, "layouts", "expected.json"))
+	if !reflect.DeepEqual(actualValue, expectedValue) {
+		prettyText, _ := json.MarshalIndent(actualValue, "", "  ")
+		testingContext.Errorf("layouts read to:\n%s", prettyText)
+	}
+}
+
 func TestEveryPatternCaseCompilesAndMatchesAsExpected(testingContext *testing.T) {
 	casesValue, isPresent := readOptionalJSON(testingContext, filepath.Join(conformanceFolder, "patterns", "cases.json"))
 	if !isPresent {

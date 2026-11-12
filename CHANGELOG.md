@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Documentation
+  - The specification defines the format function: a layout's verbs written from its operands, with Go's printing verbs and the standard's own `%u`, `%l`, `%A`, `%B` and `%C`.
+- Packages
+  - `format_layout`, `formatLayout` and `FormatLayout` write the format function.
+  - `parse_layout`, `parseLayout` and `ParseLayout` read a layout into its literal text and verbs.
+- Conformance
+  - `format/`: layouts with their operands, and the text or the problem each writes.
+  - `layouts/`: layouts, and the parts or the problem each reads to.
+
 ## v0.3.1 — 2026-11-12
 
 - Packages

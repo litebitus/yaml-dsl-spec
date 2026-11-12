@@ -9,6 +9,7 @@
 pub mod definition;
 mod definition_reader;
 mod diagnostic;
+mod format_function;
 pub mod function_table;
 pub mod json_path;
 mod node;
@@ -25,6 +26,7 @@ pub mod yaml_reader;
 pub use definition::DslDefinition;
 pub use definition_reader::{DeclaredDsl, read_dsl_definitions};
 pub use diagnostic::{Diagnostic, DiagnosticNotes};
+pub use format_function::{LayoutPart, LayoutVerb, format_layout, parse_layout};
 pub use function_table::{CallKey, parse_call_key};
 pub use node::{Entry, Node, NodeKind, number_json};
 pub use position::Position;

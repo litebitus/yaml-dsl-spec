@@ -13,6 +13,7 @@ Each language reads the standard through packages: the core, which every languag
 7. The function table: functions and macros read from a document schema, and call keys.
 8. Resolved values: a document value that may hold a reference, a call or a template.
 9. Schema validation: a document validated against its schema.
+10. The format function: a layout's verbs written from its operands.
 
 - The core grows as readers need it.
 
@@ -72,6 +73,15 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | an entry | `entry(name)` | `entry(name)` | `Entry(name)` | the function or macro a call names, a suffixed macro name included |
 | a macro's role | `MacroEntry::role(role)` | `MacroEntry.role(role)` | `MacroEntry.Role(role)` | the argument that plays `role` |
 | a call key | `parse_call_key(key, marker)` | `parseCallKey(key, marker)` | `ParseCallKey(key, marker)` | the call a key writes, its name, function and splat; none for a key that writes none |
+
+### Format function
+
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| format | `format_layout(layout, operands)` | `formatLayout(layout, operands)` | `FormatLayout(layout, operands)` | the text the specification's format function writes; else its first problem |
+| read a layout | `parse_layout(layout)` | `parseLayout(layout)` | `ParseLayout(layout)` | the layout's parts, each its literal text, `%%` read as text, or a verb: its letter, its flags, and its width and precision, none where left out; else the layout's first problem |
+
+- An operand is the language's JSON value: `serde_json::Value` in Rust, and in JavaScript and Go the value its JSON parser reads, Go's integer types also read as whole numbers.
 
 ### Resolved values
 

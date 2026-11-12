@@ -4,26 +4,26 @@
   "description": "A pipeline of jobs.",
   "x-yaml-dsl-functions": {
     "format": {
-      "description": "Fills the layout's `%s` placeholders with the operands, in order.",
+      "description": "Makes text from a layout and the operands that fill its verbs, in order.",
       "arguments": [
         {
           "name": "layout",
           "type": "text",
           "required": true,
           "repeated": false,
-          "description": "The text holding the placeholders."
+          "description": "The text holding the verbs."
         },
         {
           "name": "operands",
           "type": "any",
           "required": false,
           "repeated": true,
-          "description": "The values put in the placeholders, in order."
+          "description": "The values the verbs write, in order."
         }
       ],
       "return": {
         "type": "text",
-        "description": "The layout with each placeholder filled."
+        "description": "The layout with each verb written."
       }
     },
     "merge": {

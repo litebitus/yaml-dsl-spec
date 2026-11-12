@@ -1,0 +1,213 @@
+{
+  "cases": [
+    {
+      "layout": "",
+      "parts": []
+    },
+    {
+      "layout": "plain text",
+      "parts": [
+        {
+          "text": "plain text"
+        }
+      ]
+    },
+    {
+      "layout": "checked %C",
+      "parts": [
+        {
+          "text": "checked "
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "C",
+          "width": null,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "%C",
+      "parts": [
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "C",
+          "width": null,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "100%% done: %s%%",
+      "parts": [
+        {
+          "text": "100% done: "
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "s",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": "%"
+        }
+      ]
+    },
+    {
+      "layout": "%-08.3f|%+5d",
+      "parts": [
+        {
+          "left_aligned": true,
+          "plus_signed": false,
+          "precision": 3,
+          "verb": "f",
+          "width": 8,
+          "zero_padded": true
+        },
+        {
+          "text": "|"
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": true,
+          "precision": null,
+          "verb": "d",
+          "width": 5,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "%.s|%.12B",
+      "parts": [
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": 0,
+          "verb": "s",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": "|"
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": 12,
+          "verb": "B",
+          "width": null,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "%u-%l %A",
+      "parts": [
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "u",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": "-"
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "l",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": " "
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "A",
+          "width": null,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "%v %x %X %q",
+      "parts": [
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "v",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": " "
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "x",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": " "
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "X",
+          "width": null,
+          "zero_padded": false
+        },
+        {
+          "text": " "
+        },
+        {
+          "left_aligned": false,
+          "plus_signed": false,
+          "precision": null,
+          "verb": "q",
+          "width": null,
+          "zero_padded": false
+        }
+      ]
+    },
+    {
+      "layout": "50%",
+      "problem": "layout `50%` ends inside a verb"
+    },
+    {
+      "layout": "%k",
+      "problem": "`%k` is not a verb `format` writes"
+    },
+    {
+      "layout": "%+s",
+      "problem": "`%+s` takes no `+` flag"
+    },
+    {
+      "layout": "%.0B",
+      "problem": "`%.0B` takes a precision of at least 1, such as `%.64B`"
+    },
+    {
+      "layout": "%2000s",
+      "problem": "`%2000s` has a width or a precision over 1000"
+    }
+  ]
+}

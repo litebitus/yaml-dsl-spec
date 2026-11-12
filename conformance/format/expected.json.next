@@ -1,0 +1,312 @@
+{
+  "cases": [
+    {
+      "layout": "deploying to %s",
+      "text": "deploying to mock-env"
+    },
+    {
+      "layout": "%u-%03d",
+      "text": "MOCK-007"
+    },
+    {
+      "layout": "mock_%A",
+      "text": "mock_services_mock-api"
+    },
+    {
+      "layout": "%.12B",
+      "text": "-ession-name"
+    },
+    {
+      "layout": "%.64B",
+      "text": "mock-session-name"
+    },
+    {
+      "layout": "%.1B",
+      "text": "-"
+    },
+    {
+      "layout": "checked %C",
+      "text": "checked 2026-11-12"
+    },
+    {
+      "layout": "%C",
+      "text": "2026-11-12"
+    },
+    {
+      "layout": "%C %C",
+      "text": "1969-12-31 1969-12-31"
+    },
+    {
+      "layout": "%C %C",
+      "text": "0001-01-01 9999-12-31"
+    },
+    {
+      "layout": "%C",
+      "problem": "`%C` writes a time in the years 1 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%C",
+      "problem": "`%C` writes a time in the years 1 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%C",
+      "problem": "`%C` writes a time in the years 1 to 9999, and operand 1 is outside them"
+    },
+    {
+      "layout": "%12C|",
+      "text": "  1970-01-01|"
+    },
+    {
+      "layout": "%C",
+      "problem": "`%C` writes a number, and operand 1 is text"
+    },
+    {
+      "layout": "%q",
+      "text": "\"say \\\"hi\\\" \\\\ \\a\\b\\f\\n\\r\\t\\v\\x01\\x7f\\u0085é\""
+    },
+    {
+      "layout": "%.3q",
+      "text": "\"moc\""
+    },
+    {
+      "layout": "%l %u",
+      "text": "mock-ünit STRAßE"
+    },
+    {
+      "layout": "%u %l",
+      "text": "ᾼᾈ i"
+    },
+    {
+      "layout": "%.3u|%.3l",
+      "text": "MOC|moc"
+    },
+    {
+      "layout": "%v %v %v %v",
+      "text": "mock 42 true false"
+    },
+    {
+      "layout": "%v %f",
+      "text": "0 0.000000"
+    },
+    {
+      "layout": "%v",
+      "problem": "`%v` writes text, a whole number or a boolean, and operand 1 is a number"
+    },
+    {
+      "layout": "%d %d",
+      "text": "7 -7"
+    },
+    {
+      "layout": "%+d %+d",
+      "text": "+5 -5"
+    },
+    {
+      "layout": "%5d|%-5d|%05d|%-05d",
+      "text": "   42|42   |-0042|42   "
+    },
+    {
+      "layout": "%d",
+      "text": "-9223372036854775808"
+    },
+    {
+      "layout": "%d",
+      "problem": "`%d` writes a whole number, and operand 1 is a number"
+    },
+    {
+      "layout": "%x %X %x",
+      "text": "ff FF -ff"
+    },
+    {
+      "layout": "%x",
+      "text": "-8000000000000000"
+    },
+    {
+      "layout": "%x %X",
+      "text": "6d6f636b C3A9"
+    },
+    {
+      "layout": "%010x",
+      "text": "006d6f636b"
+    },
+    {
+      "layout": "%f",
+      "text": "1.500000"
+    },
+    {
+      "layout": "%.2f",
+      "text": "1.00"
+    },
+    {
+      "layout": "%.0f %.0f %.0f %.1f",
+      "text": "0 2 2 0.2"
+    },
+    {
+      "layout": "%+.2f %+.2f",
+      "text": "+3.00 -3.00"
+    },
+    {
+      "layout": "%08.3f",
+      "text": "-003.142"
+    },
+    {
+      "layout": "%.6f",
+      "text": "-0.000000"
+    },
+    {
+      "layout": "%.0f",
+      "text": "7"
+    },
+    {
+      "layout": "%f",
+      "text": "1000000000000000000000.000000"
+    },
+    {
+      "layout": "%.20f",
+      "text": "0.10000000000000000555"
+    },
+    {
+      "layout": "%f",
+      "text": "0.000000"
+    },
+    {
+      "layout": "%5s|%-5s|",
+      "text": "   ab|ab   |"
+    },
+    {
+      "layout": "%3s",
+      "text": "mocking"
+    },
+    {
+      "layout": "%4s|%5u|%.3s",
+      "text": "  日本|    É|日本語"
+    },
+    {
+      "layout": "100%%",
+      "text": "100%"
+    },
+    {
+      "layout": "%s and %s",
+      "problem": "layout `%s and %s` has more verbs than operands"
+    },
+    {
+      "layout": "%s",
+      "problem": "layout `%s` has more operands than verbs"
+    },
+    {
+      "layout": "a `b` %s",
+      "problem": "layout ``a `b` %s`` has more verbs than operands"
+    },
+    {
+      "layout": "50%",
+      "problem": "layout `50%` ends inside a verb"
+    },
+    {
+      "layout": "%5.",
+      "problem": "layout `%5.` ends inside a verb"
+    },
+    {
+      "layout": "%k",
+      "problem": "`%k` is not a verb `format` writes"
+    },
+    {
+      "layout": "%#x",
+      "problem": "`%#` is not a verb `format` writes"
+    },
+    {
+      "layout": "%[1]s",
+      "problem": "`%[` is not a verb `format` writes"
+    },
+    {
+      "layout": "%*d",
+      "problem": "`%*` is not a verb `format` writes"
+    },
+    {
+      "layout": "%e %t",
+      "problem": "`%e` is not a verb `format` writes"
+    },
+    {
+      "layout": "%+s",
+      "problem": "`%+s` takes no `+` flag"
+    },
+    {
+      "layout": "%05s",
+      "problem": "`%05s` takes no `0` flag"
+    },
+    {
+      "layout": "%+x",
+      "problem": "`%+x` takes no `+` flag"
+    },
+    {
+      "layout": "%.2d",
+      "problem": "`%.2d` takes no precision"
+    },
+    {
+      "layout": "%.2C",
+      "problem": "`%.2C` takes no precision"
+    },
+    {
+      "layout": "%B",
+      "problem": "`%B` takes a precision of at least 1, such as `%.64B`"
+    },
+    {
+      "layout": "%.0B",
+      "problem": "`%.0B` takes a precision of at least 1, such as `%.64B`"
+    },
+    {
+      "layout": "%5%",
+      "problem": "`%5%` takes no width"
+    },
+    {
+      "layout": "%-%",
+      "problem": "`%-%` takes no `-` flag"
+    },
+    {
+      "layout": "%.1%",
+      "problem": "`%.1%` takes no precision"
+    },
+    {
+      "layout": "%+%",
+      "problem": "`%+%` takes no `+` flag"
+    },
+    {
+      "layout": "%0%",
+      "problem": "`%0%` takes no `0` flag"
+    },
+    {
+      "layout": "%2000%",
+      "problem": "`%2000%` has a width or a precision over 1000"
+    },
+    {
+      "layout": "%2000s",
+      "problem": "`%2000s` has a width or a precision over 1000"
+    },
+    {
+      "layout": "%.99999999999999999999s",
+      "problem": "`%.99999999999999999999s` has a width or a precision over 1000"
+    },
+    {
+      "layout": "%s",
+      "problem": "`%s` writes text, and operand 1 is null"
+    },
+    {
+      "layout": "%s %s",
+      "problem": "`%s` writes text, and operand 1 is a list"
+    },
+    {
+      "layout": "%s",
+      "problem": "`%s` writes text, and operand 1 is a map"
+    },
+    {
+      "layout": "%d",
+      "problem": "`%d` writes a whole number, and operand 1 is text"
+    },
+    {
+      "layout": "%u",
+      "problem": "`%u` writes text, and operand 1 is a boolean"
+    },
+    {
+      "layout": "%f",
+      "problem": "`%f` writes a number, and operand 1 is text"
+    }
+  ]
+}

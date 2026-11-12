@@ -412,12 +412,12 @@ Every field but `default`, `return` and `macro` is required.
 ```json
 "x-yaml-dsl-functions": {
   "format": {
-    "description": "Fills the layout's placeholders with the operands, in order.",
+    "description": "Makes text from a layout and the operands that fill its verbs, in order.",
     "arguments": [
-      { "name": "layout", "type": "text", "required": true, "repeated": false, "description": "The text holding the placeholders." },
-      { "name": "operands", "type": "any", "required": false, "repeated": true, "description": "The values put in the placeholders, in order." }
+      { "name": "layout", "type": "text", "required": true, "repeated": false, "description": "The text holding the verbs." },
+      { "name": "operands", "type": "any", "required": false, "repeated": true, "description": "The values the verbs write, in order." }
     ],
-    "return": { "type": "text", "description": "The layout with each placeholder filled." }
+    "return": { "type": "text", "description": "The layout with each verb written." }
   }
 }
 ```
@@ -434,6 +434,56 @@ Terraform's signatures are read into the same table:
 | a variadic parameter | a repeated optional argument |
 | a function's or parameter's `description` | its `description` |
 | a function's `return_type` | its `return.type`, with no `description` |
+
+## The format function
+
+`format` is the one function the standard defines: text made from a layout and the operands that fill its verbs, in order. A tool that computes `format` computes it as stated here; its table entry is the one above.
+
+A layout is text holding verbs. A verb is `%`, then its flags, its width and its precision, each optional, then its letter, as Go's `fmt` package writes one. Each verb takes the next operand, and `%%` writes a percent sign and takes none.
+
+An operand is text, a whole number, a number or a boolean. A number with no fraction from -2^63 up to 2^63 is a whole number, wherever a whole number is read; a whole number is also a number.
+
+| Part | Written | Holds |
+|---|---|---|
+| flags | `-`, `+`, `0` | `-` pads on the right; `+` always writes the sign of a `%d` or `%f`; `0` pads a `%d`, `%x`, `%X` or `%f` with leading zeros, after its sign |
+| width | a whole number up to 1000 | the fewest characters written, padded with spaces on the left |
+| precision | `.` and a whole number up to 1000, `.` alone being 0 | for `%s`, `%q`, `%u`, `%l` and `%A`, the most characters of the operand read; for `%f`, the digits after the decimal point, 6 where left out; for `%B`, as it states |
+
+Width and precision count Unicode code points.
+
+Go's printing verbs it writes:
+
+| Verb | Operand | Writes |
+|---|---|---|
+| `%s` | text | the text |
+| `%q` | text | the text in double quotes: `"` and `\` after a backslash, the control characters Go names as `\a`, `\b`, `\f`, `\n`, `\r`, `\t` and `\v`, the other control characters below U+0080 as `\x` and two digits, those from U+0080 to U+009F as `\u` and four |
+| `%v` | text, a whole number or a boolean | text as `%s`, a whole number as `%d`, a boolean as `true` or `false` |
+| `%d` | a whole number | base 10 |
+| `%x`, `%X` | a whole number or text | base 16, with lower-case or upper-case letters; text as its UTF-8 bytes, two digits each |
+| `%f` | a number | a decimal point and no exponent, its exact binary value rounded half to even |
+
+The verbs the standard adds:
+
+| Verb | Operand | Writes its operand |
+|---|---|---|
+| `%u` | text | upper-cased |
+| `%l` | text | lower-cased |
+| `%A` | text | with each `/` as `_` |
+| `%B` | text | whole where it fits the precision, else `-` and its last characters, one fewer than the precision; the precision is required |
+| `%C` | a number, a time in seconds since the Unix epoch, its fraction dropped toward the past | as its date, year, month and day, `2026-11-12`, in the years 1 to 9999 |
+
+- Upper and lower case are Unicode's simple case mappings, one character to one, in the Unicode version the language's runtime carries.
+- A `%C` date is the date in UTC; a tool that states the time zone it shows times in writes the date in that zone.
+- A verb the standard adds takes the next capital letter Go's printing verbs leave free.
+- These are problems, the layout's read before the operands' and the first one reported: a layout that ends inside a verb; a verb, a flag or a part this section does not state; a flag, a width or a precision on a verb that reads none; a width or a precision over 1000; an operand of a kind its verb does not write, a number that is not finite among them; a `%C` time outside its years; more verbs than operands, and more operands than verbs.
+
+| Layout | Operands | Text |
+|---|---|---|
+| `deploying to %s` | `mock-env` | `deploying to mock-env` |
+| `%u-%03d` | `mock`, `7` | `MOCK-007` |
+| `mock_%A` | `services/mock-api` | `mock_services_mock-api` |
+| `%.12B` | `mock-session-name` | `-ession-name` |
+| `checked %C` | `1794471964` | `checked 2026-11-12` |
 
 ## Macros
 
