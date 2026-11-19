@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.3.4 — 2026-11-19
+
 - Documentation
   - A loop whose collection references anything but a local is left to when the document is used.
 - Packages
