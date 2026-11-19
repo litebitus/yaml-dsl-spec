@@ -46,7 +46,12 @@ module.exports = {
   yamlReader: { parseYaml: yamlReader.parseYaml },
   dslDefinition: { dslDefinitionFromJson: dslDefinition.dslDefinitionFromJson },
   jsonPath: { PathPattern: jsonPath.PathPattern, PathSet: jsonPath.PathSet },
-  resolved: { Value: resolved.Value, reference: resolved.reference, call: resolved.call },
+  resolved: {
+    Value: resolved.Value,
+    reference: resolved.reference,
+    call: resolved.call,
+    loop: resolved.loop,
+  },
   functionTable: {
     FUNCTION_TABLE_POINTER: functionTable.FUNCTION_TABLE_POINTER,
     FunctionTable: functionTable.FunctionTable,

@@ -91,7 +91,7 @@ func (documentRecord *instanceRecord) mergeCallFields(
 		switch localArgument := callArgument.LocalValue(); localArgument.Kind {
 		case ResolvedMap:
 			knownMaps = append(knownMaps, localArgument)
-		case ResolvedReference, ResolvedCall, ResolvedTemplate:
+		case ResolvedReference, ResolvedCall, ResolvedTemplate, ResolvedLoop:
 			holdsUnknownArgument = true
 		}
 	}

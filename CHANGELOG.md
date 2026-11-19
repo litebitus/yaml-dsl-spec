@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Documentation
+  - A loop whose collection references anything but a local is left to when the document is used.
+- Packages
+  - The resolved value holds a loop left for the target, `Loop`, `loop` and `ResolvedLoop`, its loop variables read as the `LoopVariable` target.
+
 ## v0.3.3 — 2026-11-12
 
 - Documentation

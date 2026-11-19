@@ -70,6 +70,9 @@ pub enum ValueKind {
     /// Text with references spliced in, for a placeholder whose value is not known
     /// when the document compiles.
     Template(Vec<TemplatePart>),
+    /// A loop whose collection is not known when the document compiles, left for
+    /// the target to evaluate.
+    Loop(Loop),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -108,6 +111,8 @@ pub enum Target {
     Declaration { position: Position },
     /// A name of a scope a key declares every name of.
     Undeclared,
+    /// A variable of a loop left for the target.
+    LoopVariable,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -127,6 +132,31 @@ impl Call {
             expand_final_argument: false,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Loop {
+    /// One or two loop variables: the item, or its key or index and the item.
+    pub variables: Vec<String>,
+    pub collection: Box<Value>,
+    pub body: LoopBody,
+}
+
+/// What one pass of a loop yields.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LoopBody {
+    /// A list body's one element.
+    Item(Box<Value>),
+    /// A map body's entries.
+    Entries(Vec<LoopEntry>),
+}
+
+/// An entry of a loop's map body, its key as well as its value read by the loop
+/// variables.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LoopEntry {
+    pub key: Value,
+    pub value: Value,
 }
 
 #[derive(Clone, Debug, PartialEq)]

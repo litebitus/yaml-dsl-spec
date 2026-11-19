@@ -4,9 +4,9 @@ const { scalarTextOf } = require('./yaml-node');
 
 /**
  * A value of the folded, expanded document, with where it was written. `kind` is
- * a node's kind, or `reference`, `call` or `template`; `value` is what a node of
- * that kind holds, a list of values and of map entries `{ key, keyPosition, value }`
- * included, or the reference, the call, or the template's parts.
+ * a node's kind, or `reference`, `call`, `template` or `loop`; `value` is what a node
+ * of that kind holds, a list of values and of map entries `{ key, keyPosition, value }`
+ * included, or the reference, the call, the template's parts, or the loop.
  */
 class Value {
   constructor(kind, value, position) {
@@ -70,8 +70,8 @@ class Value {
 /**
  * A name read by one of the definition's reference rules: `{ scope, scopeKey,
  * name, path, text, target }`. A target is `{ kind: 'local', value }`, or a
- * `kind` of `local_unknown`, `builtin`, `declaration` with its `position`, or
- * `undeclared`.
+ * `kind` of `local_unknown`, `builtin`, `declaration` with its `position`,
+ * `undeclared`, or `loop_variable`, a variable of a loop left for the target.
  */
 function reference(fields) {
   return { scopeKey: null, ...fields };
@@ -80,6 +80,16 @@ function reference(fields) {
 /** A call left for the target to evaluate: `{ function, arguments, expandFinalArgument }`. */
 function call(functionName, callArguments) {
   return { function: functionName, arguments: callArguments, expandFinalArgument: false };
+}
+
+/**
+ * A loop whose collection is not known when the document compiles, left for the
+ * target to evaluate: `{ variables, collection, body }`. `body` is what one pass
+ * yields, `{ kind: 'item', value }` for a list body's one element, or
+ * `{ kind: 'entries', entries }` for a map body's entries, each `{ key, value }`.
+ */
+function loop(variables, collection, body) {
+  return { variables, collection, body };
 }
 
 /**
@@ -109,4 +119,4 @@ function mapMergeResult(maps, mergeBehavior, position) {
   return new Value('map', entries, position);
 }
 
-module.exports = { Value, reference, call, mapMergeResult };
+module.exports = { Value, reference, call, loop, mapMergeResult };

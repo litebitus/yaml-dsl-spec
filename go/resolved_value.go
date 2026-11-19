@@ -15,9 +15,10 @@ const (
 	ResolvedReference
 	ResolvedCall
 	ResolvedTemplate
+	ResolvedLoop
 )
 
-// ResolvedValue is a document value with its position: a scalar, a list, a map, or a reference, a call or a template.
+// ResolvedValue is a document value with its position: a scalar, a list, a map, or a reference, a call, a template or a loop.
 type ResolvedValue struct {
 	Kind          ResolvedKind
 	Position      Position
@@ -28,6 +29,7 @@ type ResolvedValue struct {
 	Reference     *Reference
 	Call          *FunctionCall
 	TemplateParts []TemplatePart
+	Loop          *Loop
 }
 
 // MapEntry is a map's key, where the key was written, and its value.
@@ -56,6 +58,7 @@ const (
 	TargetBuiltin
 	TargetDeclaration
 	TargetUndeclared
+	TargetLoopVariable
 )
 
 // ReferenceTarget is what a reference resolves to: a local's value or a declaration's position where it has one.
@@ -70,6 +73,25 @@ type FunctionCall struct {
 	Function            string
 	Arguments           []ResolvedValue
 	ExpandFinalArgument bool
+}
+
+// Loop is a loop whose collection is not known when the document compiles, left for the target to evaluate.
+type Loop struct {
+	Variables  []string
+	Collection ResolvedValue
+	Body       LoopBody
+}
+
+// LoopBody is what one pass of a loop yields: a list body's one element as Item, or a map body's entries as Entries.
+type LoopBody struct {
+	Item    *ResolvedValue
+	Entries []LoopEntry
+}
+
+// LoopEntry is an entry of a loop's map body, its key as well as its value read by the loop variables.
+type LoopEntry struct {
+	Key   ResolvedValue
+	Value ResolvedValue
 }
 
 // TemplatePart is text, or a reference spliced into it.

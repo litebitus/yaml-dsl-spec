@@ -93,7 +93,7 @@ const SAME_VALUE_LIST_KEYWORDS = ['allOf', 'anyOf', 'oneOf'];
 const SAME_VALUE_KEYWORDS = ['else', 'if', 'not', 'propertyNames', 'then'];
 const SAME_VALUE_MAP_KEYWORDS = ['dependencies', 'dependentSchemas'];
 const SCHEMA_LOOKUP_KEY ='urn:yaml-dsl-spec:schema-lookup';
-const UNKNOWN_VALUE_KINDS = new Set(['call', 'reference', 'template']);
+const UNKNOWN_VALUE_KINDS = new Set(['call', 'loop', 'reference', 'template']);
 const SCHEMA_DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
 const SCHEMA_NAME_MAP_KEYWORDS = new Set([
   '$defs',

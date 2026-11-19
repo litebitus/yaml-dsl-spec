@@ -556,7 +556,7 @@ The layout's problems are read before the operands', and the first one is report
 
 A function computes a value when the document is used. A macro is expanded by the DSL's preprocessor before then, as a C macro is, and its expansion is what is read: validated, declared, referenced. A macro is an entry of the function table with a `macro` object, documented and called as a function is.
 
-A reader follows the preprocessing, so it reads the document as it will be: an expansion's entries are validated where they land, the names they spell are declared there, and a reference to such a name resolves to the source that spells it. A `merge` is the one kind whose arguments may be left to when the document is used: a content that references anything but a local is merged then, so a reader merges the locals' values and reads the rest as unknown.
+A reader follows the preprocessing, so it reads the document as it will be: an expansion's entries are validated where they land, the names they spell are declared there, and a reference to such a name resolves to the source that spells it. A `merge` and a `loop` are the kinds whose arguments may be left to when the document is used: a merge's content that references anything but a local is merged then, so a reader merges the locals' values and reads the rest as unknown; a loop whose collection does so is repeated then.
 
 | `macro` field | Holds |
 |---|---|
@@ -620,6 +620,7 @@ A macro is expanded when every input resolves to a constant: a literal, or a loc
 - A key in a local a merge reads is read at the position it lands: its schema is that of the maps it lands in, at the same path under each.
 - One fold merging a local into maps whose schemas differ is an error at each of those merge calls, the targets listed by schema: `` `local.defaults` is merged into maps with different schemas: `queue.{orders,payments}` and `topic.alerts` ``. The common layer is checked in each overlay's fold, its targets read as `dev:queue.orders`. The local itself is no problem.
 - A loop's collection may be a list a local holds, or a path into a local that holds one.
+- A loop whose collection references anything but a local is left to when the document is used, its body as written with each loop variable read as itself. A call of it with no name is the only key of its map.
 
 ## What the workspace defines
 

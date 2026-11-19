@@ -88,6 +88,29 @@ func TestACallIsNotCheckedAndAWrongTypeIs(testingContext *testing.T) {
 	}
 }
 
+func TestALoopLeftForTheTargetIsNotCheckedAndAWrongTypeIs(testingContext *testing.T) {
+	mockPosition := FileStartPosition("mock.yml")
+	collectionValue := ResolvedValue{Kind: ResolvedCall, Position: mockPosition, Call: &FunctionCall{Function: "mock"}}
+	itemValue := StringValue("mock-item", mockPosition)
+	loopValue := ResolvedValue{Kind: ResolvedLoop, Position: mockPosition, Loop: &Loop{
+		Variables:  []string{"it"},
+		Collection: collectionValue,
+		Body:       LoopBody{Item: &itemValue},
+	}}
+	ordersValue := ResolvedValue{Kind: ResolvedMap, Position: mockPosition, Entries: []MapEntry{
+		{Key: "name", KeyPosition: mockPosition, Value: loopValue},
+		{Key: "visibility", KeyPosition: mockPosition, Value: StringValue("thirty", mockPosition)},
+	}}
+	ordersEntries := []MapEntry{{Key: "orders", KeyPosition: mockPosition, Value: ordersValue}}
+	queueValue := ResolvedValue{Kind: ResolvedMap, Position: mockPosition, Entries: ordersEntries}
+	queueEntries := []MapEntry{{Key: "queue", KeyPosition: mockPosition, Value: queueValue}}
+	documentValue := ResolvedValue{Kind: ResolvedMap, Position: mockPosition, Entries: queueEntries}
+	readProblems := loadedMockSchema(testingContext, mockQueueSchema).Validate(documentValue, ValidationRules{})
+	if !reflect.DeepEqual(problemMessages(readProblems), []string{"`visibility` must be `integer`"}) {
+		testingContext.Fatalf("problems %v", readProblems)
+	}
+}
+
 func TestATypeAndAnotherCheckOfOneSchemaAreBothReported(testingContext *testing.T) {
 	schemaText := `{"properties": {"tier": {"type": "string", "enum": ["gold"]}}}`
 	documentValue := ResolvedValueFromNode(parsedNode(testingContext, "tier: 5\n", nil))

@@ -1195,7 +1195,10 @@ impl Instance<'_> {
                     let holds_unknown_argument = call.arguments.iter().any(|argument| {
                         matches!(
                             argument.local_value().kind,
-                            ValueKind::Reference(_) | ValueKind::Call(_) | ValueKind::Template(_)
+                            ValueKind::Reference(_)
+                                | ValueKind::Call(_)
+                                | ValueKind::Template(_)
+                                | ValueKind::Loop(_)
                         )
                     });
                     if holds_unknown_argument {
@@ -1208,7 +1211,7 @@ impl Instance<'_> {
                     JsonValue::Null
                 }
             },
-            ValueKind::Reference(_) | ValueKind::Template(_) => {
+            ValueKind::Reference(_) | ValueKind::Template(_) | ValueKind::Loop(_) => {
                 self.unknown.insert(pointer);
                 JsonValue::Null
             }
@@ -1360,7 +1363,7 @@ mod tests {
 
     use super::*;
     use crate::definition::QuotedValueType;
-    use crate::resolved::{Call, MapEntry};
+    use crate::resolved::{Call, Loop, LoopBody, MapEntry};
     use fancy_regex::Regex;
 
     fn position() -> Position {
@@ -1487,6 +1490,30 @@ mod tests {
                 "type, at mock.schema.json#/properties/queue/additionalProperties/properties/visibility/type"
             )
         );
+    }
+
+    #[test]
+    fn a_loop_left_for_the_target_is_not_checked_and_a_wrong_type_is() {
+        let loop_value = Value::new(
+            ValueKind::Loop(Loop {
+                variables: vec!["it".to_owned()],
+                collection: Box::new(unknown_value()),
+                body: LoopBody::Item(Box::new(Value::string("mock-item", position()))),
+            }),
+            position(),
+        );
+        let document = map(vec![(
+            "queue",
+            map(vec![(
+                "orders",
+                map(vec![
+                    ("name", loop_value),
+                    ("visibility", Value::string("thirty", position())),
+                ]),
+            )]),
+        )]);
+        let diagnostics = schema().validate(&document, &ValidationRules::default());
+        assert_eq!(messages(&diagnostics), ["`visibility` must be `integer`"]);
     }
 
     #[test]

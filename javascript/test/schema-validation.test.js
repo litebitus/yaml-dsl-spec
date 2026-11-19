@@ -7,7 +7,7 @@ const { schemaValidation, resolved, Position, closestName } = require('..');
 const resolvedValue = require('../lib/resolved-value');
 
 const { LoadedSchema, ValidationRules } = schemaValidation;
-const { Value, call } = resolved;
+const { Value, call, loop } = resolved;
 const noRules = new ValidationRules();
 
 const position = Position.fileStart('mock.yml');
@@ -71,6 +71,18 @@ test('a call is not checked and a wrong type is', () => {
     diagnostics[0].notes.rule,
     'type, at mock.schema.json#/properties/queue/additionalProperties/properties/visibility/type',
   );
+});
+
+test('a loop left for the target is not checked and a wrong type is', () => {
+  const body = { kind: 'item', value: Value.string('mock-item', position) };
+  const loopValue = new Value('loop', loop(['it'], unknownCall(), body), position);
+  const document = map([['queue', map([['orders', map([
+    ['name', loopValue],
+    ['visibility', Value.string('thirty', position)],
+  ])]])]]);
+  const messages = queueSchema().validate(document, noRules)
+    .map((diagnostic) => diagnostic.message);
+  assert.deepStrictEqual(messages, ['`visibility` must be `integer`']);
 });
 
 test('a check through a subschema reading an unknown value is not made', () => {
