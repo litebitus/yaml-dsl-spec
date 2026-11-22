@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Documentation
+  - A placeholder reading a local inside longer text splices the local's value only when it is a constant, and otherwise stays a reference to the local.
+
 ## v0.3.4 — 2026-11-19
 
 - Documentation

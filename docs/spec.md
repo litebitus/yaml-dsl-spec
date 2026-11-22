@@ -259,6 +259,7 @@ A local is a named value. `locals.scope_name` names the scope whose declarations
 - An overlay's local wins over the common layer's.
 - A local that reaches itself through its references is a problem on its declaration, and its value stays as written.
 - A reference to anything other than a local stays as written inside the value.
+- A placeholder reading a local inside longer text splices the local's value when it is a constant; a value known only when the document is used, such as a reference to anything other than a local, a call or text holding one, stays a reference to the local.
 - A key holding a local placeholder is also known by the local's value.
 - `locals.path_separator`, when set, reads the text after a local's name as a path into its value, each step a map key or, where the value is a list, an index counted from 0. The local's reference rule allows text after the name.
 - A path steps through the locals a value references and the maps its merges bring in.
