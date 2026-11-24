@@ -246,7 +246,8 @@ A reference rule says how names are used. `pattern` is a regular expression with
 
 - A reference resolves to a builtin of its target scope whose region holds the reference, else to a symbol of that scope, with that name, visible from the reference.
 - When several rules read the same text, each is tried in order, and the first that resolves is the reading.
-- A name that holds a local placeholder is also known by the local's value, spelled by its declaration rule: a key `name ${local.thing}` whose local is `mock-thing` is the name `mock_thing`.
+- A declared name that holds a local placeholder is also known by the local's value, spelled by its declaration rule: a name `${local.thing}` whose local is `mock-thing` is also known as `mock_thing` under a rule whose `name_spelling` is `dashes_as_underscores`.
+- A local placeholder in a reference's name resolves to the local's value: a referenced name `${local.prefix}_orders` whose local is `mock` is `mock_orders`.
 - An overlay's own declaration wins over the common layer's, as it does in the merge, and an overlay sees no other overlay's declarations.
 - A reference in the common layer resolves in the fold of each overlay whose merge keeps it, and is an error unless it resolves in every one of them. An overlay that replaces or deletes the value or key holding it is not asked. When no overlay keeps it, it resolves in the common layer alone.
 - It names the declaration it reaches in each of those folds, in `layers.overlay_folders` order.
