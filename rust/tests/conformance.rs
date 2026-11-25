@@ -240,6 +240,11 @@ fn template_reading(folder: &Path) -> Value {
             "name": variable.name,
             "loop": variable.bound_by.as_ref().map(position_json),
         })).collect::<Vec<_>>(),
+        "template_variables": reading.template_variables.iter().map(|variable| json!({
+            "line": variable.position.line,
+            "column": variable.position.column,
+            "name": variable.name,
+        })).collect::<Vec<_>>(),
         "problems": reading.problems.iter().map(problem_json).collect::<Vec<_>>(),
     })
 }

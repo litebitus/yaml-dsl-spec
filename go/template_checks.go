@@ -17,6 +17,9 @@ func (templateCheck *templateChecks) allProblems(earlierTemplates []Node) []Diag
 	if variableNode, isFound := nodeAt(templateCheck.templateBlock, "loop", "variable"); isFound {
 		templateCheck.checkPattern(variableNode, nil)
 	}
+	if variableNode, isFound := templateCheck.templateBlock.Get("variable"); isFound {
+		templateCheck.checkPattern(variableNode, nil)
+	}
 	return templateCheck.blockProblems
 }
 

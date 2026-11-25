@@ -120,6 +120,11 @@ function templateReading(folder) {
       name: variable.name,
       loop: variable.loop === null ? null : placeJson(variable.loop.opening),
     })),
+    template_variables: read.templateVariables.map((variable) => ({
+      line: variable.position.line,
+      column: variable.position.column,
+      name: variable.name,
+    })),
     problems: read.problems.map(problemJson),
   };
 }

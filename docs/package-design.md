@@ -64,7 +64,7 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
 | read a template | `read_template(file, text, template)` | `templateReader.readTemplate(file, text, template)` | `ReadTemplate(file, text, template)` | the template's reading, its problems among it |
-| a reading | `TemplateReading` | `TemplateReading` | `TemplateReading` | the masked text, ready for the YAML reader; each action, with its position, its text and whether it is a directive; the conditionals and loops, nested as written; each loop variable read inside an action, with the loop that binds it; and every problem at its directive or action |
+| a reading | `TemplateReading` | `TemplateReading` | `TemplateReading` | the masked text, ready for the YAML reader; each action, with its position, its text and whether it is a directive; the conditionals and loops, nested as written; each loop variable read inside an action, with the loop that binds it; each template variable read inside an action, with its position and name; and every problem at its directive or action |
 | a conditional | `TemplateConditional` | `TemplateConditional` | `TemplateConditional` | its branches, each with the action that opens it, its body's conditionals and loops, and the action that closes it |
 | a loop | `TemplateLoop` | `TemplateLoop` | `TemplateLoop` | the action that opens it, the loop variables it binds, its body's conditionals and loops, and the action that closes it |
 

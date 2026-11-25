@@ -81,6 +81,18 @@
       }
     }
   ],
+  "template_variables": [
+    {
+      "line": 1,
+      "column": 7,
+      "name": ".mock_enabled"
+    },
+    {
+      "line": 4,
+      "column": 19,
+      "name": ".mock_regions"
+    }
+  ],
   "problems": [
     {
       "line": 6,

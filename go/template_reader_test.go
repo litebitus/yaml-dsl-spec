@@ -18,6 +18,7 @@ func mockTemplateBlock() map[string]any {
 			"end":      "end",
 			"variable": `\$[a-z_]+`,
 		},
+		"variable":            `\.[a-z_]+`,
 		"schema_search_paths": []any{},
 	}
 }
@@ -35,6 +36,7 @@ func TestATemplateBlockWithoutWorkingPatternsIsNone(testingContext *testing.T) {
 		"not a regular expression": func(templateBlock map[string]any) { templateBlock["loop"].(map[string]any)["start"] = "(" },
 		"no `(?<variables>...)`":   func(templateBlock map[string]any) { templateBlock["loop"].(map[string]any)["start"] = "^for " },
 		"`loop.variable` is not":   func(templateBlock map[string]any) { templateBlock["loop"].(map[string]any)["variable"] = "[" },
+		"`variable` is not":        func(templateBlock map[string]any) { templateBlock["variable"] = "[" },
 		"missing field `dsl`":      func(templateBlock map[string]any) { delete(templateBlock, "dsl") },
 		"invalid type for `left`":  func(templateBlock map[string]any) { templateBlock["delimiters"].(map[string]any)["left"] = 1 },
 	}
@@ -111,6 +113,7 @@ func templateEntryText(templateID string) string {
 		"    delimiters: {left: \"[[\", right: \"]]\"}",
 		"    conditional: {if: if, else_if: else if, else: else, end: end}",
 		"    loop: {start: \"^for (?<variables>[a-z]+) in \", end: end, variable: \"[\"}",
+		"    variable: \"[\"",
 		"    schema_search_paths: []",
 	}, "\n")
 }

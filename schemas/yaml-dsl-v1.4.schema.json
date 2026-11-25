@@ -586,6 +586,7 @@
         "delimiters",
         "conditional",
         "loop",
+        "variable",
         "schema_search_paths"
       ],
       "additionalProperties": false,
@@ -648,6 +649,11 @@
             }
           },
           "description": "How a loop's actions are written."
+        },
+        "variable": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Regular expression of a template variable inside an action: a value the rendering tool supplies."
         },
         "schema_search_paths": {
           "type": "array",

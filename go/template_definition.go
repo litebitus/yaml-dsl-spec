@@ -9,16 +9,18 @@ const loopVariablesGroup = "variables"
 
 // TemplateDefinition is a template block of `yaml-dsl.yml`, its fields named as the standard names them, its patterns compiled.
 type TemplateDefinition struct {
-	ID                  string
-	DSL                 string
-	FileIncludes        []string
-	FileExcludes        []string
-	Delimiters          TemplateDelimiters
-	Conditional         TemplateConditionalWords
-	Loop                TemplateLoopSyntax
-	SchemaSearchPaths   []string
-	loopStartPattern    *CompiledPattern
-	loopVariablePattern *CompiledPattern
+	ID                      string
+	DSL                     string
+	FileIncludes            []string
+	FileExcludes            []string
+	Delimiters              TemplateDelimiters
+	Conditional             TemplateConditionalWords
+	Loop                    TemplateLoopSyntax
+	Variable                string
+	SchemaSearchPaths       []string
+	loopStartPattern        *CompiledPattern
+	loopVariablePattern     *CompiledPattern
+	templateVariablePattern *CompiledPattern
 }
 
 // TemplateDelimiters is the text a template's action starts and ends with.
@@ -69,6 +71,7 @@ func TemplateDefinitionFromJSON(templateBlock any) (TemplateDefinition, error) {
 			End:      blockReader.requiredText(loopFields, "end"),
 			Variable: blockReader.requiredText(loopFields, "variable"),
 		},
+		Variable:          blockReader.requiredText(blockFields, "variable"),
 		SchemaSearchPaths: blockReader.textList(blockFields, "schema_search_paths"),
 	}
 	if blockReader.firstFailure != nil {
@@ -85,7 +88,12 @@ func TemplateDefinitionFromJSON(templateBlock any) (TemplateDefinition, error) {
 	if variableError != nil {
 		return TemplateDefinition{}, fmt.Errorf("`loop.variable` is not a regular expression: %w", variableError)
 	}
+	templateVariablePattern, templateVariableError := CompilePattern(templateDefinition.Variable)
+	if templateVariableError != nil {
+		return TemplateDefinition{}, fmt.Errorf("`variable` is not a regular expression: %w", templateVariableError)
+	}
 	templateDefinition.loopStartPattern = loopStartPattern
 	templateDefinition.loopVariablePattern = loopVariablePattern
+	templateDefinition.templateVariablePattern = templateVariablePattern
 	return templateDefinition, nil
 }

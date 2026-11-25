@@ -41,13 +41,14 @@ class TemplateLoop {
   }
 }
 
-/** What a template reads to: its masked text, actions, blocks, loop variables and problems. */
+/** What a template reads to: its masked text, actions, blocks, loop and template variables, and problems. */
 class TemplateReading {
-  constructor(masked, actions, blocks, variables, problems) {
+  constructor(masked, actions, blocks, variables, templateVariables, problems) {
     this.masked = masked;
     this.actions = actions;
     this.blocks = blocks;
     this.variables = variables;
+    this.templateVariables = templateVariables;
     this.problems = problems;
   }
 }
@@ -86,10 +87,12 @@ class TemplateReader {
     this.actions = [];
     this.blocks = [];
     this.variables = [];
+    this.templateVariables = [];
     this.problems = [];
     this.openBlocks = [];
     this.elseActions = new Map();
     this.variablePattern = new RegExp(template.loop.variable.source, 'gu');
+    this.templateVariablePattern = new RegExp(template.variable.source, 'gu');
   }
 
   positionAt(offset) {
@@ -122,7 +125,7 @@ class TemplateReader {
     for (const open of this.openBlocks) this.reportOpen(open);
     this.problems.sort((first, second) =>
       first.position.line - second.position.line || first.position.column - second.position.column);
-    return new TemplateReading(masked, this.actions, this.blocks, this.variables, this.problems);
+    return new TemplateReading(masked, this.actions, this.blocks, this.variables, this.templateVariables, this.problems);
   }
 
   /** Reads the action from `begin` to `end`, and whether it is a directive. */
@@ -134,6 +137,7 @@ class TemplateReader {
     const body = rawBody.replace(/^ +| +$/gu, '');
     const bodyOffset = begin + left.length + leadingSpaces;
     const directive = directiveKindOf(body, this.template);
+    this.readTemplateVariables(body, bodyOffset);
     const action = new TemplateAction(this.positionAt(begin), actionText, directive !== null);
     this.actions.push(action);
     if (directive === null) {
@@ -232,6 +236,19 @@ class TemplateReader {
       if (loop === null) {
         this.problems.push(Diagnostic.at(position, `${codeSpan(match[0])} is bound by no loop around it`));
       }
+    }
+  }
+
+  /** Reads each template variable `body` holds where no loop variable overlaps it. */
+  readTemplateVariables(body, bodyOffset) {
+    const loopSpans = [...body.matchAll(this.variablePattern)]
+      .filter((match) => match[0] !== '')
+      .map((match) => [match.index, match.index + match[0].length]);
+    for (const match of body.matchAll(this.templateVariablePattern)) {
+      if (match[0] === '') continue;
+      const matchEnd = match.index + match[0].length;
+      if (loopSpans.some(([spanBegin, spanEnd]) => spanBegin < matchEnd && match.index < spanEnd)) continue;
+      this.templateVariables.push({ position: this.positionAt(bodyOffset + match.index), name: match[0] });
     }
   }
 

@@ -146,6 +146,7 @@ const TEMPLATE_FIELDS = {
     end: required(text),
   })),
   loop: required(struct({ start: required(text), end: required(text), variable: required(text) })),
+  variable: required(text),
   schema_search_paths: withDefault(listOf(text), emptyList),
 };
 
@@ -154,15 +155,20 @@ function dslDefinitionFromJson(block) {
   return readFields(block, DSL_FIELDS);
 }
 
-/** Reads a template block, its loop's patterns compiled, or throws why it is none. */
+/** Reads a template block, its patterns compiled, or throws why it is none. */
 function templateDefinitionFromJson(block) {
   const definition = readFields(block, TEMPLATE_FIELDS);
   for (const field of ['start', 'variable']) {
-    const compiled = compilePattern(definition.loop[field]);
-    if (compiled === null) throw new Error(`\`loop.${field}\` is not a regular expression`);
-    definition.loop[field] = compiled;
+    definition.loop[field] = compiledField(definition.loop[field], `loop.${field}`);
   }
+  definition.variable = compiledField(definition.variable, 'variable');
   return definition;
+}
+
+function compiledField(pattern, field) {
+  const compiled = compilePattern(pattern);
+  if (compiled === null) throw new Error(`\`${field}\` is not a regular expression`);
+  return compiled;
 }
 
 module.exports = { dslDefinitionFromJson, templateDefinitionFromJson };

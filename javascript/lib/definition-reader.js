@@ -86,8 +86,8 @@ function readDefinitions(file, text) {
 
 /**
  * The checks of one template block that its schema cannot state: its `id` is no
- * DSL's and no earlier template language's, its `dsl` is declared, and its loop's
- * patterns compile, the opening one with its `variables` group.
+ * DSL's and no earlier template language's, its `dsl` is declared, and its
+ * patterns compile, the loop's opening one with its `variables` group.
  */
 function templateProblems(block, dslBlocks, earlierTemplates) {
   const problems = [];
@@ -115,8 +115,10 @@ function templateProblems(block, dslBlocks, earlierTemplates) {
   const checks = new BlockChecks(block);
   const start = nodeAt(block, ['loop', 'start']);
   if (start) checks.pattern(start, [['variables', 'the loop variables the loop binds']]);
-  const variable = nodeAt(block, ['loop', 'variable']);
-  if (variable) checks.pattern(variable, []);
+  for (const steps of [['loop', 'variable'], ['variable']]) {
+    const variable = nodeAt(block, steps);
+    if (variable) checks.pattern(variable, []);
+  }
   return [...problems, ...checks.found];
 }
 

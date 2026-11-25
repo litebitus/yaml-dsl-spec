@@ -114,11 +114,13 @@ fn a_template_block_reads_with_its_patterns_compiled_or_says_why_it_is_none() {
         "file_includes": ["{config_root}/mock-templates/**"],
         "delimiters": { "left": "[[", "right": "]]" },
         "conditional": { "if": "if", "else_if": "else if", "else": "else", "end": "end" },
-        "loop": { "start": "^for (?<variables>\\$[a-z]+) in ", "end": "end", "variable": "\\$[a-z]+" }
+        "loop": { "start": "^for (?<variables>\\$[a-z]+) in ", "end": "end", "variable": "\\$[a-z]+" },
+        "variable": "\\.[a-z]+"
     });
     let definition = TemplateDefinition::from_json(&block).unwrap();
     assert_eq!(definition.conditional.else_if_word, "else if");
     assert!(definition.loop_syntax.variable.is_match("$mock").unwrap());
+    assert!(definition.template_variable.is_match(".mock").unwrap());
     let mut unclosed_group = block.clone();
     unclosed_group["loop"]["start"] = Value::from("(?<variables>");
     assert!(TemplateDefinition::from_json(&unclosed_group).is_err());

@@ -212,6 +212,8 @@ pub struct TemplateDefinition {
     pub delimiters: TemplateDelimiters,
     pub conditional: TemplateConditionalWords,
     pub loop_syntax: TemplateLoopSyntax,
+    /// The pattern of a template variable inside an action, compiled.
+    pub template_variable: Regex,
     pub schema_search_paths: Vec<String>,
 }
 
@@ -252,6 +254,7 @@ struct TemplateBlockFields {
     conditional: TemplateConditionalWords,
     #[serde(rename = "loop")]
     loop_fields: TemplateLoopFields,
+    variable: String,
     #[serde(default)]
     schema_search_paths: Vec<String>,
 }
@@ -282,6 +285,7 @@ impl TemplateDefinition {
                 end_word: fields.loop_fields.end,
                 variable: compiled(&fields.loop_fields.variable)?,
             },
+            template_variable: compiled(&fields.variable)?,
             schema_search_paths: fields.schema_search_paths,
         })
     }

@@ -160,7 +160,10 @@ fn template_problems(block: &Node, dsl_blocks: &[Node], earlier: &[Node]) -> Vec
     if let Some(start) = at(block, &["loop", "start"]) {
         checks.pattern(start, &[("variables", "the loop variables the loop binds")]);
     }
-    if let Some(variable) = at(block, &["loop", "variable"]) {
+    for variable in [at(block, &["loop", "variable"]), block.get("variable")]
+        .into_iter()
+        .flatten()
+    {
         checks.pattern(variable, &[]);
     }
     problems.extend(checks.problems);

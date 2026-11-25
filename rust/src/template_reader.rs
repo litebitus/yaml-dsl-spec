@@ -20,7 +20,15 @@ pub struct TemplateReading {
     /// The conditionals and loops outside any other, nested as written.
     pub blocks: Vec<TemplateBlock>,
     pub loop_variables: Vec<TemplateLoopVariable>,
+    pub template_variables: Vec<TemplateVariable>,
     pub problems: Vec<Diagnostic>,
+}
+
+/// A value the rendering tool supplies, read inside an action.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TemplateVariable {
+    pub position: Position,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -107,6 +115,7 @@ struct TemplateScan<'t> {
     root_blocks: Vec<TemplateBlock>,
     open_blocks: Vec<OpenBlock>,
     loop_variables: Vec<TemplateLoopVariable>,
+    template_variables: Vec<TemplateVariable>,
     problems: Vec<Diagnostic>,
 }
 
@@ -121,6 +130,7 @@ impl<'t> TemplateScan<'t> {
             root_blocks: Vec::new(),
             open_blocks: Vec::new(),
             loop_variables: Vec::new(),
+            template_variables: Vec::new(),
             problems: Vec::new(),
         }
     }
@@ -159,6 +169,7 @@ impl<'t> TemplateScan<'t> {
             actions: self.actions,
             blocks: self.root_blocks,
             loop_variables: self.loop_variables,
+            template_variables: self.template_variables,
             problems: self.problems,
         }
     }
@@ -183,6 +194,7 @@ impl<'t> TemplateScan<'t> {
         } else {
             self.word_kind(body)
         };
+        self.read_template_variables(body, body_offset);
         self.actions.push(TemplateAction {
             position: position.clone(),
             text: action_text.clone(),
@@ -408,6 +420,38 @@ impl<'t> TemplateScan<'t> {
                 name,
                 bound_by,
             });
+        }
+    }
+
+    /// Reads each template variable in `body`, which starts at `body_offset`,
+    /// but where a loop variable's match overlaps it.
+    fn read_template_variables(&mut self, body: &str, body_offset: usize) {
+        let loop_spans: Vec<Range<usize>> = self
+            .template
+            .loop_syntax
+            .variable
+            .find_iter(body)
+            .filter_map(Result::ok)
+            .filter(|found| !found.as_str().is_empty())
+            .map(|found| found.range())
+            .collect();
+        let found: Vec<(usize, String)> = self
+            .template
+            .template_variable
+            .find_iter(body)
+            .filter_map(Result::ok)
+            .filter(|found| !found.as_str().is_empty())
+            .filter(|found| {
+                !loop_spans
+                    .iter()
+                    .any(|span| span.start < found.end() && found.start() < span.end)
+            })
+            .map(|found| (found.start(), found.as_str().to_owned()))
+            .collect();
+        for (start, name) in found {
+            let position = self.position_at(body_offset + start);
+            self.template_variables
+                .push(TemplateVariable { position, name });
         }
     }
 

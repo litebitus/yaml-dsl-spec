@@ -16,15 +16,23 @@ const mockTemplateBlock = () => ({
   delimiters: { left: '[[', right: ']]' },
   conditional: { if: 'if', else_if: 'else if', else: 'else', end: 'end' },
   loop: { start: '^for (?<variables>\\$[a-z]+) in ', end: 'end', variable: '\\$[a-z]+' },
+  variable: '\\.[a-z]+',
 });
 
 test('a template block reads with its loop patterns compiled, and one that does not compile is none', () => {
   const definition = templateDefinition.templateDefinitionFromJson(mockTemplateBlock());
   assert.ok(definition.loop.start instanceof RegExp);
+  assert.ok(definition.variable instanceof RegExp);
   assert.deepStrictEqual(definition.file_excludes, []);
   const broken = mockTemplateBlock();
   broken.loop.variable = '(';
   assert.throws(() => templateDefinition.templateDefinitionFromJson(broken), /`loop.variable` is not a regular expression/u);
+  const brokenTemplateVariable = mockTemplateBlock();
+  brokenTemplateVariable.variable = '(';
+  assert.throws(
+    () => templateDefinition.templateDefinitionFromJson(brokenTemplateVariable),
+    /`variable` is not a regular expression/u,
+  );
 });
 
 test('a template language repeating an earlier one\'s id is a problem at its id', () => {

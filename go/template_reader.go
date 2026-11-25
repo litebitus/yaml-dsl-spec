@@ -5,13 +5,20 @@ import (
 	"strings"
 )
 
-// TemplateReading is a template read: its masked text, its actions, its conditionals and loops, its loop variables and its problems.
+// TemplateReading is a template read: its masked text, its actions, its conditionals and loops, its loop and template variables and its problems.
 type TemplateReading struct {
-	MaskedText    string
-	Actions       []TemplateAction
-	Blocks        []TemplateBlock
-	LoopVariables []TemplateLoopVariable
-	Problems      []Diagnostic
+	MaskedText        string
+	Actions           []TemplateAction
+	Blocks            []TemplateBlock
+	LoopVariables     []TemplateLoopVariable
+	TemplateVariables []TemplateVariable
+	Problems          []Diagnostic
+}
+
+// TemplateVariable is a template variable read inside an action, whose value the rendering tool supplies.
+type TemplateVariable struct {
+	Position Position
+	Name     string
 }
 
 // TemplateAction is an action of a template: where it starts, its text and whether it is a directive.
@@ -111,7 +118,12 @@ func ReadTemplate(fileName, templateText string, templateDefinition TemplateDefi
 		templateDefinition: templateDefinition,
 		lineStarts:         lineStartOffsets(templateRunes),
 		maskedRunes:        slices.Clone(templateRunes),
-		reading:            TemplateReading{Actions: []TemplateAction{}, LoopVariables: []TemplateLoopVariable{}, Problems: []Diagnostic{}},
+		reading: TemplateReading{
+			Actions:           []TemplateAction{},
+			LoopVariables:     []TemplateLoopVariable{},
+			TemplateVariables: []TemplateVariable{},
+			Problems:          []Diagnostic{},
+		},
 	}
 	reader.readActions()
 	reader.reportOpenBlocks()
@@ -187,6 +199,7 @@ func (reader *templateReader) readAction(actionStart, actionEnd int, actionBody 
 		readKind, directiveWord = reader.directiveKindOf(actionBody)
 	}
 	isDirective := readKind != notDirective
+	reader.readTemplateVariables(actionBody, bodyOffset)
 	reader.reading.Actions = append(reader.reading.Actions, TemplateAction{Position: actionPosition, Text: actionText, IsDirective: isDirective})
 	maskRune := '_'
 	if isDirective {
@@ -313,6 +326,24 @@ func (reader *templateReader) readLoopVariables(actionBody string, bodyOffset in
 		if bindingLoop == nil {
 			reader.reportProblem(DiagnosticAt(variablePosition, CodeSpan(variableName)+" is bound by no loop around it"))
 		}
+	}
+}
+
+func (reader *templateReader) readTemplateVariables(actionBody string, bodyOffset int) {
+	bodyRunes := []rune(actionBody)
+	loopVariableSpans := reader.templateDefinition.loopVariablePattern.everyMatchSpan(actionBody)
+	for _, variableSpan := range reader.templateDefinition.templateVariablePattern.everyMatchSpan(actionBody) {
+		isLoopVariable := slices.ContainsFunc(loopVariableSpans, func(loopSpan runeSpan) bool {
+			return loopSpan.runeLength > 0 && loopSpan.runeOffset < variableSpan.runeOffset+variableSpan.runeLength &&
+				variableSpan.runeOffset < loopSpan.runeOffset+loopSpan.runeLength
+		})
+		if variableSpan.runeLength == 0 || isLoopVariable {
+			continue
+		}
+		reader.reading.TemplateVariables = append(reader.reading.TemplateVariables, TemplateVariable{
+			Position: reader.positionAt(bodyOffset + variableSpan.runeOffset),
+			Name:     string(bodyRunes[variableSpan.runeOffset : variableSpan.runeOffset+variableSpan.runeLength]),
+		})
 	}
 }
 

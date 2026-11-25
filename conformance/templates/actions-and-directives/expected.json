@@ -115,5 +115,37 @@
       }
     }
   ],
+  "template_variables": [
+    {
+      "line": 1,
+      "column": 7,
+      "name": ".mock_enabled"
+    },
+    {
+      "line": 3,
+      "column": 13,
+      "name": ".mock_id"
+    },
+    {
+      "line": 4,
+      "column": 6,
+      "name": ".mock_key"
+    },
+    {
+      "line": 4,
+      "column": 23,
+      "name": ".mock_value"
+    },
+    {
+      "line": 6,
+      "column": 19,
+      "name": ".mock_regions"
+    },
+    {
+      "line": 9,
+      "column": 12,
+      "name": ".mock_ready"
+    }
+  ],
   "problems": []
 }

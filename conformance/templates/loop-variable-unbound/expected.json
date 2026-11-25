@@ -59,6 +59,13 @@
       "loop": null
     }
   ],
+  "template_variables": [
+    {
+      "line": 3,
+      "column": 19,
+      "name": ".mock_regions"
+    }
+  ],
   "problems": [
     {
       "line": 6,

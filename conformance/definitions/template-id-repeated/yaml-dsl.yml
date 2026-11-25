@@ -82,4 +82,5 @@ templates:
       start: "^for (?<variables>\\$[a-z_]+(, \\$[a-z_]+)?) in "
       end: "end"
       variable: "\\$[a-z_]+"
+    variable: "\\.[a-z_][a-z0-9_.]*"
     schema_search_paths: ["{config_root}/mock-queues.schema.json"]

@@ -23,6 +23,13 @@
     }
   ],
   "variables": [],
+  "template_variables": [
+    {
+      "line": 1,
+      "column": 7,
+      "name": ".mock_enabled"
+    }
+  ],
   "problems": [
     {
       "line": 1,

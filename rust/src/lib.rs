@@ -40,7 +40,7 @@ pub use problem_wording::code_span;
 pub use schema::closest_name;
 pub use template_reader::{
     TemplateAction, TemplateBlock, TemplateBranch, TemplateConditional, TemplateLoop,
-    TemplateLoopVariable, TemplateReading, read_template,
+    TemplateLoopVariable, TemplateReading, TemplateVariable, read_template,
 };
 pub use validation_rules::ValidationRules;
 

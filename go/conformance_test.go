@@ -237,12 +237,21 @@ func templateReading(testingContext *testing.T, caseFolder string) any {
 			"loop":   positionJSON(readVariable.Loop),
 		})
 	}
+	listedTemplateVariables := []any{}
+	for _, readVariable := range templateRead.TemplateVariables {
+		listedTemplateVariables = append(listedTemplateVariables, map[string]any{
+			"line":   readVariable.Position.Line,
+			"column": readVariable.Position.Column,
+			"name":   readVariable.Name,
+		})
+	}
 	return map[string]any{
-		"masked":    templateRead.MaskedText,
-		"actions":   listedActions,
-		"blocks":    templateBlocksJSON(templateRead.Blocks),
-		"variables": listedVariables,
-		"problems":  problemsJSON(templateRead.Problems),
+		"masked":             templateRead.MaskedText,
+		"actions":            listedActions,
+		"blocks":             templateBlocksJSON(templateRead.Blocks),
+		"variables":          listedVariables,
+		"template_variables": listedTemplateVariables,
+		"problems":           problemsJSON(templateRead.Problems),
 	}
 }
 

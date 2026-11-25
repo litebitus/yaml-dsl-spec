@@ -49,6 +49,18 @@
     }
   ],
   "variables": [],
+  "template_variables": [
+    {
+      "line": 1,
+      "column": 7,
+      "name": ".mock_enabled"
+    },
+    {
+      "line": 5,
+      "column": 12,
+      "name": ".mock_ready"
+    }
+  ],
   "problems": [
     {
       "line": 5,

@@ -636,6 +636,7 @@ A template is a DSL's document with actions in it, which a rendering tool fills 
 | `delimiters` | `left` and `right`, the text an action starts and ends with |
 | `conditional` | `if`, `else_if`, `else` and `end`, the word each part of a conditional starts with |
 | `loop` | `start`, the pattern a loop's opening action matches, its `variables` group the loop variables the loop binds, separated by `, `; `end`, the word its closing action starts with; `variable`, the pattern of a loop variable inside an action |
+| `variable` | the pattern of a template variable inside an action: a value the rendering tool supplies |
 | `schema_search_paths` | where a template's schema is, as for a DSL; a template's modeline is not read, since it names the schema of the rendered document |
 
 ```yaml
@@ -650,6 +651,7 @@ templates:
       start: "^for (?<variables>\\$[a-z_]+(, \\$[a-z_]+)?) in "
       end: "end"
       variable: "\\$[a-z_]+"
+    variable: "\\.[a-z_][a-z0-9_.]*"
     schema_search_paths: ["{config_root}/schemas/sample.schema.json"]
 ```
 
@@ -660,7 +662,8 @@ templates:
 - Before the YAML is parsed, each character of an action but a line break is replaced by `_`, which is valid in YAML wherever the action stands, so every line and column keeps its place. A directive's characters are replaced by spaces instead, so a directive alone on its line leaves it blank.
 - An action standing as a whole value is a value known only when the template is rendered; an action inside text or a key makes that text known only then. A check that such a value would decide reports nothing, as for a call's result.
 - The YAML structure is written in the template: an action fills a value, a key or text, never indentation or a list's `-`.
-- What an action holds beyond a conditional's word, a loop's `start` and a loop variable is the rendering tool's, and is not read.
+- A template variable is text inside an action that `variable` matches, a match of no text being none, where the loop's `variable` does not match the same text. The rendering tool supplies its value, so it binds nothing and is never a problem.
+- What an action holds beyond a conditional's word, a loop's `start`, a loop variable and a template variable is the rendering tool's, and is not read.
 - A closing word closes the innermost conditional or loop left open, when it is that one's `end`. Any other closing word closes nothing, and is a problem at its directive: `` `[[ endif ]]` does not close `[[ for $region in .mock_regions ]]` ``.
 
 ### Conditionals
@@ -1028,6 +1031,7 @@ templates:
       start: "^for (?<variables>\\$[a-z_]+(, \\$[a-z_]+)?) in "
       end: "end"
       variable: "\\$[a-z_]+"
+    variable: "\\.[a-z_][a-z0-9_.]*"
     schema_search_paths: ["{config_root}/schemas/sample.schema.json"]
 ```
 

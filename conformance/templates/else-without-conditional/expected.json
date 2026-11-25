@@ -37,6 +37,13 @@
     }
   ],
   "variables": [],
+  "template_variables": [
+    {
+      "line": 1,
+      "column": 19,
+      "name": ".mock_regions"
+    }
+  ],
   "problems": [
     {
       "line": 2,
