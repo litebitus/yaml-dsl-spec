@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.4.0 — 2026-11-25
+
 - Documentation
   - A placeholder reading a local inside longer text splices the local's value only when it is a constant, and otherwise stays a reference to the local.
   - A reference's name resolves a local placeholder to the local's value.

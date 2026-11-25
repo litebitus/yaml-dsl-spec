@@ -4,7 +4,7 @@ Each version is the format a file names in its `version`, and the schema file of
 
 ## `yaml-dsl.yml`
 
-### 1.4 — unreleased
+### 1.4 — v0.4.0, 2026-11-25
 
 - `templates` declares template languages, each the templates of one DSL's documents.
 
