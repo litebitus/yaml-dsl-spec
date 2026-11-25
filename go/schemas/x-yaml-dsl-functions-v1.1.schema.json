@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/litebitus/yaml-dsl-spec/schemas/x-yaml-dsl-functions-v1.1.schema.json",
+  "title": "x-yaml-dsl-functions v1.1",
+  "description": "A DSL's function table: each function name maps to its description, its arguments in call order and what it returns, or, for a macro, what its preprocessor does with a call.",
+  "type": "object",
+  "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_:-]*$" },
+  "additionalProperties": {
+    "oneOf": [
+      { "$ref": "#/$defs/function" },
+      { "$ref": "#/$defs/argumentList" }
+    ]
+  },
+  "$defs": {
+    "function": {
+      "type": "object",
+      "required": ["description", "arguments"],
+      "additionalProperties": false,
+      "if": { "required": ["macro"] },
+      "then": { "not": { "required": ["return"] } },
+      "properties": {
+        "description": { "type": "string", "minLength": 1, "description": "What the function does, in markdown." },
+        "arguments": {
+          "type": "array",
+          "description": "The function's arguments in call order. Optional arguments follow required ones, and a repeated argument is last.",
+          "items": {
+            "allOf": [{ "$ref": "#/$defs/argument" }],
+            "required": ["description"],
+            "properties": {
+              "description": { "type": "string", "minLength": 1, "description": "What the argument holds, in markdown." }
+            }
+          }
+        },
+        "return": {
+          "type": "object",
+          "required": ["type", "description"],
+          "additionalProperties": false,
+          "description": "What the function returns. Left out for a function that returns nothing, and for a macro.",
+          "properties": {
+            "type": { "$ref": "#/$defs/valueType" },
+            "description": { "type": "string", "minLength": 1, "description": "What the returned value holds, in markdown." }
+          }
+        },
+        "macro": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "description": "Present only on a macro: what the DSL's preprocessor does with a call.",
+          "allOf": [
+            {
+              "if": { "properties": { "kind": { "const": "function_call" } } },
+              "then": { "required": ["callee"] },
+              "else": { "not": { "anyOf": [{ "required": ["callee"] }, { "required": ["callee_arguments"] }] } }
+            },
+            {
+              "if": { "properties": { "kind": { "const": "merge" } } },
+              "then": { "required": ["merge_behavior", "content"] },
+              "else": { "not": { "anyOf": [{ "required": ["merge_behavior"] }, { "required": ["content"] }] } }
+            },
+            {
+              "if": { "properties": { "kind": { "const": "loop" } } },
+              "then": {
+                "required": ["collection", "body"],
+                "anyOf": [{ "required": ["loop_variables"] }, { "required": ["loop_variable"] }]
+              },
+              "else": {
+                "not": {
+                  "anyOf": [
+                    { "required": ["loop_variables"] },
+                    { "required": ["loop_variable"] },
+                    { "required": ["collection"] },
+                    { "required": ["body"] }
+                  ]
+                }
+              }
+            }
+          ],
+          "properties": {
+            "kind": {
+              "enum": ["function_call", "merge", "loop", "transform"],
+              "description": "What a call expands to."
+            },
+            "callee": {
+              "type": "string",
+              "minLength": 1,
+              "description": "On a function_call macro, required: the argument naming the macro or function called."
+            },
+            "callee_arguments": {
+              "type": "string",
+              "minLength": 1,
+              "description": "On a function_call macro: the argument holding the callee's arguments by name."
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1,
+              "description": "On a merge macro, required: the argument holding the content or its location."
+            },
+            "loop_variables": {
+              "type": "string",
+              "minLength": 1,
+              "description": "On a loop macro, required: the argument holding the loop variables, a text or a list of one or two."
+            },
+            "loop_variable": {
+              "type": "string",
+              "minLength": 1,
+              "deprecated": true,
+              "description": "Use loop_variables."
+            },
+            "collection": {
+              "type": "string",
+              "minLength": 1,
+              "description": "On a loop macro, required: the argument holding the collection."
+            },
+            "body": {
+              "type": "string",
+              "minLength": 1,
+              "description": "On a loop macro, required: the argument holding the body."
+            },
+            "name_suffix_pattern": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The regular expression of the text after the macro's name that keeps sibling calls distinct. Left out, nothing follows the name."
+            },
+            "unmarked_key_paths": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^\\$." },
+              "description": "The JSONPaths of the keys that call the macro without the call marker. Left out, none."
+            },
+            "merge_behavior": {
+              "enum": ["shallow", "deep", "join"],
+              "description": "How a merge macro combines the holding map with its content. Required on a merge macro."
+            }
+          }
+        }
+      }
+    },
+    "argumentList": {
+      "type": "array",
+      "deprecated": true,
+      "description": "Use a mapping with description and arguments. The function's arguments in call order.",
+      "items": { "$ref": "#/$defs/argument" }
+    },
+    "argument": {
+      "type": "object",
+      "required": ["name", "type", "required", "repeated"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "description": "Argument name." },
+        "type": { "$ref": "#/$defs/valueType" },
+        "required": { "type": "boolean", "description": "Whether a call must pass the argument." },
+        "repeated": { "type": "boolean", "description": "Whether the argument takes every remaining value." },
+        "default": { "description": "On an optional argument, the value it takes when a call leaves it out." }
+      }
+    },
+    "valueType": {
+      "enum": ["text", "number", "whole_number", "boolean", "list", "map", "function", "macro", "any"],
+      "description": "The kind of value; `function` and `macro` are the name of a table entry of that kind."
+    }
+  }
+}
