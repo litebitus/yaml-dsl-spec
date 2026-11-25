@@ -324,7 +324,7 @@ A line is each line the renderer divides: the headline, a source line, a label, 
 
 ## TODO
 
-- Schema resolution joins the core: [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator)'s schema resolution, its `s3://` schemas read with an assumed role included, moves into the core in all three languages, and the specification's "Finding the schema" and "Schema URLs" state it. A document's schema is found and read through a schema cache, least recently used dropped first, in place of each reader's own copy. The schema cache's capacity is the consumer's to set.
+- Schema resolution joins the core: [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator)'s schema resolution, its `s3://` schemas read with an assumed role included, moves into the core in all three languages, and the specification's "Finding the schema" and "Schema URLs" state it. A document's schema is found and read through a schema cache, least recently used dropped first, in place of each reader's own copy. The schema cache's capacity is the consumer's to set. The core also answers a JSON pointer's steps, unescaped, so a consumer reading a problem's subject, such as [zerox](https://github.com/litebitus/zerox) finding the input a problem is about, reads it through the core in place of its own unescaping.
 - Deprecation warnings join the core as an opt-in: a deprecated field or value a document uses is reported as a warning.
 - Message bundles, a separate pass and release. Every message the packages write comes from a bundle, one per language, shared by all three languages:
   - A bundle is `messages/<tag>.json`, the tag a BCP 47 language tag such as `en` or `zh-Hant-TW`. Each package's build copies the bundles in, as it copies the schemas.
