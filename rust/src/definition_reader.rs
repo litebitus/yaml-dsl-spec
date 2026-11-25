@@ -1,13 +1,14 @@
 //! Reads a `yaml-dsl.yml`: checks its `version`, validates it against that
 //! version's schema, checks what the schema cannot state, and returns each DSL's
-//! definition, or every problem at the field it is about.
+//! definition and each template language's, or every problem at the field it is
+//! about.
 
 use std::path::Path;
 use std::sync::Arc;
 
 use fancy_regex::Regex;
 
-use crate::definition::DslDefinition;
+use crate::definition::{DslDefinition, TemplateDefinition};
 use crate::diagnostic::Diagnostic;
 use crate::json_path::PathPattern;
 use crate::node::{Node, NodeKind};
@@ -28,9 +29,32 @@ pub struct DeclaredDsl {
     pub block: Node,
 }
 
+/// A template language of a `yaml-dsl.yml`: its validated definition, and its
+/// block as written.
+#[derive(Clone, Debug)]
+pub struct DeclaredTemplate {
+    pub definition: TemplateDefinition,
+    pub block: Node,
+}
+
+/// Everything a `yaml-dsl.yml` declares: its DSLs and its template languages.
+#[derive(Clone, Debug)]
+pub struct DeclaredDefinitions {
+    pub dsls: Vec<DeclaredDsl>,
+    pub templates: Vec<DeclaredTemplate>,
+}
+
 /// Each DSL of the `yaml-dsl.yml` at `file`, whose text is `text`, validated, or
-/// every problem found, each at the field it is about.
+/// every problem found, each at the field it is about. Its template languages
+/// are validated too.
 pub fn read_dsl_definitions(file: &Path, text: &str) -> Result<Vec<DeclaredDsl>, Vec<Diagnostic>> {
+    read_definitions(file, text).map(|declared| declared.dsls)
+}
+
+/// Each DSL and each template language of the `yaml-dsl.yml` at `file`, whose
+/// text is `text`, validated, or every problem found, each at the field it is
+/// about.
+pub fn read_definitions(file: &Path, text: &str) -> Result<DeclaredDefinitions, Vec<Diagnostic>> {
     let file: Arc<str> = Arc::from(file.to_string_lossy().as_ref());
     let root = yaml_reader::parse(&file, text, &[]).map_err(|problem| vec![problem])?;
     let (schema_file, schema_text) = version_schema(&root, &file)?;
@@ -43,7 +67,7 @@ pub fn read_dsl_definitions(file: &Path, text: &str) -> Result<Vec<DeclaredDsl>,
     }
     let blocks = root.get("dsls").and_then(Node::items).unwrap_or_default();
     let mut problems = Vec::new();
-    let mut declared = Vec::new();
+    let mut dsls = Vec::new();
     for (index, block) in blocks.iter().enumerate() {
         problems.extend(repeated_id(block, &blocks[..index]));
         let block_problems = BlockChecks::new(block).problems();
@@ -52,7 +76,26 @@ pub fn read_dsl_definitions(file: &Path, text: &str) -> Result<Vec<DeclaredDsl>,
             continue;
         }
         match DslDefinition::from_json(&block.to_json()) {
-            Ok(definition) => declared.push(DeclaredDsl {
+            Ok(definition) => dsls.push(DeclaredDsl {
+                definition,
+                block: block.clone(),
+            }),
+            Err(message) => problems.push(Diagnostic::at(&block.position, message)),
+        }
+    }
+    let template_blocks = root
+        .get("templates")
+        .and_then(Node::items)
+        .unwrap_or_default();
+    let mut templates = Vec::new();
+    for (index, block) in template_blocks.iter().enumerate() {
+        let block_problems = template_problems(block, blocks, &template_blocks[..index]);
+        if !block_problems.is_empty() {
+            problems.extend(block_problems);
+            continue;
+        }
+        match TemplateDefinition::from_json(&block.to_json()) {
+            Ok(definition) => templates.push(DeclaredTemplate {
                 definition,
                 block: block.clone(),
             }),
@@ -60,10 +103,68 @@ pub fn read_dsl_definitions(file: &Path, text: &str) -> Result<Vec<DeclaredDsl>,
         }
     }
     if problems.is_empty() {
-        Ok(declared)
+        Ok(DeclaredDefinitions { dsls, templates })
     } else {
         Err(problems)
     }
+}
+
+/// The checks of one template block that its schema cannot state: its `id` is
+/// no DSL's and no earlier template language's, its `dsl` is declared, and its
+/// patterns compile with the groups they are read by.
+fn template_problems(block: &Node, dsl_blocks: &[Node], earlier: &[Node]) -> Vec<Diagnostic> {
+    let mut problems = Vec::new();
+    let id_of = |other: &Node| other.get("id").and_then(Node::as_str).map(str::to_owned);
+    if let Some(id_node) = block.get("id")
+        && let Some(id) = id_node.as_str()
+    {
+        let label = if dsl_blocks
+            .iter()
+            .any(|other| id_of(other).as_deref() == Some(id))
+        {
+            Some("a DSL of this file has this `id`")
+        } else if earlier
+            .iter()
+            .any(|other| id_of(other).as_deref() == Some(id))
+        {
+            Some("an earlier template language of this file has this `id`")
+        } else {
+            None
+        };
+        if let Some(label) = label {
+            problems.push(
+                Diagnostic::at(
+                    &id_node.position,
+                    format!("template language `{id}` is declared more than once"),
+                )
+                .with_label(label),
+            );
+        }
+    }
+    if let Some(dsl_node) = block.get("dsl")
+        && let Some(dsl) = dsl_node.as_str()
+    {
+        let declared: Vec<String> = dsl_blocks.iter().filter_map(id_of).collect();
+        if !declared.iter().any(|id| id == dsl) {
+            problems.push(
+                Diagnostic::at(&dsl_node.position, format!("DSL `{dsl}` is not declared"))
+                    .with_label("`dsls` declares no DSL of this name")
+                    .with_help(
+                        closest_name(dsl, &declared)
+                            .map(|close| format!("did you mean `{close}`?")),
+                    ),
+            );
+        }
+    }
+    let mut checks = BlockChecks::new(block);
+    if let Some(start) = at(block, &["loop", "start"]) {
+        checks.pattern(start, &[("variables", "the loop variables the loop binds")]);
+    }
+    if let Some(variable) = at(block, &["loop", "variable"]) {
+        checks.pattern(variable, &[]);
+    }
+    problems.extend(checks.problems);
+    problems
 }
 
 /// The file name and text of the schema the file's `version` names.

@@ -13,6 +13,7 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
 | [`layers/`](examples/layers) | a common layer and its overlays, references, locals and placeholders |
 | [`macros/`](examples/macros) | a function table, function calls, and `loop` and `merge` macros |
 | [`tags/`](examples/tags) | YAML tags that stand for keys, and references written with them |
+| [`templates/`](examples/templates) | a template language of a DSL, and a template with actions, a loop and a conditional |
 
 ## Readers
 

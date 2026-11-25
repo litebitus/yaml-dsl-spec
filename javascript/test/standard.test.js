@@ -20,11 +20,11 @@ function errors(schema, instance) {
 }
 
 test('a major stands for its newest minor', () => {
-  assert.deepStrictEqual(spec.YAML_DSL_VERSIONS, ['1', '1.0', '1.1', '1.2', '1.3']);
+  assert.deepStrictEqual(spec.YAML_DSL_VERSIONS, ['1', '1.0', '1.1', '1.2', '1.3', '1.4']);
   assert.deepStrictEqual(spec.FUNCTION_TABLE_VERSIONS, ['1', '1.0', '1.1']);
-  assert.strictEqual(spec.yamlDslSchema('1'), spec.yamlDslSchema('1.3'));
-  assert.notStrictEqual(spec.yamlDslSchema('1.2'), spec.yamlDslSchema('1.3'));
-  for (const minor of ['1.0', '1.1', '1.2', '1.3']) {
+  assert.strictEqual(spec.yamlDslSchema('1'), spec.yamlDslSchema('1.4'));
+  assert.notStrictEqual(spec.yamlDslSchema('1.3'), spec.yamlDslSchema('1.4'));
+  for (const minor of ['1.0', '1.1', '1.2', '1.3', '1.4']) {
     assert.strictEqual(spec.yamlDslSchema(minor).title, `yaml-dsl.yml v${minor}`);
   }
   assert.strictEqual(spec.yamlDslSchema('2'), null);

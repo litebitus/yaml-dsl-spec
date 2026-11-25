@@ -7,6 +7,8 @@
  * left out when a block holding them is read.
  */
 
+const { compilePattern } = require('./pattern-dialect');
+
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** Reads one struct of the definition from `source`, by each field's reader. */
@@ -131,9 +133,36 @@ const DSL_FIELDS = {
   })),
 };
 
+const TEMPLATE_FIELDS = {
+  id: required(text),
+  dsl: required(text),
+  file_includes: required(listOf(text)),
+  file_excludes: withDefault(listOf(text), emptyList),
+  delimiters: required(struct({ left: required(text), right: required(text) })),
+  conditional: required(struct({
+    if: required(text),
+    else_if: required(text),
+    else: required(text),
+    end: required(text),
+  })),
+  loop: required(struct({ start: required(text), end: required(text), variable: required(text) })),
+  schema_search_paths: withDefault(listOf(text), emptyList),
+};
+
 /** Reads a DSL block, such as one of a parsed `yaml-dsl.yml`, or throws why it is none. */
 function dslDefinitionFromJson(block) {
   return readFields(block, DSL_FIELDS);
 }
 
-module.exports = { dslDefinitionFromJson };
+/** Reads a template block, its loop's patterns compiled, or throws why it is none. */
+function templateDefinitionFromJson(block) {
+  const definition = readFields(block, TEMPLATE_FIELDS);
+  for (const field of ['start', 'variable']) {
+    const compiled = compilePattern(definition.loop[field]);
+    if (compiled === null) throw new Error(`\`loop.${field}\` is not a regular expression`);
+    definition.loop[field] = compiled;
+  }
+  return definition;
+}
+
+module.exports = { dslDefinitionFromJson, templateDefinitionFromJson };

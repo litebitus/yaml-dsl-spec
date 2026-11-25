@@ -14,6 +14,7 @@ Each language reads the standard through packages: the core, which every languag
 8. Resolved values: a document value that may hold a reference, a call or a template.
 9. Schema validation: a document validated against its schema.
 10. The format function: a layout's verbs written from its operands.
+11. The template reader: a template's actions masked, its conditionals and loops read, and its problems.
 
 - The core grows as readers need it.
 
@@ -34,12 +35,14 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
 | read a `yaml-dsl.yml` | `read_dsl_definitions(file, text)` | `readDslDefinitions(file, text)` | `ReadDSLDefinitions(file, text)` | each DSL's definition and its block as written, validated against its version's schema and the checks the schema cannot state; else every problem at its field |
+| read a `yaml-dsl.yml` with its templates | `read_definitions(file, text)` | `readDefinitions(file, text)` | `ReadDefinitions(file, text)` | the DSLs `read_dsl_definitions` gives, and beside them each template language's definition and its block as written; else every problem at its field |
 
 ### DSL definition model
 
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
 | a DSL block | `DslDefinition::from_json(block)` | `dslDefinition.dslDefinitionFromJson(block)` | `DSLDefinitionFromJSON(block)` | the block's fields as the standard names them, each with its default; else why the block is none |
+| a template block | `TemplateDefinition::from_json(block)` | `templateDefinition.templateDefinitionFromJson(block)` | `TemplateDefinitionFromJSON(block)` | the block's fields as the standard names them, its patterns compiled; else why the block is none |
 
 ### YAML reader
 
@@ -55,6 +58,15 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | a problem | `Diagnostic` | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule, schema and help |
 | a position | `Position` | `Position` | `Position` | a file, a line and a column, each from 1 |
 | a fenced value | `code_span(value)` | `codeSpan(value)` | `CodeSpan(value)` | the value in the fewest backticks it does not hold, padded with a space where it begins or ends with one |
+
+### Template reader
+
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| read a template | `read_template(file, text, template)` | `templateReader.readTemplate(file, text, template)` | `ReadTemplate(file, text, template)` | the template's reading, its problems among it |
+| a reading | `TemplateReading` | `TemplateReading` | `TemplateReading` | the masked text, ready for the YAML reader; each action, with its position, its text and whether it is a directive; the conditionals and loops, nested as written; each loop variable read inside an action, with the loop that binds it; and every problem at its directive or action |
+| a conditional | `TemplateConditional` | `TemplateConditional` | `TemplateConditional` | its branches, each with the action that opens it, its body's conditionals and loops, and the action that closes it |
+| a loop | `TemplateLoop` | `TemplateLoop` | `TemplateLoop` | the action that opens it, the loop variables it binds, its body's conditionals and loops, and the action that closes it |
 
 ### Paths
 

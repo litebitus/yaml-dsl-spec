@@ -4,6 +4,12 @@
 
 - Documentation
   - A placeholder reading a local inside longer text splices the local's value only when it is a constant, and otherwise stays a reference to the local.
+  - A reference's name resolves a local placeholder to the local's value.
+  - Templates: a DSL's documents with actions, conditionals and loops in them, declared under `templates`.
+- Schemas
+  - `yaml-dsl.yml` 1.4 adds `templates`.
+- Packages
+  - `read_definitions` gives the template languages beside the DSLs, and the template reader reads a template: its masked text, actions, conditionals, loops, loop variables and problems.
 
 ## v0.3.4 — 2026-11-19
 

@@ -52,6 +52,33 @@ type PatternMatch struct {
 	NamedGroups map[string]string
 }
 
+type runeSpan struct {
+	runeOffset int
+	runeLength int
+}
+
+func (compiledPattern *CompiledPattern) everyMatchSpan(matchedText string) []runeSpan {
+	var matchSpans []runeSpan
+	regexpMatch, matchError := compiledPattern.compiledRegexp.FindStringMatch(matchedText)
+	for matchError == nil && regexpMatch != nil {
+		matchSpans = append(matchSpans, runeSpan{runeOffset: regexpMatch.Index, runeLength: regexpMatch.Length})
+		regexpMatch, matchError = compiledPattern.compiledRegexp.FindNextMatch(regexpMatch)
+	}
+	return matchSpans
+}
+
+func (compiledPattern *CompiledPattern) groupSpanOfLeadingMatch(matchedText, groupName string) (runeSpan, string, bool) {
+	regexpMatch, matchError := compiledPattern.compiledRegexp.FindStringMatch(matchedText)
+	if matchError != nil || regexpMatch == nil || regexpMatch.Index != 0 {
+		return runeSpan{}, "", false
+	}
+	capturedGroup := regexpMatch.GroupByName(groupName)
+	if capturedGroup == nil || len(capturedGroup.Captures) == 0 {
+		return runeSpan{}, "", true
+	}
+	return runeSpan{runeOffset: capturedGroup.Index, runeLength: capturedGroup.Length}, capturedGroup.String(), true
+}
+
 // FindMatch is the pattern's first match in a text; a group that captures nothing is left out.
 func (compiledPattern *CompiledPattern) FindMatch(matchedText string) (PatternMatch, bool) {
 	regexpMatch, matchError := compiledPattern.compiledRegexp.FindStringMatch(matchedText)

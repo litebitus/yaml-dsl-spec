@@ -1,0 +1,4 @@
+mock-queue:
+  regions:
+[[ for $region in .mock_regions ]]
+    - "[[ $region ]]"

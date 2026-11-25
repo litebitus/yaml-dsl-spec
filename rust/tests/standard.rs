@@ -1,8 +1,8 @@
 use serde_json::Value;
 use yaml_dsl_spec::definition::{CommonLayerDiscovery, NameSpelling};
 use yaml_dsl_spec::{
-    DslDefinition, FUNCTION_TABLE_VERSIONS, YAML_DSL_VERSIONS, code_span, function_table_schema,
-    yaml_dsl_schema,
+    DslDefinition, FUNCTION_TABLE_VERSIONS, TemplateDefinition, YAML_DSL_VERSIONS, code_span,
+    function_table_schema, yaml_dsl_schema,
 };
 
 const MOCK_DSL_CONFIG: &str = include_str!("fixtures/mock-dsl.json");
@@ -22,11 +22,11 @@ fn errors(schema: &str, instance: &Value) -> Vec<String> {
 
 #[test]
 fn a_major_stands_for_its_newest_minor() {
-    assert_eq!(YAML_DSL_VERSIONS, ["1", "1.0", "1.1", "1.2", "1.3"]);
+    assert_eq!(YAML_DSL_VERSIONS, ["1", "1.0", "1.1", "1.2", "1.3", "1.4"]);
     assert_eq!(FUNCTION_TABLE_VERSIONS, ["1", "1.0", "1.1"]);
-    assert_eq!(yaml_dsl_schema("1"), yaml_dsl_schema("1.3"));
-    assert_ne!(yaml_dsl_schema("1.2"), yaml_dsl_schema("1.3"));
-    for minor in ["1.0", "1.1", "1.2", "1.3"] {
+    assert_eq!(yaml_dsl_schema("1"), yaml_dsl_schema("1.4"));
+    assert_ne!(yaml_dsl_schema("1.3"), yaml_dsl_schema("1.4"));
+    for minor in ["1.0", "1.1", "1.2", "1.3", "1.4"] {
         let title = format!("\"title\": \"yaml-dsl.yml v{minor}\"");
         assert!(yaml_dsl_schema(minor).unwrap().contains(&title));
     }
@@ -43,10 +43,10 @@ fn a_minor_schema_takes_a_file_stating_its_minor_or_its_major() {
         config["version"] = Value::from(version);
         assert_eq!(errors(schema, &config), Vec::<String>::new());
     }
-    config["version"] = Value::from("1.3");
+    config["version"] = Value::from("1.4");
     assert!(!errors(schema, &config).is_empty());
-    let newest = yaml_dsl_schema("1.3").unwrap();
-    for version in ["1", "1.3"] {
+    let newest = yaml_dsl_schema("1.4").unwrap();
+    for version in ["1", "1.4"] {
         config["version"] = Value::from(version);
         assert_eq!(errors(newest, &config), Vec::<String>::new());
     }
@@ -104,6 +104,27 @@ fn the_schema_reports_a_misspelt_field_the_types_would_ignore() {
         "{reported:?}"
     );
     assert!(DslDefinition::from_json(&config["dsls"][0]).is_ok());
+}
+
+#[test]
+fn a_template_block_reads_with_its_patterns_compiled_or_says_why_it_is_none() {
+    let block = serde_json::json!({
+        "id": "mock-template",
+        "dsl": "mock-dsl",
+        "file_includes": ["{config_root}/mock-templates/**"],
+        "delimiters": { "left": "[[", "right": "]]" },
+        "conditional": { "if": "if", "else_if": "else if", "else": "else", "end": "end" },
+        "loop": { "start": "^for (?<variables>\\$[a-z]+) in ", "end": "end", "variable": "\\$[a-z]+" }
+    });
+    let definition = TemplateDefinition::from_json(&block).unwrap();
+    assert_eq!(definition.conditional.else_if_word, "else if");
+    assert!(definition.loop_syntax.variable.is_match("$mock").unwrap());
+    let mut unclosed_group = block.clone();
+    unclosed_group["loop"]["start"] = Value::from("(?<variables>");
+    assert!(TemplateDefinition::from_json(&unclosed_group).is_err());
+    let mut no_dsl = block;
+    no_dsl.as_object_mut().unwrap().remove("dsl");
+    assert!(TemplateDefinition::from_json(&no_dsl).is_err());
 }
 
 #[test]

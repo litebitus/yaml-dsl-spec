@@ -11,7 +11,7 @@
  */
 
 const schemaCatalog = require('./lib/schema-catalog');
-const { readDslDefinitions } = require('./lib/definition-reader');
+const { readDslDefinitions, readDefinitions } = require('./lib/definition-reader');
 const { Diagnostic } = require('./lib/diagnostic-report');
 const { Position } = require('./lib/source-position');
 const { Node, numberJson } = require('./lib/yaml-node');
@@ -23,10 +23,12 @@ const jsonPath = require('./lib/json-path');
 const resolved = require('./lib/resolved-value');
 const schemaValidation = require('./lib/schema-validation');
 const { SchemaCache } = require('./lib/schema-cache');
+const templateReader = require('./lib/template-reader');
 const yamlReader = require('./lib/yaml-reader');
 
 module.exports = {
   readDslDefinitions,
+  readDefinitions,
   yamlDslSchema: schemaCatalog.yamlDslSchema,
   functionTableSchema: schemaCatalog.functionTableSchema,
   YAML_DSL_VERSIONS: schemaCatalog.YAML_DSL_VERSIONS,
@@ -45,6 +47,11 @@ module.exports = {
   parseLayout,
   yamlReader: { parseYaml: yamlReader.parseYaml },
   dslDefinition: { dslDefinitionFromJson: dslDefinition.dslDefinitionFromJson },
+  templateDefinition: { templateDefinitionFromJson: dslDefinition.templateDefinitionFromJson },
+  templateReader: { readTemplate: templateReader.readTemplate },
+  TemplateReading: templateReader.TemplateReading,
+  TemplateConditional: templateReader.TemplateConditional,
+  TemplateLoop: templateReader.TemplateLoop,
   jsonPath: { PathPattern: jsonPath.PathPattern, PathSet: jsonPath.PathSet },
   resolved: {
     Value: resolved.Value,

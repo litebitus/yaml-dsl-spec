@@ -1,0 +1,8 @@
+[[ if .mock_enabled ]]
+mock-queue:
+  regions:
+[[ for $region in .mock_regions ]]
+    - "[[ $region ]]"
+[[ endif ]]
+[[ endfor ]]
+[[ endif ]]

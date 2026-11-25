@@ -1,0 +1,13 @@
+[[ if .mock_enabled ]]
+mock-queue:
+  name: "[[ .mock_id ]]-orders"
+  [[ .mock_key ]]: [[ .mock_value ]]
+  regions:
+[[ for $region in .mock_regions ]]
+    - "[[ $region ]]"
+[[ end ]]
+[[ else if .mock_ready ]]
+mock-queue: {}
+[[ else ]]
+mock-other: {}
+[[ end ]]

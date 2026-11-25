@@ -4,6 +4,10 @@ Each version is the format a file names in its `version`, and the schema file of
 
 ## `yaml-dsl.yml`
 
+### 1.4 — unreleased
+
+- `templates` declares template languages, each the templates of one DSL's documents.
+
 ### 1.3 — v0.3.0, 2026-11-10
 
 - `performance.schema_store` replaces `compiled_schema_cache`, deprecated.

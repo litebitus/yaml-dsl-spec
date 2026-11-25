@@ -1,0 +1,3 @@
+[[ for $region in .mock_regions ]]
+[[ else ]]
+[[ end ]]

@@ -1,0 +1,20 @@
+{
+  "masked": "mock-queue: {}\n         \n",
+  "actions": [
+    {
+      "line": 2,
+      "column": 1,
+      "text": "[[ end ]]",
+      "directive": true
+    }
+  ],
+  "blocks": [],
+  "variables": [],
+  "problems": [
+    {
+      "line": 2,
+      "column": 1,
+      "message": "`[[ end ]]` closes no conditional or loop"
+    }
+  ]
+}

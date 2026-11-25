@@ -1,0 +1,7 @@
+[[ if .mock_enabled ]]
+mock-queue: {}
+[[ else ]]
+mock-other: {}
+[[ else if .mock_ready ]]
+mock-third: {}
+[[ end ]]

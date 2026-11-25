@@ -7,7 +7,7 @@
  */
 
 const { Diagnostic } = require('./diagnostic-report');
-const { dslDefinitionFromJson } = require('./dsl-definition');
+const { dslDefinitionFromJson, templateDefinitionFromJson } = require('./dsl-definition');
 const { PathPattern } = require('./json-path');
 const { compilePattern, groupNamesOf } = require('./pattern-dialect');
 const { Position } = require('./source-position');
@@ -28,6 +28,15 @@ const PATH_ENTRY_FIELDS = [['placeholder', 'unscanned_paths'], ['function', 'cal
  * field it is about, as `{ problems }`.
  */
 function readDslDefinitions(file, text) {
+  const read = readDefinitions(file, text);
+  return read.problems ? read : { dsls: read.dsls };
+}
+
+/**
+ * Each DSL and each template language of the `yaml-dsl.yml` at `file`, validated,
+ * as `{ dsls, templates }`, each `{ definition, block }`; or `{ problems }`.
+ */
+function readDefinitions(file, text) {
   const parsed = parseYaml(file, text, []);
   if (parsed.problem) return { problems: [parsed.problem] };
   const root = parsed.node;
@@ -58,7 +67,57 @@ function readDslDefinitions(file, text) {
       problems.push(Diagnostic.at(block.position, error.message));
     }
   });
-  return problems.length === 0 ? { dsls } : { problems };
+  const templates = [];
+  const templateBlocks = (root.get('templates') && root.get('templates').items()) || [];
+  templateBlocks.forEach((block, index) => {
+    const blockProblems = templateProblems(block, blocks, templateBlocks.slice(0, index));
+    if (blockProblems.length > 0) {
+      problems.push(...blockProblems);
+      return;
+    }
+    try {
+      templates.push({ definition: templateDefinitionFromJson(block.toJson()), block });
+    } catch (error) {
+      problems.push(Diagnostic.at(block.position, error.message));
+    }
+  });
+  return problems.length === 0 ? { dsls, templates } : { problems };
+}
+
+/**
+ * The checks of one template block that its schema cannot state: its `id` is no
+ * DSL's and no earlier template language's, its `dsl` is declared, and its loop's
+ * patterns compile, the opening one with its `variables` group.
+ */
+function templateProblems(block, dslBlocks, earlierTemplates) {
+  const problems = [];
+  const idNode = block.get('id');
+  const id = idNode && idNode.asStr();
+  const idOf = (other) => (other.get('id') ? other.get('id').asStr() : null);
+  if (id !== null && id !== undefined) {
+    let holder = null;
+    if (dslBlocks.some((other) => idOf(other) === id)) holder = 'a DSL of this file has this `id`';
+    else if (earlierTemplates.some((other) => idOf(other) === id)) holder = 'an earlier template language of this file has this `id`';
+    if (holder !== null) {
+      problems.push(Diagnostic.at(idNode.position, `template language \`${id}\` is declared more than once`)
+        .withLabel(holder));
+    }
+  }
+  const dslNode = block.get('dsl');
+  const dsl = dslNode && dslNode.asStr();
+  const dslIds = dslBlocks.map(idOf).filter((other) => other !== null);
+  if (dsl !== null && dsl !== undefined && !dslIds.includes(dsl)) {
+    const close = closestName(dsl, dslIds);
+    problems.push(Diagnostic.at(dslNode.position, `DSL \`${dsl}\` is not declared`)
+      .withLabel('`dsls` declares no DSL of this name')
+      .withHelp(close === null ? null : `did you mean \`${close}\`?`));
+  }
+  const checks = new BlockChecks(block);
+  const start = nodeAt(block, ['loop', 'start']);
+  if (start) checks.pattern(start, [['variables', 'the loop variables the loop binds']]);
+  const variable = nodeAt(block, ['loop', 'variable']);
+  if (variable) checks.pattern(variable, []);
+  return [...problems, ...checks.found];
 }
 
 /** The file name and text of the schema the file's `version` names, or its problem. */
@@ -396,4 +455,4 @@ class BlockChecks {
   }
 }
 
-module.exports = { readDslDefinitions };
+module.exports = { readDslDefinitions, readDefinitions };

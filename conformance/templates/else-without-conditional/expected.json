@@ -1,0 +1,47 @@
+{
+  "masked": "                                  \n          \n         \n",
+  "actions": [
+    {
+      "line": 1,
+      "column": 1,
+      "text": "[[ for $region in .mock_regions ]]",
+      "directive": true
+    },
+    {
+      "line": 2,
+      "column": 1,
+      "text": "[[ else ]]",
+      "directive": true
+    },
+    {
+      "line": 3,
+      "column": 1,
+      "text": "[[ end ]]",
+      "directive": true
+    }
+  ],
+  "blocks": [
+    {
+      "loop": {
+        "line": 1,
+        "column": 1,
+        "variables": [
+          "$region"
+        ],
+        "blocks": [],
+        "closing": {
+          "line": 3,
+          "column": 1
+        }
+      }
+    }
+  ],
+  "variables": [],
+  "problems": [
+    {
+      "line": 2,
+      "column": 1,
+      "message": "`[[ else ]]` belongs to no conditional"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 76,
+      "column": 10,
+      "message": "DSL `mock-queue` is not declared",
+      "label": "`dsls` declares no DSL of this name",
+      "help": "did you mean `mock-queues`?"
+    }
+  ]
+}

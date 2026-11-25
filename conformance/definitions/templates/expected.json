@@ -1,0 +1,8 @@
+{
+  "dsls": [
+    "mock-queues"
+  ],
+  "templates": [
+    "mock-queue-templates"
+  ]
+}

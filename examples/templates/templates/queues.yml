@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../.cache/mock-queues.schema.json
+key:
+  name [[ .team ]]-main:
+    rotation: [[ .rotation ]]
+
+queue:
+[[ range $queue := .queues ]]
+  name [[ .team ]]-[[ $queue ]]:
+    retention_seconds: [[ .retention_seconds ]]
+    kms_key: ref key.[[ .team ]]_main.arn
+[[ if .tagged ]]
+    tags: { team: "[[ .team ]]" }
+[[ end ]]
+[[ end ]]

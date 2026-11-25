@@ -1,4 +1,5 @@
-//! A DSL definition: the shape of a DSL block of `yaml-dsl.yml`.
+//! A DSL definition: the shape of a DSL block of `yaml-dsl.yml`, and of a template
+//! language's block.
 //!
 //! The fields read here mean what the specification says they mean. Fields that
 //! only shape editing are not part of the type and are ignored when a block
@@ -6,6 +7,7 @@
 
 use std::collections::BTreeMap;
 
+use fancy_regex::Regex;
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -197,4 +199,90 @@ pub enum QuotedValueType {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ChildValueRule {
     pub pattern: String,
+}
+
+/// A template language: the templates of one DSL's documents, and how their
+/// actions are written.
+#[derive(Clone, Debug)]
+pub struct TemplateDefinition {
+    pub id: String,
+    pub dsl: String,
+    pub file_includes: Vec<String>,
+    pub file_excludes: Vec<String>,
+    pub delimiters: TemplateDelimiters,
+    pub conditional: TemplateConditionalWords,
+    pub loop_syntax: TemplateLoopSyntax,
+    pub schema_search_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct TemplateDelimiters {
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct TemplateConditionalWords {
+    #[serde(rename = "if")]
+    pub if_word: String,
+    #[serde(rename = "else_if")]
+    pub else_if_word: String,
+    #[serde(rename = "else")]
+    pub else_word: String,
+    #[serde(rename = "end")]
+    pub end_word: String,
+}
+
+/// How a loop's actions are written, its patterns compiled.
+#[derive(Clone, Debug)]
+pub struct TemplateLoopSyntax {
+    pub start: Regex,
+    pub end_word: String,
+    pub variable: Regex,
+}
+
+#[derive(Deserialize)]
+struct TemplateBlockFields {
+    id: String,
+    dsl: String,
+    file_includes: Vec<String>,
+    #[serde(default)]
+    file_excludes: Vec<String>,
+    delimiters: TemplateDelimiters,
+    conditional: TemplateConditionalWords,
+    #[serde(rename = "loop")]
+    loop_fields: TemplateLoopFields,
+    #[serde(default)]
+    schema_search_paths: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct TemplateLoopFields {
+    start: String,
+    end: String,
+    variable: String,
+}
+
+impl TemplateDefinition {
+    /// Reads a template block, such as one from a parsed `yaml-dsl.yml`, its
+    /// patterns compiled.
+    pub fn from_json(block: &serde_json::Value) -> Result<Self, String> {
+        let fields: TemplateBlockFields =
+            serde_json::from_value(block.clone()).map_err(|error| error.to_string())?;
+        let compiled = |pattern: &str| Regex::new(pattern).map_err(|error| error.to_string());
+        Ok(Self {
+            id: fields.id,
+            dsl: fields.dsl,
+            file_includes: fields.file_includes,
+            file_excludes: fields.file_excludes,
+            delimiters: fields.delimiters,
+            conditional: fields.conditional,
+            loop_syntax: TemplateLoopSyntax {
+                start: compiled(&fields.loop_fields.start)?,
+                end_word: fields.loop_fields.end,
+                variable: compiled(&fields.loop_fields.variable)?,
+            },
+            schema_search_paths: fields.schema_search_paths,
+        })
+    }
 }

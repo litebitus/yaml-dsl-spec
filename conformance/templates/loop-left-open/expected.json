@@ -1,0 +1,49 @@
+{
+  "masked": "mock-queue:\n  regions:\n                                  \n    - \"_____________\"\n",
+  "actions": [
+    {
+      "line": 3,
+      "column": 1,
+      "text": "[[ for $region in .mock_regions ]]",
+      "directive": true
+    },
+    {
+      "line": 4,
+      "column": 8,
+      "text": "[[ $region ]]",
+      "directive": false
+    }
+  ],
+  "blocks": [
+    {
+      "loop": {
+        "line": 3,
+        "column": 1,
+        "variables": [
+          "$region"
+        ],
+        "blocks": [],
+        "closing": null
+      }
+    }
+  ],
+  "variables": [
+    {
+      "line": 4,
+      "column": 11,
+      "name": "$region",
+      "loop": {
+        "line": 3,
+        "column": 1
+      }
+    }
+  ],
+  "problems": [
+    {
+      "line": 3,
+      "column": 1,
+      "message": "`[[ for $region in .mock_regions ]]` is never closed",
+      "help": "close it with `[[ end ]]`"
+    }
+  ]
+}

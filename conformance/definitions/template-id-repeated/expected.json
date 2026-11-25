@@ -1,0 +1,10 @@
+{
+  "problems": [
+    {
+      "line": 75,
+      "column": 9,
+      "message": "template language `mock-queues` is declared more than once",
+      "label": "a DSL of this file has this `id`"
+    }
+  ]
+}

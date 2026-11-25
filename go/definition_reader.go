@@ -16,22 +16,43 @@ type DeclaredDSL struct {
 	Block      Node
 }
 
+// DeclaredTemplate is a template language of a `yaml-dsl.yml`: its validated definition, and its block as written.
+type DeclaredTemplate struct {
+	Definition TemplateDefinition
+	Block      Node
+}
+
+// DeclaredDefinitions is what a `yaml-dsl.yml` declares: its DSLs and its template languages, each validated.
+type DeclaredDefinitions struct {
+	DSLs      []DeclaredDSL
+	Templates []DeclaredTemplate
+}
+
 // ReadDSLDefinitions is each DSL of a `yaml-dsl.yml`, validated, or every problem at its field.
 func ReadDSLDefinitions(fileName, fileText string) ([]DeclaredDSL, []Diagnostic) {
+	declaredDefinitions, readProblems := ReadDefinitions(fileName, fileText)
+	if readProblems != nil {
+		return nil, readProblems
+	}
+	return declaredDefinitions.DSLs, nil
+}
+
+// ReadDefinitions is each DSL and each template language of a `yaml-dsl.yml`, validated, or every problem at its field.
+func ReadDefinitions(fileName, fileText string) (DeclaredDefinitions, []Diagnostic) {
 	rootNode, parseProblem := ParseYAML(fileName, fileText, nil)
 	if parseProblem != nil {
-		return nil, []Diagnostic{*parseProblem}
+		return DeclaredDefinitions{}, []Diagnostic{*parseProblem}
 	}
 	schemaFile, versionProblem := versionSchema(rootNode, fileName)
 	if versionProblem != nil {
-		return nil, []Diagnostic{*versionProblem}
+		return DeclaredDefinitions{}, []Diagnostic{*versionProblem}
 	}
 	loadedSchema, loadError := standardSchemaCache.Load(schemaFile.fileName, schemaFile.schemaText)
 	if loadError != nil {
-		return nil, []Diagnostic{UnplacedDiagnostic(loadError.Error())}
+		return DeclaredDefinitions{}, []Diagnostic{UnplacedDiagnostic(loadError.Error())}
 	}
 	if schemaProblems := loadedSchema.Validate(ResolvedValueFromNode(rootNode), ValidationRules{}); len(schemaProblems) > 0 {
-		return nil, schemaProblems
+		return DeclaredDefinitions{}, schemaProblems
 	}
 	dslsNode, _ := rootNode.Get("dsls")
 	var blockProblems []Diagnostic
@@ -52,10 +73,25 @@ func ReadDSLDefinitions(fileName, fileText string) ([]DeclaredDSL, []Diagnostic)
 		}
 		declaredDSLs = append(declaredDSLs, DeclaredDSL{Definition: dslDefinition, Block: dslBlock})
 	}
-	if len(blockProblems) > 0 {
-		return nil, blockProblems
+	declaredTemplates := []DeclaredTemplate{}
+	templatesNode, _ := rootNode.Get("templates")
+	for blockIndex, templateBlock := range templatesNode.Items {
+		templateCheck := templateChecks{templateBlock: templateBlock, dslBlocks: dslsNode.Items}
+		if checkProblems := templateCheck.allProblems(templatesNode.Items[:blockIndex]); len(checkProblems) > 0 {
+			blockProblems = append(blockProblems, checkProblems...)
+			continue
+		}
+		templateDefinition, definitionError := TemplateDefinitionFromJSON(templateBlock.ToJSON())
+		if definitionError != nil {
+			blockProblems = append(blockProblems, DiagnosticAt(templateBlock.Position, definitionError.Error()))
+			continue
+		}
+		declaredTemplates = append(declaredTemplates, DeclaredTemplate{Definition: templateDefinition, Block: templateBlock})
 	}
-	return declaredDSLs, nil
+	if len(blockProblems) > 0 {
+		return DeclaredDefinitions{}, blockProblems
+	}
+	return DeclaredDefinitions{DSLs: declaredDSLs, Templates: declaredTemplates}, nil
 }
 
 func versionSchema(rootNode Node, fileName string) (versionedSchema, *Diagnostic) {

@@ -624,6 +624,69 @@ A macro is expanded when every input resolves to a constant: a literal, or a loc
 - A loop's collection may be a list a local holds, or a path into a local that holds one.
 - A loop whose collection references anything but a local is left to when the document is used, its body as written with each loop variable read as itself. A call of it with no name is the only key of its map.
 
+## Templates
+
+A template is a DSL's document with actions in it, which a rendering tool fills in. Until it is rendered, a template need not be valid YAML. `yaml-dsl.yml` declares template languages beside its DSLs, under `templates`, each one a template language of one DSL.
+
+| Field | Meaning |
+|---|---|
+| `id` | the template language's id |
+| `dsl` | the id of the DSL whose documents it templates; a template reads that DSL's scopes, declarations, references, placeholders, functions, locals and layers |
+| `file_includes`, `file_excludes` | which files are templates, as for a DSL; a file that both a DSL and a template language claim is a template |
+| `delimiters` | `left` and `right`, the text an action starts and ends with |
+| `conditional` | `if`, `else_if`, `else` and `end`, the word each part of a conditional starts with |
+| `loop` | `start`, the pattern a loop's opening action matches, its `variables` group the loop variables the loop binds, separated by `, `; `end`, the word its closing action starts with; `variable`, the pattern of a loop variable inside an action |
+| `schema_search_paths` | where a template's schema is, as for a DSL; a template's modeline is not read, since it names the schema of the rendered document |
+
+```yaml
+templates:
+  - id: sample-template
+    dsl: sample
+    file_includes: ["{config_root}/templates/**"]
+    file_excludes: []
+    delimiters: {left: "[[", right: "]]"}
+    conditional: {if: "if", else_if: "else if", else: "else", end: "end"}
+    loop:
+      start: "^for (?<variables>\\$[a-z_]+(, \\$[a-z_]+)?) in "
+      end: "end"
+      variable: "\\$[a-z_]+"
+    schema_search_paths: ["{config_root}/schemas/sample.schema.json"]
+```
+
+### Reading a template
+
+- An action is the text from a `left` delimiter to the first `right` delimiter after it. Its body is the text between them, the spaces around it left out.
+- An action is a directive when its body is a conditional's word or the loop's `end`, or starts with one of them followed by a space, or matches the loop's `start` from its first character. The longest word that fits is read, so `else if` is never read as `else`.
+- Before the YAML is parsed, each character of an action but a line break is replaced by `_`, which is valid in YAML wherever the action stands, so every line and column keeps its place. A directive's characters are replaced by spaces instead, so a directive alone on its line leaves it blank.
+- An action standing as a whole value is a value known only when the template is rendered; an action inside text or a key makes that text known only then. A check that such a value would decide reports nothing, as for a call's result.
+- The YAML structure is written in the template: an action fills a value, a key or text, never indentation or a list's `-`.
+- What an action holds beyond a conditional's word, a loop's `start` and a loop variable is the rendering tool's, and is not read.
+- A closing word closes the innermost conditional or loop left open, when it is that one's `end`. Any other closing word closes nothing, and is a problem at its directive: `` `[[ endif ]]` does not close `[[ for $region in .mock_regions ]]` ``.
+
+### Conditionals
+
+- `if` opens a conditional, any number of `else_if` and at most one `else` divide it into branches, and `end` closes it. Conditionals nest.
+- Every branch is read and validated, since a reader does not decide the condition.
+- A key repeated across the branches of one conditional is not a duplicate.
+- A directive with no conditional or loop to belong to, an `else` before an `else_if`, and a conditional left open are problems at the directive.
+
+### Loops
+
+- A loop's body is read once, and its opening action binds the loop variables its `variables` group names.
+- A loop variable is text inside an action that the loop's `variable` matches, a match of no text being none. It resolves to the innermost loop around it that binds the variable, and one no loop around it binds is a problem.
+- A loop left open is a problem at its opening directive.
+
+```yaml
+[[ if .mock_enabled ]]
+mock-queue:
+  name: "[[ .mock_id ]]-orders"
+  regions:
+[[ for $region in .mock_regions ]]
+    - "[[ $region ]]"
+[[ end ]]
+[[ end ]]
+```
+
 ## What the workspace defines
 
 ```yaml
@@ -954,6 +1017,18 @@ dsls:
         scope_name: step
         scope_group: null
         name_group: name
+templates:
+  - id: sample-template
+    dsl: sample
+    file_includes: ["{config_root}/templates/**"]
+    file_excludes: []
+    delimiters: {left: "[[", right: "]]"}
+    conditional: {if: "if", else_if: "else if", else: "else", end: "end"}
+    loop:
+      start: "^for (?<variables>\\$[a-z_]+(, \\$[a-z_]+)?) in "
+      end: "end"
+      variable: "\\$[a-z_]+"
+    schema_search_paths: ["{config_root}/schemas/sample.schema.json"]
 ```
 
 - `version` is the config format, read by the reader of that version.

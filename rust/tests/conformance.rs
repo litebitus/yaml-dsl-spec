@@ -12,7 +12,10 @@
 //!   `fragment.json` points at, to its problems and
 //!   the subjects of an optional `subjects.json`, or to why the schema is not read;
 //! - `conformance/patterns/cases.json`: each pattern, to its named groups and the
-//!   captures of each text, or to not compiling.
+//!   captures of each text, or to not compiling;
+//! - `conformance/templates/`: an `input.yml` read as a template of the template
+//!   language of the category's `yaml-dsl.yml`, to its masked text, actions,
+//!   conditionals and loops, loop variables and problems.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -27,8 +30,9 @@ use yaml_dsl_spec::resolved::{
 };
 use yaml_dsl_spec::schema::SchemaCache;
 use yaml_dsl_spec::{
-    DateFormat, DateFormatPart, Diagnostic, LayoutPart, Node, NodeKind, ValidationRules,
-    format_layout, parse_layout, read_dsl_definitions, yaml_reader,
+    DateFormat, DateFormatPart, Diagnostic, LayoutPart, Node, NodeKind, Position, TemplateBlock,
+    TemplateDefinition, ValidationRules, format_layout, parse_layout, read_definitions,
+    read_template, yaml_reader,
 };
 
 fn conformance_folder() -> PathBuf {
@@ -149,14 +153,95 @@ fn optional_json(path: &Path) -> Option<Value> {
 
 fn definitions_reading(folder: &Path) -> Value {
     let text = fs::read_to_string(folder.join("yaml-dsl.yml")).unwrap();
-    match read_dsl_definitions(Path::new("yaml-dsl.yml"), &text) {
-        Ok(declared) => json!({
-            "dsls": declared.iter().map(|dsl| dsl.definition.id.clone()).collect::<Vec<_>>()
-        }),
+    match read_definitions(Path::new("yaml-dsl.yml"), &text) {
+        Ok(declared) => {
+            let mut reading = json!({
+                "dsls": declared.dsls.iter().map(|dsl| dsl.definition.id.clone()).collect::<Vec<_>>()
+            });
+            if !declared.templates.is_empty() {
+                reading["templates"] = json!(
+                    declared
+                        .templates
+                        .iter()
+                        .map(|template| template.definition.id.clone())
+                        .collect::<Vec<_>>()
+                );
+            }
+            reading
+        }
         Err(problems) => json!({
             "problems": problems.iter().map(problem_json).collect::<Vec<_>>()
         }),
     }
+}
+
+fn position_json(position: &Position) -> Value {
+    json!({ "line": position.line, "column": position.column })
+}
+
+fn template_blocks_json(blocks: &[TemplateBlock]) -> Value {
+    Value::Array(
+        blocks
+            .iter()
+            .map(|block| match block {
+                TemplateBlock::Conditional(conditional) => json!({
+                    "conditional": {
+                        "branches": conditional.branches.iter().map(|branch| json!({
+                            "line": branch.opening.line,
+                            "column": branch.opening.column,
+                            "blocks": template_blocks_json(&branch.blocks),
+                        })).collect::<Vec<_>>(),
+                        "closing": conditional.closing.as_ref().map(position_json),
+                    }
+                }),
+                TemplateBlock::Loop(loop_block) => json!({
+                    "loop": {
+                        "line": loop_block.opening.line,
+                        "column": loop_block.opening.column,
+                        "variables": loop_block.variables,
+                        "blocks": template_blocks_json(&loop_block.blocks),
+                        "closing": loop_block.closing.as_ref().map(position_json),
+                    }
+                }),
+            })
+            .collect(),
+    )
+}
+
+/// The template language of the case's own `yaml-dsl.yml` where it has one, else
+/// the category's.
+fn template_definition(folder: &Path) -> TemplateDefinition {
+    let own = folder.join("yaml-dsl.yml");
+    let config = if own.is_file() {
+        own
+    } else {
+        conformance_folder().join("templates/yaml-dsl.yml")
+    };
+    let text = fs::read_to_string(config).unwrap();
+    let mut declared = read_definitions(Path::new("yaml-dsl.yml"), &text).unwrap();
+    declared.templates.remove(0).definition
+}
+
+fn template_reading(folder: &Path) -> Value {
+    let text = fs::read_to_string(folder.join("input.yml")).unwrap();
+    let reading = read_template(Path::new("input.yml"), &text, &template_definition(folder));
+    json!({
+        "masked": reading.masked_text,
+        "actions": reading.actions.iter().map(|action| json!({
+            "line": action.position.line,
+            "column": action.position.column,
+            "text": action.text,
+            "directive": action.directive,
+        })).collect::<Vec<_>>(),
+        "blocks": template_blocks_json(&reading.blocks),
+        "variables": reading.loop_variables.iter().map(|variable| json!({
+            "line": variable.position.line,
+            "column": variable.position.column,
+            "name": variable.name,
+            "loop": variable.bound_by.as_ref().map(position_json),
+        })).collect::<Vec<_>>(),
+        "problems": reading.problems.iter().map(problem_json).collect::<Vec<_>>(),
+    })
 }
 
 fn yaml_reading(folder: &Path) -> Value {
@@ -326,6 +411,12 @@ fn pattern_reading(case: &Value) -> Value {
 #[test]
 fn every_definitions_case_reads_as_expected() {
     let mismatches = mismatches_of("definitions", "yaml-dsl.yml", definitions_reading);
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
+
+#[test]
+fn every_template_case_reads_as_expected() {
+    let mismatches = mismatches_of("templates", "input.yml", template_reading);
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
 

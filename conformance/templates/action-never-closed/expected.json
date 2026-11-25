@@ -1,0 +1,14 @@
+{
+  "masked": "mock-queue:\n  name: \"[[ .mock_id\"\n",
+  "actions": [],
+  "blocks": [],
+  "variables": [],
+  "problems": [
+    {
+      "line": 2,
+      "column": 10,
+      "message": "`[[` opens an action that is never closed",
+      "label": "no `]]` after it"
+    }
+  ]
+}

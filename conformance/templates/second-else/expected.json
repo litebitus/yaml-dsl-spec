@@ -1,0 +1,59 @@
+{
+  "masked": "                      \nmock-queue: {}\n          \nmock-other: {}\n          \nmock-third: {}\n         \n",
+  "actions": [
+    {
+      "line": 1,
+      "column": 1,
+      "text": "[[ if .mock_enabled ]]",
+      "directive": true
+    },
+    {
+      "line": 3,
+      "column": 1,
+      "text": "[[ else ]]",
+      "directive": true
+    },
+    {
+      "line": 5,
+      "column": 1,
+      "text": "[[ else ]]",
+      "directive": true
+    },
+    {
+      "line": 7,
+      "column": 1,
+      "text": "[[ end ]]",
+      "directive": true
+    }
+  ],
+  "blocks": [
+    {
+      "conditional": {
+        "branches": [
+          {
+            "line": 1,
+            "column": 1,
+            "blocks": []
+          },
+          {
+            "line": 3,
+            "column": 1,
+            "blocks": []
+          }
+        ],
+        "closing": {
+          "line": 7,
+          "column": 1
+        }
+      }
+    }
+  ],
+  "variables": [],
+  "problems": [
+    {
+      "line": 5,
+      "column": 1,
+      "message": "`[[ else ]]` is the conditional's second `else`"
+    }
+  ]
+}

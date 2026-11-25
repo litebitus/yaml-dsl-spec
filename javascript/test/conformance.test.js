@@ -6,7 +6,8 @@ const path = require('node:path');
 const test = require('node:test');
 
 const {
-  formatLayout, parseLayout, readDslDefinitions, yamlReader, schemaValidation, resolved,
+  formatLayout, parseLayout, readDslDefinitions, readDefinitions, yamlReader, schemaValidation, resolved, templateReader,
+  TemplateConditional,
 } = require('..');
 const { compilePattern, groupNamesOf } = require('../lib/pattern-dialect');
 
@@ -67,10 +68,60 @@ function nodeJson(node) {
 }
 
 function definitionsReading(folder) {
-  const read = readDslDefinitions('yaml-dsl.yml', fs.readFileSync(path.join(folder, 'yaml-dsl.yml'), 'utf8'));
-  return read.dsls
-    ? { dsls: read.dsls.map((dsl) => dsl.definition.id) }
-    : { problems: read.problems.map(problemJson) };
+  const text = fs.readFileSync(path.join(folder, 'yaml-dsl.yml'), 'utf8');
+  const read = readDefinitions('yaml-dsl.yml', text);
+  const { templates: _templates, ...withoutTemplates } = read;
+  assert.deepStrictEqual(readDslDefinitions('yaml-dsl.yml', text), withoutTemplates, `${folder}: readDslDefinitions`);
+  if (!read.dsls) return { problems: read.problems.map(problemJson) };
+  const reading = { dsls: read.dsls.map((dsl) => dsl.definition.id) };
+  if (read.templates.length > 0) reading.templates = read.templates.map((template) => template.definition.id);
+  return reading;
+}
+
+function placeJson(action) {
+  return action === null ? null : { line: action.position.line, column: action.position.column };
+}
+
+function templateBlockJson(block) {
+  if (block instanceof TemplateConditional) {
+    return {
+      conditional: {
+        branches: block.branches.map((branch) => ({
+          ...placeJson(branch.opening),
+          blocks: branch.blocks.map(templateBlockJson),
+        })),
+        closing: placeJson(block.closing),
+      },
+    };
+  }
+  return {
+    loop: {
+      ...placeJson(block.opening),
+      variables: block.variables,
+      blocks: block.blocks.map(templateBlockJson),
+      closing: placeJson(block.closing),
+    },
+  };
+}
+
+function templateReading(folder) {
+  const caseConfig = path.join(folder, 'yaml-dsl.yml');
+  const config = fs.existsSync(caseConfig) ? caseConfig : path.join(CONFORMANCE, 'templates', 'yaml-dsl.yml');
+  const definitions = readDefinitions('yaml-dsl.yml', fs.readFileSync(config, 'utf8'));
+  const [{ definition }] = definitions.templates;
+  const read = templateReader.readTemplate('input.yml', fs.readFileSync(path.join(folder, 'input.yml'), 'utf8'), definition);
+  return {
+    masked: read.masked,
+    actions: read.actions.map((action) => ({ ...placeJson(action), text: action.text, directive: action.directive })),
+    blocks: read.blocks.map(templateBlockJson),
+    variables: read.variables.map((variable) => ({
+      line: variable.position.line,
+      column: variable.position.column,
+      name: variable.name,
+      loop: variable.loop === null ? null : placeJson(variable.loop.opening),
+    })),
+    problems: read.problems.map(problemJson),
+  };
 }
 
 function yamlReading(folder) {
@@ -170,6 +221,11 @@ function patternReading(entry) {
 
 test('every definitions case reads as expected', () => {
   const mismatches = mismatchesOf('definitions', 'yaml-dsl.yml', definitionsReading);
+  assert.deepStrictEqual(mismatches, []);
+});
+
+test('every templates case reads as expected', () => {
+  const mismatches = mismatchesOf('templates', 'input.yml', templateReading);
   assert.deepStrictEqual(mismatches, []);
 });
 

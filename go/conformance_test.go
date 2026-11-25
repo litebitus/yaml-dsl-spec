@@ -143,15 +143,111 @@ func definitionsReading(testingContext *testing.T, caseFolder string) any {
 	if readError != nil {
 		testingContext.Fatal(readError)
 	}
-	declaredDSLs, readProblems := ReadDSLDefinitions("yaml-dsl.yml", string(fileContent))
+	declaredDefinitions, readProblems := ReadDefinitions("yaml-dsl.yml", string(fileContent))
 	if readProblems != nil {
 		return map[string]any{"problems": problemsJSON(readProblems)}
 	}
 	dslIDs := []any{}
-	for _, declaredDSL := range declaredDSLs {
+	for _, declaredDSL := range declaredDefinitions.DSLs {
 		dslIDs = append(dslIDs, declaredDSL.Definition.ID)
 	}
-	return map[string]any{"dsls": dslIDs}
+	templateIDs := []any{}
+	for _, declaredTemplate := range declaredDefinitions.Templates {
+		templateIDs = append(templateIDs, declaredTemplate.Definition.ID)
+	}
+	if len(templateIDs) == 0 {
+		return map[string]any{"dsls": dslIDs}
+	}
+	return map[string]any{"dsls": dslIDs, "templates": templateIDs}
+}
+
+func positionJSON(readPosition *Position) any {
+	if readPosition == nil {
+		return nil
+	}
+	return map[string]any{"line": readPosition.Line, "column": readPosition.Column}
+}
+
+func templateBlocksJSON(readBlocks []TemplateBlock) []any {
+	listedBlocks := []any{}
+	for _, readBlock := range readBlocks {
+		if readBlock.Conditional != nil {
+			listedBranches := []any{}
+			for _, readBranch := range readBlock.Conditional.Branches {
+				listedBranches = append(listedBranches, map[string]any{
+					"line":   readBranch.Opening.Line,
+					"column": readBranch.Opening.Column,
+					"blocks": templateBlocksJSON(readBranch.Blocks),
+				})
+			}
+			listedBlocks = append(listedBlocks, map[string]any{"conditional": map[string]any{
+				"branches": listedBranches,
+				"closing":  positionJSON(readBlock.Conditional.Closing),
+			}})
+			continue
+		}
+		listedBlocks = append(listedBlocks, map[string]any{"loop": map[string]any{
+			"line":      readBlock.Loop.Opening.Line,
+			"column":    readBlock.Loop.Opening.Column,
+			"variables": readBlock.Loop.Variables,
+			"blocks":    templateBlocksJSON(readBlock.Loop.Blocks),
+			"closing":   positionJSON(readBlock.Loop.Closing),
+		}})
+	}
+	return listedBlocks
+}
+
+func conformanceTemplate(testingContext *testing.T, caseFolder string) TemplateDefinition {
+	definitionPath := filepath.Join(caseFolder, "yaml-dsl.yml")
+	if _, statError := os.Stat(definitionPath); statError != nil {
+		definitionPath = filepath.Join(conformanceFolder, "templates", "yaml-dsl.yml")
+	}
+	fileContent, readError := os.ReadFile(definitionPath)
+	if readError != nil {
+		testingContext.Fatal(readError)
+	}
+	declaredDefinitions, readProblems := ReadDefinitions("yaml-dsl.yml", string(fileContent))
+	if readProblems != nil || len(declaredDefinitions.Templates) == 0 {
+		testingContext.Fatal("the templates definition does not read", readProblems)
+	}
+	return declaredDefinitions.Templates[0].Definition
+}
+
+func templateReading(testingContext *testing.T, caseFolder string) any {
+	fileContent, readError := os.ReadFile(filepath.Join(caseFolder, "input.yml"))
+	if readError != nil {
+		testingContext.Fatal(readError)
+	}
+	templateRead := ReadTemplate("input.yml", string(fileContent), conformanceTemplate(testingContext, caseFolder))
+	listedActions := []any{}
+	for _, readAction := range templateRead.Actions {
+		listedActions = append(listedActions, map[string]any{
+			"line":      readAction.Position.Line,
+			"column":    readAction.Position.Column,
+			"text":      readAction.Text,
+			"directive": readAction.IsDirective,
+		})
+	}
+	listedVariables := []any{}
+	for _, readVariable := range templateRead.LoopVariables {
+		listedVariables = append(listedVariables, map[string]any{
+			"line":   readVariable.Position.Line,
+			"column": readVariable.Position.Column,
+			"name":   readVariable.Name,
+			"loop":   positionJSON(readVariable.Loop),
+		})
+	}
+	return map[string]any{
+		"masked":    templateRead.MaskedText,
+		"actions":   listedActions,
+		"blocks":    templateBlocksJSON(templateRead.Blocks),
+		"variables": listedVariables,
+		"problems":  problemsJSON(templateRead.Problems),
+	}
+}
+
+func TestEveryTemplateCaseReadsAsExpected(testingContext *testing.T) {
+	runCases(testingContext, "templates", "input.yml", templateReading)
 }
 
 func yamlReading(testingContext *testing.T, caseFolder string) any {
