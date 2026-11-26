@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.4.1 — 2026-11-26
+
 - Documentation
   - A reference stands in a key as in a value; a key is a deferred key or a resolved key, and a check a deferred key decides reports nothing.
 - Packages
