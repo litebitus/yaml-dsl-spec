@@ -15,6 +15,7 @@ Each language reads the standard through packages: the core, which every languag
 9. Schema validation: a document validated against its schema.
 10. The format function: a layout's verbs written from its operands.
 11. The template reader: a template's actions masked, its conditionals and loops read, and its problems.
+12. Schema resolution: a document's schema found and read, each URL by the reader of its scheme.
 
 - The core grows as readers need it.
 
@@ -111,14 +112,35 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
 | a schema cache | `SchemaCache::default()`, `.with_capacity(capacity)`, `.with_store(store)` | `new SchemaCache({ capacity, store })` | `NewSchemaCache(WithCapacity(capacity), WithStore(store))` | a cache holding at most `capacity` schemas, the least recently asked for dropped first, every schema without one; and keeping what it prepares from each schema in `store`, none without one |
-| a schema store | `SchemaStore` trait: `read(key)`, `write(key, prepared)` | `{ read(key), write(key, prepared) }` | `SchemaStore` interface: `Read(key)`, `Write(key, prepared)` | the caller's place for prepared schemas, by the key the cache names |
+| a schema store | `SchemaStore` trait: `read(key)`, `write(key, prepared)` | `{ read(key), write(key, prepared) }` | `SchemaStore` interface: `Read(key)`, `Write(key, prepared)` | the caller's place for prepared schemas and kept copies, by the key the cache names |
+| a folder store | `SchemaFolderStore::new(folder, capacity)` | `new SchemaFolderStore(folder, capacity)` | `NewSchemaFolderStore(folder, capacity)` | a schema store keeping each entry as a file in `folder`, at most `capacity` of them, the least recently used dropped first |
 | load a schema | `SchemaCache::load(name, text)` | `SchemaCache.load(name, text)` | `SchemaCache.Load(name, text)` | the schema, read once per name and text, in its draft, with its function table; else why it does not load |
 | the rules | `ValidationRules::from_validator(validator)` | `ValidationRules.fromValidator(validator)` | `ValidationRulesFromValidator(validator)` | a DSL definition's `validator` block, its patterns compiled; no rules for none |
 | validate | `LoadedSchema::validate(document, rules)` | `LoadedSchema.validate(document, rules)` | `LoadedSchema.Validate(document, rules)` | every problem of a resolved document, read by the rules, in document order |
 | problems | `LoadedSchema::problems(document, rules)` | `LoadedSchema.problems(document, rules)` | `LoadedSchema.Problems(document, rules)` | the problems `validate` gives, each with its subject: the JSON pointer of the value it is about |
 | problems of a fragment | `LoadedSchema::fragment_problems(pointer, document, rules)` | `LoadedSchema.fragmentProblems(pointer, document, rules)` | `LoadedSchema.FragmentProblems(pointer, document, rules)` | the problems of a document read against the schema's node at `pointer`, such as `/$defs/queue`, each with its subject |
+| a subject's steps | `json_pointer_steps(pointer)` | `jsonPointerSteps(pointer)` | `JSONPointerSteps(pointer)` | each step of a JSON pointer, `~1` read as `/` and `~0` as `~`, the root's pointer giving none; else why the text is no JSON pointer |
 | a child value | `child_value(key, patterns)` | `childValue(key, patterns)` | `ChildValue(key, patterns)` | the field and value a key sets on the entry it keys |
 | a closest name | `closest_name(name, candidates)` | `closestName(name, candidates)` | `ClosestName(name, candidates)` | the candidate a misspelt name most likely means |
+
+### Schema resolution
+
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| find a document's schema | `SchemaCache::document_schema(file, text, search_paths, config_root)` | `SchemaCache.documentSchema(file, text, searchPaths, configRoot)`, a promise | `SchemaCache.DocumentSchema(ctx, file, text, searchPaths, configRoot)` | the document's schema finding: its modeline's location tried, then each search path in order |
+| read a schema | `SchemaCache::read_schema(location, written_at)` | `SchemaCache.readSchema(location, writtenAt)`, a promise | `SchemaCache.ReadSchema(ctx, location, writtenAt)` | the schema finding of a location named outside a document, its one candidate |
+| a search path | `SchemaSearchPath { path_text, written_at }` | `{ pathText, writtenAt }` | `SchemaSearchPath{PathText, WrittenAt}` | a `schema_search_paths` entry, and the position it is written at, if it has one |
+| a schema finding | `SchemaFinding { tried_candidates, found_schema, finding_problems }` | `{ triedCandidates, foundSchema, findingProblems }` | `SchemaFinding{TriedCandidates, FoundSchema, FindingProblems}` | each candidate tried, in order; the schema found, if one is; and the finding's problems, its warnings among them |
+| a candidate | `SchemaCandidate { schema_location, named_by }` | `{ schemaLocation, namedBy }` | `SchemaCandidate{SchemaLocation, NamedBy}` | a location as resolved, and what named it: the modeline at its position, the search path at its index, or the caller |
+| a found schema | `FoundSchema { schema_name, schema_text, schema_fragment, found_candidate }` | `{ schemaName, schemaText, schemaFragment, foundCandidate }` | `FoundSchema{SchemaName, SchemaText, SchemaFragment, FoundCandidate}` | the name the schema loads under, its text, the fragment its location names, if it names one, and the candidate it was read from |
+| a URL reader | `SchemaUrlReader` trait: `url_schemes()`, `reads_remote_sources()`, `read_schema_url(request)` | `{ urlSchemes, readsRemoteSources, readSchemaUrl(request) }`, its answer a promise | `SchemaURLReader` interface: `URLSchemes()`, `ReadsRemoteSources()`, `ReadSchemaURL(ctx, request)` | a protocol's reader: the schemes it reads, whether its sources are remote, and its answer to a request |
+| register a reader | `.with_url_reader(reader)` | `new SchemaCache({ urlReaders })` | `WithURLReader(reader)` | a cache reading the reader's schemes beside the core's |
+| a request | `SchemaUrlRequest { fetch_url, machine_credentials, kept_copy_version, answer_deadline }` | `{ fetchUrl, machineCredentials, keptCopyVersion, signal }` | `SchemaURLRequest{FetchURL, MachineCredentials, KeptCopyVersion}`, its deadline `ctx`'s | the URL without the cache's parameters, whether to read it with the machine's credentials, the kept copy's version, if one is kept, and when the answer is due |
+| an answer | `SchemaUrlAnswer { read_outcome, read_refusals }` | `{ readOutcome, readRefusals }` | `SchemaURLAnswer{ReadOutcome, ReadRefusals}` | what the read came to, and each refusal the source gave in it |
+| an outcome | `SchemaUrlOutcome::TextSent { schema_text, copy_version }`, `CopyConfirmed`, `SourceMissing { missing_reason }`, `ReadRefused`, `ReadFailed { failure_reason }` | `{ outcomeKind, … }`, the kind `'textSent'`, `'copyConfirmed'`, `'sourceMissing'`, `'readRefused'` or `'readFailed'`, with the same fields | `SchemaURLOutcome{OutcomeKind, …}`, the kind `OutcomeTextSent`, `OutcomeCopyConfirmed`, `OutcomeSourceMissing`, `OutcomeReadRefused` or `OutcomeReadFailed`, with the same fields | the text with its version; the kept copy confirmed current; a source that is not there, and why; a read the source refused; or a read that failed, and why |
+| a refusal | `ReadRefusal { refused_by, credential_origin, refusal_reason, renewal_fix }` | `{ refusedBy, credentialOrigin, refusalReason, renewalFix }` | `ReadRefusal{RefusedBy, CredentialOrigin, RefusalReason, RenewalFix}` | who refused, such as `GitHub`; where the credential refused came from, such as `` `GH_TOKEN` ``, none for a read without credentials; what the source answered; and what renews the credential, if it has one |
+
+- A copy version is the language's JSON value, as a format operand is.
 
 ## Schema validation
 
@@ -228,14 +250,112 @@ A schema is loaded once per name and text: prepared, then built into the validat
 - With a capacity, the cache holds at most that many schemas, the least recently asked for dropped first; without one, every schema loaded is held.
 - With a store, the cache reads a schema's prepared information from it before preparing the schema, and writes what it prepares. The key is a SHA-256 of the package's name and version, the schema's name and its text, so another version never reads it. An entry that does not read is prepared again from the text.
 - The store is the caller's: where it keeps an entry, and whether it keeps one, is the caller's to decide.
+- The folder store is the package's store for a caller keeping entries on disk: each entry is a file named by its key, reading or writing an entry marks it used, and a write drops the least recently used entries beyond the capacity.
+
+## Schema resolution
+
+A document's schema is found, then read, through a schema cache: each location by the reader of its URL's scheme. The specification states where a document's schema is looked for and how a schema URL is read; this section states how the package divides that between the cache and its readers.
+
+### Locations
+
+A location is a URL. A path stands for its `file` URL:
+
+| Path | Resolved against |
+|---|---|
+| a modeline's | the document's folder |
+| a search path's | the document's folder, or the config's folder when it starts with `{config_root}` |
+| one given to `read_schema` | the working directory |
+
+- A location's fragment is taken off before the read, and given with the schema found.
+- The `yaml_dsl_` parameters are the cache's: it reads them and takes them out. Every other parameter is the protocol's, and reaches the reader as written, in its order.
+- A `*` step is matched in a `file` location, the first file in path order taken.
+
+### Readers
+
+A reader reads the URLs of its schemes. A cache holds the core's readers and each reader its consumer registers, one reader per scheme.
+
+| Scheme | Reader | Sources |
+|---|---|---|
+| `file` | the core's | on the machine |
+| `http`, `https` | the core's, a GitHub release link read as the specification states | remote |
+| `s3` | the S3 schema reader, a package beyond the core | remote |
+
+- A remote source's text is kept as a copy. A source on the machine is read each time.
+- A second reader registered for a scheme faults where the cache is made.
+
+### A read
+
+A remote source is read in this order:
+
+1. The copy kept under the URL is given while it is younger than its max age.
+2. The reader is asked for the URL without the machine's credentials, with the kept copy's version.
+3. Where it answers `ReadRefused` and the URL carries `yaml_dsl_machine_credentials=true`, it is asked again with them.
+
+A source on the machine takes step 2 alone.
+
+| Outcome | The cache |
+|---|---|
+| `TextSent` | gives the text, and keeps it as the URL's copy with its version |
+| `CopyConfirmed` | gives the kept copy, and restarts its age |
+| `SourceMissing` | reads no copy: in a finding, the next candidate is tried |
+| `ReadRefused` | gives the kept copy with a warning; a problem where none is kept |
+| `ReadFailed` | gives the kept copy; a problem where none is kept |
+
+- The credential rule is the cache's, the same for every protocol: a reader reads with the machine's credentials only when asked to.
+- A refusal given before the source let a credential in is a warning.
+- Reads of one URL at once run in turn: the first fetches it and keeps its copy, and the others wait for it and read that copy.
+- Every request carries the time its answer is due, the cache's limit for one read.
+
+### A reader's part
+
+- It reads the URL as given. A parameter its protocol does not take is `ReadFailed`.
+- Asked to read with the machine's credentials, it tries each credential its protocol has, in the protocol's order, and lists each one the source refused.
+- It reads the machine's credentials when first asked for them, and again after a read in which every one was refused, so a renewed login takes effect on the next read.
+- A copy version is the reader's own: what it needs to ask its source whether the kept copy is current. The cache keeps it unread. A version the reader does not read is read as none.
+- It answers several requests at once.
+- An answer not ready when it is due is `ReadFailed`.
+
+### Kept copies
+
+- A copy is an entry of the cache's store, its key a SHA-256 of the URL without the cache's parameters. A cache without a store keeps none, and asks the reader on every read.
+- Its form is the same in every language: `{"url": …, "copy_version": …, "confirmed_at": …, "body": …}`, `confirmed_at` the time the source last sent or confirmed it, in seconds since the epoch.
+- An entry that does not read is fetched again.
+
+### Finding
+
+The candidates are the modeline's location, then each search path, in order.
+
+- The first candidate whose source is there is the schema. A `file` pattern no file matches is a missing source.
+- A candidate whose read is refused or fails with no copy kept ends the finding with that problem.
+- Every candidate tried is listed with what named it, so a consumer can watch a missing one for its arrival, and tell which entry named the schema found.
+- A schema read from a `file` location loads under the file's name, any other under its location as written.
+
+### Problems
+
+A problem is placed where its location is written: a modeline's at the location in the modeline, a search path's at its `written_at`, and one given to `read_schema` at the `written_at` given, with no position without one. A search path without a position, and a finding whose every source is missing, is placed at the document's modeline line, or its first line without a modeline.
+
+| Problem | Message | Label | Help |
+|---|---|---|---|
+| every candidate's source is missing | `no schema found` | | each candidate, `` `<location>`: <missing reason> ``, one a line |
+| a source missing at a location given to `read_schema` | `` `<location>` is missing `` | the missing reason | |
+| a read that failed | `` reading `<location>` failed `` | the failure reason | |
+| a read refused | `` <refused by> refused to read `<location>` `` | each refusal, `<credential origin>: <reason>`, or its reason alone for a read without credentials, joined by `, ` | each renewal fix, once, joined by `; `; for a URL without `yaml_dsl_machine_credentials=true`, `` add `yaml_dsl_machine_credentials=true` to read it with the machine's credentials `` |
+| a parameter of the cache's that does not read | `` `yaml_dsl_mock` is not a parameter of a schema URL ``, `` `yaml_dsl_max_age_days` must be a whole number of days ``, `` `yaml_dsl_machine_credentials` must be `true` or `false` `` | | |
+| a scheme without a reader | `` `gs` is a scheme no reader reads `` | | |
+
+| Warning | Message | Label | Help |
+|---|---|---|---|
+| a kept copy given for a read refused | `` <refused by> refused to read `<location>`, so its kept copy was read `` | as a read refused | as a read refused |
+| a refusal before a credential was let in | `` <refused by> refused <credential origin> `` | its reason | its renewal fix |
 
 ## Beyond the core
 
 A package beyond the core is built in the languages its readers use, and carries the core's version.
 
-| Package | Rust | Go |
-|---|---|---|
-| the diagnostic renderer | `yaml-dsl-spec-diagnostic-renderer` | `github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer` |
+| Package | Rust | JavaScript | Go |
+|---|---|---|---|
+| the diagnostic renderer | `yaml-dsl-spec-diagnostic-renderer` | | `github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer` |
+| the S3 schema reader | `yaml-dsl-spec-s3-schema-reader` | `yaml-dsl-spec-s3-schema-reader` | `github.com/litebitus/yaml-dsl-spec/go/s3_schema_reader` |
 
 ### Diagnostic renderer
 
@@ -325,9 +445,36 @@ A line is each line the renderer divides: the headline, a source line, a label, 
 | `[schema]` | bold purple, `#A6ABF2` |
 | the schema note's text | purple, `#A6ABF2` |
 
+### S3 schema reader
+
+The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
+
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| the reader | `S3SchemaReader::new(role_session_name)` | `new S3SchemaReader(roleSessionName)` | `NewS3SchemaReader(roleSessionName)` | a URL reader of the `s3` scheme, a role assumed under `role_session_name`, the consumer's name for itself |
+
+- Without the machine's credentials, an object is read by an unsigned request.
+- The machine's credentials are the SDK's default chain: the AWS environment variables, the profile `AWS_PROFILE` names with its SSO login, a container's or an instance's role.
+- `assume_role=<role ARN>`, the one parameter the protocol takes, reads the object as that role, assumed with the machine's credentials. A role's credentials are kept, and renewed as they expire.
+- An object is read in its bucket's own region, whatever region the machine is set to.
+- A copy version is the object's `ETag`, and a read asks with it whether the kept copy is current.
+
+| S3 answers | Outcome | Renewal fix |
+|---|---|---|
+| the object | `TextSent` | |
+| the kept `ETag` still current | `CopyConfirmed` | |
+| a key or a bucket that is not there | `SourceMissing` | |
+| credentials expired, absent or not valid | `ReadRefused` | `` run `aws sso login`, or set `AWS_PROFILE` to a profile that reads it `` |
+| access denied, read as a role | `ReadRefused` | `` allow <role> `s3:GetObject` on it `` |
+| access denied, read as the machine | `ReadRefused` | `` use a profile allowed `s3:GetObject` on it, such as `AWS_PROFILE=<profile>` `` |
+| the role's assumption denied | `ReadRefused` | `` use a profile allowed to assume <role>, such as `AWS_PROFILE=<profile>` `` |
+| anything else | `ReadFailed` | |
+
+- A refusal is refused by `AWS`, its reason the error's code and the identity it names, such as `AccessDenied for arn:aws:iam::<account>:user/<name>`.
+
 ## TODO
 
-- Schema resolution joins the core: [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator)'s schema resolution, its `s3://` schemas read with an assumed role included, moves into the core in all three languages, and the specification's "Finding the schema" and "Schema URLs" state it. A document's schema is found and read through a schema cache, least recently used dropped first, in place of each reader's own copy. The schema cache's capacity is the consumer's to set. The core also answers a JSON pointer's steps, unescaped, so a consumer reading a problem's subject, such as [zerox](https://github.com/litebitus/zerox) finding the input a problem is about, reads it through the core in place of its own unescaping.
+- Schema resolution is built as "Schema resolution" and "S3 schema reader" state, in all three languages, and the specification's "Finding the schema" and "Schema URLs" state its rules. [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator) and the [YAML DSL editor](https://github.com/litebitus/vscode-yaml-dsl-editor) find and read schemas through it in place of their own code, and a consumer reading a problem's subject, such as [zerox](https://github.com/litebitus/zerox) finding the input a problem is about, reads its steps through `json_pointer_steps` in place of its own unescaping.
 - Deprecation warnings join the core as an opt-in: a deprecated field or value a document uses is reported as a warning.
 - Message bundles, a separate pass and release. Every message the packages write comes from a bundle, one per language, shared by all three languages:
   - A bundle is `messages/<tag>.json`, the tag a BCP 47 language tag such as `en` or `zh-Hant-TW`. Each package's build copies the bundles in, as it copies the schemas.

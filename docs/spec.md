@@ -298,7 +298,7 @@ A loop declares its loop variables within its body. `loops.scope_name` names the
 | Source | Used |
 |---|---|
 | a `# yaml-language-server: $schema=` modeline | first; its path is relative to the file |
-| `schema_search_paths`, a list, `[]` when empty | when the file has no modeline, or the path it names is not on disk; each entry is relative to the file, or to the config's folder when it starts with `{config_root}`, its steps may hold `*`, matching any run of characters within one step, and the first file on disk, in path order, is the schema |
+| `schema_search_paths`, a list, `[]` when empty | when the file has no modeline, or the schema it names is missing; each entry is tried in order, and the first whose schema is there is taken; a path is relative to the file, or to the config's folder when it starts with `{config_root}`, its steps may hold `*`, matching any run of characters within one step, and the first file on disk, in path order, is the schema |
 
 A modeline's schema URI also says what the file is, by its fragment:
 
@@ -313,10 +313,22 @@ A modeline's schema URI also says what the file is, by its fragment:
 - A pointer naming no node of the schema is a problem on the modeline's line.
 
 - A modeline points at the schema shipped with the grammar version the stack has initialized: an overlay names `.schema/sample.schema.json`, and a common layer names it through the overlay directory that initialized the stack, such as `one/.schema/sample.schema.json`.
-- A URL in a path is fetched. The search does not override a modeline that resolves.
-- When neither source resolves, the file's modeline line gets a problem, or its first line when it has no modeline.
+- A schema is named by a path or by a URL. A path's steps are separated by `/` on every operating system, and it names a file on the machine, as a `file://` URL does.
+- A schema is missing when its source answers that it is not there: a path naming no file, a `*` no file matches, or a URL its source has nothing at. The search does not override a modeline whose schema is there.
+- A schema that is there and does not read is a problem where it is named, the modeline's line or the search path's entry, and the search ends.
+- When every schema named is missing, the file's modeline line gets a problem, or its first line when it has no modeline.
 
 ### Schema URLs
+
+A schema URL names how it is read by its scheme:
+
+| Scheme | The schema |
+|---|---|
+| `file` | a file on the machine |
+| `http`, `https` | what a server answers the link with |
+| `s3` | an S3 object, `s3://<bucket>/<key>` |
+
+- A reader reads `file`, `http` and `https` URLs, and the other schemes it supports. A URL of a scheme a reader does not support is a problem where the URL is written.
 
 A schema URL, in a modeline or in `schema_search_paths`, may carry the reader's parameters in its query, each named with the `yaml_dsl_` prefix:
 
@@ -325,21 +337,27 @@ A schema URL, in a modeline or in `schema_search_paths`, may carry the reader's 
 | `yaml_dsl_max_age_days` | the whole number of days a downloaded copy is used before it is checked with the server; `0`, or no parameter, fetches the URL each time a stack reading it loads |
 | `yaml_dsl_machine_credentials` | `true` reads the URL again with the machine's credentials when the read without them is refused; `false`, or no parameter, reads it without credentials only |
 
-- The reader's parameters are removed before the URL is fetched. Every other parameter reaches the server as written, in its order.
-- Any other `yaml_dsl_` parameter, a max age that is not a whole number, or a machine credentials value other than `true` or `false` is a problem on the modeline's line.
+- The reader's parameters are removed before the URL is read. Every other parameter is its protocol's, as written, in its order: a server receives it, and an S3 URL takes `assume_role`.
+- Any other `yaml_dsl_` parameter, a max age that is not a whole number, a machine credentials value other than `true` or `false`, or a reader's parameter on a `file` URL, whose file is read each time, is a problem where the URL is written.
 - A downloaded copy is kept under the URL without the reader's parameters, with the server's `ETag` and `Last-Modified` and the time the server last sent or confirmed it.
 - A copy older than its max age is checked with `If-None-Match`, else `If-Modified-Since`, else a full download. A `304` keeps the copy, and either answer restarts its age.
+- An S3 object's copy is checked with its `ETag`.
 - Files naming one URL with different max ages share its copy, each judging the copy's age by its own max age.
 - When the server does not answer, the kept copy is used.
+- A schema its source answers is missing is missing, whatever copy is kept.
 
 A schema URL is read without credentials. One carrying `yaml_dsl_machine_credentials=true` is read in this order, stopping at the first answer that is not refused:
 
 | Link | Read with, in order |
 |---|---|
 | a GitHub link under `https://github.com/<owner>/<repo>/releases/`, or `www.github.com` | no credentials; then `GH_TOKEN`, `GITHUB_TOKEN`, the `gh` command's login (`gh auth token`), then the `.netrc` entry for `api.github.com` |
+| an S3 URL | no credentials; then the machine's AWS credentials: the AWS environment variables, the profile `AWS_PROFILE` names with its SSO login, or a container's or an instance's role |
 | any other | no credentials; then the `.netrc` entry for the link's host, sent as Basic auth |
 
-- An answer is refused when it is 401 or 403, or 404 from a GitHub link, which GitHub gives for a private repository.
+- An answer is refused when it is 401 or 403, or 404 from a GitHub link, which GitHub gives for a private repository; and from S3, when access is denied or the credentials are expired, absent or not valid.
+- A schema is missing when the answer is 404 from any other link, a release or an asset the repository lacks, or an S3 key or bucket that is not there.
+- `assume_role=<role ARN>` on an S3 URL reads the object as that role, assumed with the machine's AWS credentials.
+- An S3 object is read in its bucket's own region.
 - A source the machine lacks is skipped: a variable that is not set, `gh` not installed or not logged in, a `.netrc` without an entry for the host.
 - `.netrc` is the file `NETRC` names, else the one in the user's home folder.
 - With a GitHub token, the link is read through GitHub's API. The release comes from the link's path: `download/<tag>/<asset>` is the release by its tag, and `latest/download/<asset>` is the latest release. The asset is then read by its name, following GitHub's redirect without the token.
