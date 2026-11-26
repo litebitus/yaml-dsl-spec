@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "mock_reference": { "type": "string", "pattern": "^ref " },
+    "mock_text_map": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": { "type": "string" } },
+        { "$ref": "#/$defs/mock_reference" }
+      ]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "variables": {
+      "oneOf": [
+        { "type": "object", "unevaluatedProperties": { "type": "string" } },
+        { "$ref": "#/$defs/mock_reference" }
+      ]
+    },
+    "secrets": {
+      "oneOf": [
+        { "type": "object", "unevaluatedProperties": { "$ref": "#/$defs/mock_text_map" } },
+        { "$ref": "#/$defs/mock_reference" }
+      ]
+    },
+    "names": {
+      "oneOf": [
+        { "type": "array", "unevaluatedItems": { "type": "string" } },
+        { "$ref": "#/$defs/mock_reference" }
+      ]
+    },
+    "limits": {
+      "oneOf": [
+        { "type": "object", "unevaluatedProperties": { "type": "string" } },
+        { "$ref": "#/$defs/mock_reference" }
+      ]
+    }
+  }
+}

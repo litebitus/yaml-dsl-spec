@@ -1,0 +1,11 @@
+{
+  "problems": [
+    {
+      "line": 9,
+      "column": 3,
+      "message": "`limits` matches none of its allowed forms",
+      "label": "breaks `oneOf`",
+      "rule": "oneOf, at schema.json#/properties/limits/oneOf"
+    }
+  ]
+}

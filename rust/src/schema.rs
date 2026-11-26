@@ -1,6 +1,7 @@
 //! A document's schema, as its caller hands it over: its function table, and
 //! the validation of the resolved document against it.
 
+use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::OnceLock;
 
@@ -51,6 +52,15 @@ struct SchemaFailure<'v> {
 struct SchemaNode<'s> {
     validator: &'s jsonschema::Validator,
     fragment_pointer: Option<&'s str>,
+}
+
+/// One validation: the schema node, the document as JSON, what read it, and the
+/// units the document fails, found once where a check needs them.
+struct ValidatedDocument<'v, 'i> {
+    schema_node: &'v SchemaNode<'v>,
+    json: &'v JsonValue,
+    instance: &'v Instance<'i>,
+    failing_units: OnceCell<Vec<(String, String)>>,
 }
 
 impl SchemaNode<'_> {
@@ -234,13 +244,26 @@ impl LoadedSchema {
         let mut json = instance.json(document, String::new(), &document.position);
         self.read_quoted_values(schema_node, &mut json, rules);
         let mut reported = ReportedSubjects::default();
-        let failures = self.schema_failures(schema_node, &json);
+        let validated = ValidatedDocument {
+            schema_node,
+            json: &json,
+            instance: &instance,
+            failing_units: OnceCell::new(),
+        };
+        let failures = self.schema_failures(&validated);
         let requires_no_key = |pointer: &str| {
             schema_node.fragment_pointer.is_some() || instance.requires_no_key(pointer)
         };
         let mut problems: Vec<SchemaProblem> = failures
             .iter()
-            .filter(|failure| !instance.reads_unknown(&failure.instance_base, &failure.error))
+            .filter(|failure| {
+                !self.reads_unknown(
+                    &validated,
+                    &failure.evaluation_base,
+                    &failure.instance_base,
+                    &failure.error,
+                )
+            })
             .filter(|failure| {
                 !requires_no_key(&failure.pointer) || !passes_without_requiredness(&failure.error)
             })
@@ -258,10 +281,10 @@ impl LoadedSchema {
 
     fn schema_failures<'v>(
         &'v self,
-        schema_node: &SchemaNode<'v>,
-        json: &'v JsonValue,
+        validated: &ValidatedDocument<'v, '_>,
     ) -> Vec<SchemaFailure<'v>> {
-        let mut failing_units: Option<Vec<(String, String)>> = None;
+        let schema_node = validated.schema_node;
+        let json = validated.json;
         let mut failures = Vec::new();
         for error in schema_node.validator.iter_errors(json) {
             let is_unevaluated = matches!(
@@ -274,7 +297,7 @@ impl LoadedSchema {
                 failures.push(failure);
                 continue;
             }
-            let units = failing_units.get_or_insert_with(|| self.failing_units(schema_node, json));
+            let units = self.failing_units_of(validated);
             let members = failing_members(units, &failure.pointer, &failure.schema_path);
             let is_open = self
                 .marked
@@ -291,6 +314,92 @@ impl LoadedSchema {
             }
         }
         failures
+    }
+
+    fn failing_units_of<'c>(
+        &self,
+        validated: &'c ValidatedDocument<'_, '_>,
+    ) -> &'c [(String, String)] {
+        validated
+            .failing_units
+            .get_or_init(|| self.failing_units(validated.schema_node, validated.json))
+    }
+
+    /// Whether `error`, its keywords read from `start_pointer` and its values below
+    /// `instance_base`, comes from a value not known when the document compiles:
+    /// the value itself, alternatives with a form whose every failure comes from
+    /// one, or a check `Instance::check_reads_unknown` tells of.
+    fn reads_unknown(
+        &self,
+        validated: &ValidatedDocument<'_, '_>,
+        start_pointer: &str,
+        instance_base: &str,
+        error: &ValidationError<'_>,
+    ) -> bool {
+        let pointer = format!("{instance_base}{}", error.instance_path().as_str());
+        if validated.instance.is_unknown(&pointer) {
+            return true;
+        }
+        match error.kind() {
+            ValidationErrorKind::AnyOf { context }
+            | ValidationErrorKind::OneOfNotValid { context } => {
+                context.iter().any(|form_failures| {
+                    !form_failures.is_empty()
+                        && form_failures.iter().all(|form_failure| {
+                            self.form_failure_reads_unknown(
+                                validated,
+                                start_pointer,
+                                instance_base,
+                                form_failure,
+                            )
+                        })
+                })
+            }
+            _ => validated.instance.check_reads_unknown(&pointer, error),
+        }
+    }
+
+    /// Whether a failure of an alternative's form comes from a value not known when
+    /// the document compiles. An unevaluated keyword holding a schema fails by the
+    /// members that schema refuses, so it does when every failure of each of those
+    /// members does.
+    fn form_failure_reads_unknown(
+        &self,
+        validated: &ValidatedDocument<'_, '_>,
+        start_pointer: &str,
+        instance_base: &str,
+        error: &ValidationError<'_>,
+    ) -> bool {
+        let is_unevaluated = matches!(
+            error.kind(),
+            ValidationErrorKind::UnevaluatedProperties { .. }
+                | ValidationErrorKind::UnevaluatedItems { .. }
+        );
+        let keyword_pointer =
+            self.keyword_location(start_pointer, error.evaluation_path().as_str());
+        let holds_schema = is_unevaluated
+            && self
+                .marked
+                .pointer(&keyword_pointer)
+                .is_some_and(|keyword| keyword != &JsonValue::Bool(false));
+        let Some(validator) = self
+            .subschema_validator(&keyword_pointer)
+            .filter(|_| holds_schema)
+        else {
+            return self.reads_unknown(validated, start_pointer, instance_base, error);
+        };
+        let pointer = format!("{instance_base}{}", error.instance_path().as_str());
+        let members = failing_members(self.failing_units_of(validated), &pointer, &keyword_pointer);
+        !members.is_empty()
+            && members.iter().all(|member| {
+                validated.json.pointer(member).is_some_and(|value| {
+                    let mut member_errors = validator.iter_errors(value).peekable();
+                    member_errors.peek().is_some()
+                        && member_errors.all(|member_error| {
+                            self.reads_unknown(validated, &keyword_pointer, member, &member_error)
+                        })
+                })
+            })
     }
 
     fn failing_units(
@@ -1330,38 +1439,24 @@ impl Instance<'_> {
             .any(|copied| pointer == copied || pointer.starts_with(&format!("{copied}/")))
     }
 
-    /// Whether `error`, its instance path read below `instance_base`, comes from a
-    /// value not known when the document compiles: the value itself, a check that
-    /// reads a value below it through a subschema or compares the values below it,
-    /// a check of deferred keys' names, or alternatives with a form whose every
-    /// failure comes from one.
-    fn reads_unknown(&self, instance_base: &str, error: &ValidationError<'_>) -> bool {
-        let pointer = format!("{instance_base}{}", error.instance_path().as_str());
-        if self.is_unknown(&pointer) {
-            return true;
-        }
+    /// Whether `error`, a check of the value at `pointer` other than alternatives,
+    /// comes from a value not known when the document compiles: a check that reads
+    /// a value below it through a subschema or compares the values below it, or a
+    /// check of deferred keys' names.
+    fn check_reads_unknown(&self, pointer: &str, error: &ValidationError<'_>) -> bool {
         match error.kind() {
-            ValidationErrorKind::AnyOf { context }
-            | ValidationErrorKind::OneOfNotValid { context } => {
-                context.iter().any(|form_failures| {
-                    !form_failures.is_empty()
-                        && form_failures
-                            .iter()
-                            .all(|form_failure| self.reads_unknown(instance_base, form_failure))
-                })
-            }
             ValidationErrorKind::OneOfMultipleValid { .. }
             | ValidationErrorKind::Not { .. }
             | ValidationErrorKind::Contains
-            | ValidationErrorKind::UniqueItems => self.holds_unknown_below(&pointer),
+            | ValidationErrorKind::UniqueItems => self.holds_unknown_below(pointer),
             ValidationErrorKind::AdditionalProperties { unexpected }
             | ValidationErrorKind::UnevaluatedProperties { unexpected } => unexpected
                 .iter()
-                .all(|name| self.is_deferred_key(&pointer, name)),
+                .all(|name| self.is_deferred_key(pointer, name)),
             ValidationErrorKind::PropertyNames { error: inner } => inner
                 .instance()
                 .as_str()
-                .is_some_and(|name| self.is_deferred_key(&pointer, name)),
+                .is_some_and(|name| self.is_deferred_key(pointer, name)),
             _ => false,
         }
     }

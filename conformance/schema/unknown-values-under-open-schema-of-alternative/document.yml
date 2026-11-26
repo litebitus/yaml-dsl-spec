@@ -1,0 +1,10 @@
+variables:
+  mock_name: ref mock.mock_value
+secrets:
+  mock_name:
+    mock_env: ref mock.mock_value
+names:
+  - ref mock.mock_value
+limits:
+  mock_name: ref mock.mock_value
+  mock_count: 3
