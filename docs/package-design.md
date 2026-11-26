@@ -8,7 +8,7 @@ Each language reads the standard through packages: the core, which every languag
 2. The definition reader: a `yaml-dsl.yml`'s DSL definitions, validated, or every problem at its field.
 3. The DSL definition model.
 4. The YAML reader: a node tree with positions, YAML tags read as keys.
-5. Diagnostics: a problem's position, message, label, rule, schema and help.
+5. Diagnostics: a problem's severity, position, message, label, rule, schema and help.
 6. Paths: the JSONPath subset, parsed, matched and selected.
 7. The function table: functions and macros read from a document schema, and call keys.
 8. Resolved values: a document value that may hold a reference, a call or a template.
@@ -55,7 +55,10 @@ Each entry is named in each language's own case. A version is a minor, such as `
 
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
-| a problem | `Diagnostic` | `Diagnostic` | `Diagnostic` | its position, if it has one, its message, and its notes: label, rule, schema and help |
+| a problem | `Diagnostic` | `Diagnostic` | `Diagnostic` | its severity, its position, if it has one, its message, and its notes: label, rule, schema and help |
+| the severity | `Severity::Error`, `Severity::Warning` | `'error'`, `'warning'` | `SeverityError`, `SeverityWarning` | whether the problem stops its reader or only warns; the rendered headline's word: `error` or `warning` |
+| an error | `Diagnostic::at(position, message)`, `Diagnostic::unplaced(message)` | `Diagnostic.at(position, message)`, `Diagnostic.unplaced(message)` | `DiagnosticAt(position, message)`, `UnplacedDiagnostic(message)` | a problem at a position, or with none |
+| a warning | `Diagnostic::warning_at(position, message)` | `Diagnostic.warningAt(position, message)` | `WarningDiagnosticAt(position, message)` | a warning at a position |
 | a position | `Position` | `Position` | `Position` | a file, a line and a column, each from 1 |
 | a fenced value | `code_span(value)` | `codeSpan(value)` | `CodeSpan(value)` | the value in the fewest backticks it does not hold, padded with a space where it begins or ends with one |
 
@@ -101,6 +104,7 @@ Each entry is named in each language's own case. A version is a minor, such as `
 |---|---|---|---|---|
 | a value | `resolved::Value` | `resolved.Value` | `ResolvedValue` | a document value with its position: a scalar, a list, a map, or a reference, a call or a template |
 | from YAML | `Value::from_node(node)` | `Value.fromNode(node)` | `ResolvedValueFromNode(node)` | the value a node reads to |
+| a map entry | `resolved::MapEntry` | `{ key, keyPosition, deferredKey, value }` | `MapEntry` | a key as written and its value, with the deferred key read as a value, `deferred_key`, `deferredKey` or `DeferredKey`; none for a resolved key |
 
 ### Schema validation
 
@@ -239,8 +243,7 @@ A diagnostic written as a compiler writes an error, for a terminal or a log. Eve
 
 | Entry | Rust | Go | Gives |
 |---|---|---|---|
-| render a diagnostic | `render_diagnostic(diagnostic, severity, source, style)` | `RenderDiagnostic(diagnostic, severity, source, style)` | the diagnostic's text |
-| the severity | `Severity::Error`, `Severity::Warning` | `SeverityError`, `SeverityWarning` | the headline's word: `error` or `warning` |
+| render a diagnostic | `render_diagnostic(diagnostic, source, style)` | `RenderDiagnostic(diagnostic, source, style)` | the diagnostic's text, headed by its severity's word |
 | the source | `DiagnosticSource { name, text }` | `DiagnosticSource{Name, Text}` | the name the `-->` line shows, such as a path or `dashboard:"Mock Service"`, and the text the position counts lines and columns in |
 | the style | `RenderStyle { color, width }` | `RenderStyle{Color, Width}` | whether the text is painted for a terminal, and the terminal width its lines divide to: none, `0` in Go, for output that is not a terminal |
 

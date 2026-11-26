@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 4,
   "column": 9,
   "message": "AWS refused to read s3://mock-bucket/schemas/1.2.3/mock.schema.json",

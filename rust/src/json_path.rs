@@ -239,6 +239,7 @@ mod tests {
         let entry = |key: &str, value: Value| MapEntry {
             key: key.to_owned(),
             key_position: position.clone(),
+            deferred_key: None,
             value,
         };
         let leaf = |text: &str| Value::string(text, position.clone());

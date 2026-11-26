@@ -313,6 +313,15 @@ func schemaReading(testingContext *testing.T, caseFolder string) any {
 			unknownPointers = append(unknownPointers, pointerValue.(string))
 		}
 	}
+	var deferredKeyPointers []string
+	if pointersValue, isPresent := readOptionalJSON(
+		testingContext,
+		filepath.Join(caseFolder, "deferred-keys.json"),
+	); isPresent {
+		for _, pointerValue := range pointersValue.([]any) {
+			deferredKeyPointers = append(deferredKeyPointers, pointerValue.(string))
+		}
+	}
 	mergeCalls := map[string]string{}
 	if callsValue, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "merge-calls.json")); isPresent {
 		for callPointer, macroName := range callsValue.(map[string]any) {
@@ -330,7 +339,12 @@ func schemaReading(testingContext *testing.T, caseFolder string) any {
 		}
 		return ResolvedValue{}, false
 	}
-	documentValue := withValuesRead(ResolvedValueFromNode(rootNode), "", valueReadAt)
+	documentValue := withValuesRead(
+		ResolvedValueFromNode(rootNode),
+		"",
+		deferredKeyPointers,
+		valueReadAt,
+	)
 	subjectProblems := loadedSchema.Problems(documentValue, validationRules)
 	if fragmentValue, isPresent := readOptionalJSON(testingContext, filepath.Join(caseFolder, "fragment.json")); isPresent {
 		fragmentPointer, _ := fragmentValue.(map[string]any)["pointer"].(string)
@@ -368,6 +382,7 @@ func unknownReference(writtenValue ResolvedValue) ResolvedValue {
 func withValuesRead(
 	documentValue ResolvedValue,
 	valuePointer string,
+	deferredKeyPointers []string,
 	valueReadAt func(string, ResolvedValue) (ResolvedValue, bool),
 ) ResolvedValue {
 	if replacementValue, isReplaced := valueReadAt(valuePointer, documentValue); isReplaced {
@@ -377,13 +392,20 @@ func withValuesRead(
 	readValue.Entries = nil
 	for _, mapEntry := range documentValue.Entries {
 		entryPointer := valuePointer + "/" + escapePointer(mapEntry.Key)
-		mapEntry.Value = withValuesRead(mapEntry.Value, entryPointer, valueReadAt)
+		if slices.Contains(deferredKeyPointers, entryPointer) {
+			deferredKey := unknownReference(StringValue(mapEntry.Key, mapEntry.KeyPosition))
+			mapEntry.DeferredKey = &deferredKey
+		}
+		mapEntry.Value = withValuesRead(mapEntry.Value, entryPointer, deferredKeyPointers, valueReadAt)
 		readValue.Entries = append(readValue.Entries, mapEntry)
 	}
 	readValue.Items = nil
 	for itemIndex, listItem := range documentValue.Items {
 		itemPointer := valuePointer + "/" + strconv.Itoa(itemIndex)
-		readValue.Items = append(readValue.Items, withValuesRead(listItem, itemPointer, valueReadAt))
+		readValue.Items = append(
+			readValue.Items,
+			withValuesRead(listItem, itemPointer, deferredKeyPointers, valueReadAt),
+		)
 	}
 	return readValue
 }

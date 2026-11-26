@@ -51,3 +51,12 @@ test('a value is fenced in more backticks than it holds in a row', () => {
   assert.strictEqual(spec.codeSpan('`on'), '`` `on ``');
   assert.strictEqual(spec.codeSpan('on`'), '`` on` ``');
 });
+
+test('a problem is an error and a warning only warns', () => {
+  const position = new spec.Position('mock.yml', 2, 3);
+  assert.strictEqual(spec.Diagnostic.at(position, 'mock problem').severity, 'error');
+  assert.strictEqual(spec.Diagnostic.unplaced('mock problem').severity, 'error');
+  const warning = spec.Diagnostic.warningAt(position, 'mock warning');
+  assert.strictEqual(warning.severity, 'warning');
+  assert.strictEqual(warning.toString(), 'mock.yml:2:3: mock warning');
+});

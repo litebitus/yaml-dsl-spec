@@ -29,7 +29,7 @@ pub use definition::{DslDefinition, TemplateDefinition};
 pub use definition_reader::{
     DeclaredDefinitions, DeclaredDsl, DeclaredTemplate, read_definitions, read_dsl_definitions,
 };
-pub use diagnostic::{Diagnostic, DiagnosticNotes};
+pub use diagnostic::{Diagnostic, DiagnosticNotes, Severity};
 pub use format_function::{
     DateFormat, DateFormatPart, DateVerb, LayoutPart, LayoutVerb, format_layout, parse_layout,
 };

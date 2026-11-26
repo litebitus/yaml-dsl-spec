@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 3,
   "column": 17,
   "message": "`visibility` must be >= `60`",

@@ -80,6 +80,9 @@ func (problemBuilder failureProblems) problemsOf(checkFailure failedCheck) []Sch
 		var unknownProblems []SchemaProblem
 		for _, unexpectedName := range checkFailure.fieldNames {
 			subjectPointer := valuePointer + "/" + escapePointer(unexpectedName)
+			if documentRecord.isDeferredKey(valuePointer, unexpectedName) {
+				continue
+			}
 			if isUnevaluated && checkFailure.readsUnknownMember(loadedSchema, documentRecord, unexpectedName) {
 				continue
 			}

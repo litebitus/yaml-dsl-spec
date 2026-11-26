@@ -4,9 +4,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use yaml_dsl_spec::{Diagnostic, Position};
-use yaml_dsl_spec_diagnostic_renderer::{
-    DiagnosticSource, RenderStyle, Severity, render_diagnostic,
-};
+use yaml_dsl_spec_diagnostic_renderer::{DiagnosticSource, RenderStyle, render_diagnostic};
 
 const POSITION_FILE: &str = "mock-position-file.yml";
 
@@ -25,15 +23,18 @@ fn note(fields: &Value, name: &str) -> Option<String> {
 
 fn case_diagnostic(fields: &Value) -> Diagnostic {
     let message = fields["message"].as_str().unwrap();
-    let mut diagnostic = match (fields["line"].as_u64(), fields["column"].as_u64()) {
+    let position = match (fields["line"].as_u64(), fields["column"].as_u64()) {
         (Some(line), Some(column)) => {
             let file: Arc<str> = Arc::from(POSITION_FILE);
-            Diagnostic::at(
-                &Position::new(&file, line as usize, column as usize),
-                message,
-            )
+            Some(Position::new(&file, line as usize, column as usize))
         }
-        _ => Diagnostic::unplaced(message),
+        _ => None,
+    };
+    let mut diagnostic = match (fields["severity"].as_str(), &position) {
+        (Some("error"), Some(position)) => Diagnostic::at(position, message),
+        (Some("error"), None) => Diagnostic::unplaced(message),
+        (Some("warning"), Some(position)) => Diagnostic::warning_at(position, message),
+        (severity, _) => panic!("no diagnostic of severity {severity:?} at {position:?}"),
     };
     if let Some(label) = note(fields, "label") {
         diagnostic = diagnostic.with_label(label);
@@ -49,10 +50,6 @@ fn case_diagnostic(fields: &Value) -> Diagnostic {
 fn rendered_case(folder: &Path) -> String {
     let diagnostic = case_diagnostic(&read_json(&folder.join("diagnostic.json")));
     let rendering = read_json(&folder.join("rendering.json"));
-    let severity = match rendering["severity"].as_str() {
-        Some("warning") => Severity::Warning,
-        _ => Severity::Error,
-    };
     let source_text = fs::read_to_string(folder.join("source.yml")).unwrap_or_default();
     let source = DiagnosticSource {
         name: rendering["source_name"].as_str().unwrap(),
@@ -62,7 +59,7 @@ fn rendered_case(folder: &Path) -> String {
         color: rendering["color"].as_bool().unwrap(),
         width: rendering["width"].as_u64().map(|width| width as usize),
     };
-    render_diagnostic(&diagnostic, severity, source, style)
+    render_diagnostic(&diagnostic, source, style)
 }
 
 #[test]
@@ -130,7 +127,7 @@ fn every_subset_corpus_text_renders_its_expected_text_at_each_style() {
                 name: source_name,
                 text: &source_text,
             };
-            let actual_text = render_diagnostic(&diagnostic, Severity::Error, source, style);
+            let actual_text = render_diagnostic(&diagnostic, source, style);
             if actual_text != rendering["expected"].as_str().unwrap() {
                 mismatches.push(format!("{text:?} at {style:?}: {actual_text:?}"));
             }

@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 6,
   "column": 11,
   "message": "`tier` must be one of `\"gold\"`, `\"silver\"`, `\"bronze\"`",

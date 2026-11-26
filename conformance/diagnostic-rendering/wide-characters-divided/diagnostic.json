@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 2,
   "column": 10,
   "message": "`title` holds 模拟订单かなカナ한국어😀😃 and 漢字テスト😄",

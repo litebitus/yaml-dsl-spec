@@ -242,6 +242,8 @@ A reference rule says how names are used. `pattern` is a regular expression with
 | `placeholder_in_text` | a placeholder inside longer text |
 | `anywhere_in_scalar` | each match inside a scalar |
 
+A key is a scalar: a reference stands in a key as it does in a value, at the positions its rule lists.
+
 ### Resolution
 
 - A reference resolves to a builtin of its target scope whose region holds the reference, else to a symbol of that scope, with that name, visible from the reference.
@@ -251,6 +253,19 @@ A reference rule says how names are used. `pattern` is a regular expression with
 - An overlay's own declaration wins over the common layer's, as it does in the merge, and an overlay sees no other overlay's declarations.
 - A reference in the common layer resolves in the fold of each overlay whose merge keeps it, and is an error unless it resolves in every one of them. An overlay that replaces or deletes the value or key holding it is not asked. When no overlay keeps it, it resolves in the common layer alone.
 - It names the declaration it reaches in each of those folds, in `layers.overlay_folders` order.
+
+### Deferred keys
+
+| Key | Holds |
+|---|---|
+| resolved key | text known when the document compiles, each placeholder in it spliced with a constant |
+| deferred key | a value known only when the document is used: a reference that is the whole key, or text holding a placeholder whose value is not a constant; it is resolved when the document is used |
+
+- A builtin is a constant, so a key whose placeholders read builtins is a resolved key.
+- A deferred key's references are resolved and checked as any reference is.
+- A check a deferred key decides reports nothing, as for a call's result: its name against the map's property rules, the map's required and additional properties, and its value against the schema its name would select.
+- A declaration rule reads no name from a deferred key, except a key that reads a loop variable, which declares every name it can spell. A name declared explicitly elsewhere wins, since the loop's values are not known.
+- In the body of a loop left to when the document is used, a key that reads a loop variable is a deferred key.
 
 ## Locals
 
@@ -623,6 +638,7 @@ A macro is expanded when every input resolves to a constant: a literal, or a loc
 - One fold merging a local into maps whose schemas differ is an error at each of those merge calls, the targets listed by schema: `` `local.defaults` is merged into maps with different schemas: `queue.{orders,payments}` and `topic.alerts` ``. The common layer is checked in each overlay's fold, its targets read as `dev:queue.orders`. The local itself is no problem.
 - A loop's collection may be a list a local holds, or a path into a local that holds one.
 - A loop whose collection references anything but a local is left to when the document is used, its body as written with each loop variable read as itself. A call of it with no name is the only key of its map.
+- Each key of a map body reads a loop variable. A key that reads none is a warning at the key, since every pass writes the same key, and declares no name: `` the loop body's key `mock_queue` reads no loop variable, so every pass writes the same key ``.
 
 ## Templates
 

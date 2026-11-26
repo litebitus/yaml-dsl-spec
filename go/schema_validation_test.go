@@ -564,6 +564,7 @@ func TestAnAlternativeBesideAnUnknownValueIsReportedWhenEveryFormFailsAKnownChec
 	documentValue := withValuesRead(
 		ResolvedValueFromNode(parsedNode(testingContext, documentText, nil)),
 		"",
+		nil,
 		func(valuePointer string, writtenValue ResolvedValue) (ResolvedValue, bool) {
 			if slices.Contains(unknownPointers, valuePointer) {
 				return unknownReference(writtenValue), true

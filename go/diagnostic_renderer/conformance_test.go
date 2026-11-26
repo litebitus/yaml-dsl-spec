@@ -18,17 +18,17 @@ const (
 )
 
 type caseDiagnostic struct {
-	Line    *int    `json:"line"`
-	Column  *int    `json:"column"`
-	Message string  `json:"message"`
-	Label   *string `json:"label"`
-	Rule    *string `json:"rule"`
-	Schema  *string `json:"schema"`
-	Help    *string `json:"help"`
+	Severity string  `json:"severity"`
+	Line     *int    `json:"line"`
+	Column   *int    `json:"column"`
+	Message  string  `json:"message"`
+	Label    *string `json:"label"`
+	Rule     *string `json:"rule"`
+	Schema   *string `json:"schema"`
+	Help     *string `json:"help"`
 }
 
 type caseRendering struct {
-	Severity   string `json:"severity"`
 	SourceName string `json:"source_name"`
 	Color      bool   `json:"color"`
 	Width      *int   `json:"width"`
@@ -48,10 +48,20 @@ func readCaseJSON(testingContext *testing.T, jsonPath string, decodedValue any) 
 	}
 }
 
-func diagnosticOfCase(fields caseDiagnostic) yamldslspec.Diagnostic {
-	renderedProblem := yamldslspec.UnplacedDiagnostic(fields.Message)
-	if fields.Line != nil && fields.Column != nil {
-		renderedProblem = yamldslspec.DiagnosticAt(yamldslspec.NewPosition(positionFileName, *fields.Line, *fields.Column), fields.Message)
+func diagnosticOfCase(testingContext *testing.T, fields caseDiagnostic) yamldslspec.Diagnostic {
+	isPlaced := fields.Line != nil && fields.Column != nil
+	var renderedProblem yamldslspec.Diagnostic
+	switch {
+	case fields.Severity == "error" && isPlaced:
+		casePosition := yamldslspec.NewPosition(positionFileName, *fields.Line, *fields.Column)
+		renderedProblem = yamldslspec.DiagnosticAt(casePosition, fields.Message)
+	case fields.Severity == "error":
+		renderedProblem = yamldslspec.UnplacedDiagnostic(fields.Message)
+	case fields.Severity == "warning" && isPlaced:
+		casePosition := yamldslspec.NewPosition(positionFileName, *fields.Line, *fields.Column)
+		renderedProblem = yamldslspec.WarningDiagnosticAt(casePosition, fields.Message)
+	default:
+		testingContext.Fatalf("no diagnostic of severity %q, placed %t", fields.Severity, isPlaced)
 	}
 	if fields.Label != nil {
 		renderedProblem = renderedProblem.WithLabel(*fields.Label)
@@ -71,15 +81,15 @@ func renderedCase(testingContext *testing.T, caseFolder string) string {
 	if readError != nil && !errors.Is(readError, fs.ErrNotExist) {
 		testingContext.Fatal(readError)
 	}
-	severity := SeverityError
-	if rendering.Severity == "warning" {
-		severity = SeverityWarning
-	}
 	style := RenderStyle{Color: rendering.Color}
 	if rendering.Width != nil {
 		style.Width = *rendering.Width
 	}
-	return RenderDiagnostic(diagnosticOfCase(fields), severity, DiagnosticSource{Name: rendering.SourceName, Text: string(sourceText)}, style)
+	return RenderDiagnostic(
+		diagnosticOfCase(testingContext, fields),
+		DiagnosticSource{Name: rendering.SourceName, Text: string(sourceText)},
+		style,
+	)
 }
 
 func TestEveryDiagnosticRenderingCaseRendersItsExpectedText(testingContext *testing.T) {
@@ -145,7 +155,7 @@ func TestEverySubsetCorpusTextRendersItsExpectedTextAtEachStyle(testingContext *
 			if renderingStyle.Width != nil {
 				style.Width = *renderingStyle.Width
 			}
-			if actualText := RenderDiagnostic(renderedProblem, SeverityError, source, style); actualText != rendering.ExpectedText {
+			if actualText := RenderDiagnostic(renderedProblem, source, style); actualText != rendering.ExpectedText {
 				testingContext.Errorf("%q at style %d: %q", corpusEntry.CaseText, rendering.StyleIndex, actualText)
 			}
 		}

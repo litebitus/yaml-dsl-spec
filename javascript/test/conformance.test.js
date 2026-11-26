@@ -153,16 +153,22 @@ function schemaReading(folder) {
     return { error: error.message };
   }
   const unknownPointers = readJson(path.join(folder, 'unknown-values.json')) || [];
+  const deferredKeyPointers = readJson(path.join(folder, 'deferred-keys.json')) || [];
   const mergeCalls = readJson(path.join(folder, 'merge-calls.json')) || {};
-  const documentValue = withValuesRead(resolved.Value.fromNode(node), '', (value, pointer) => {
-    if (unknownPointers.includes(pointer)) return declarationReference(value);
-    if (Object.hasOwn(mergeCalls, pointer)) {
-      const callArguments = [declarationReference(value), value];
-      const mergeCall = resolved.call(mergeCalls[pointer], callArguments);
-      return new resolved.Value('call', mergeCall, value.position);
-    }
-    return value;
-  });
+  const documentValue = withValuesRead(
+    resolved.Value.fromNode(node),
+    '',
+    deferredKeyPointers,
+    (value, pointer) => {
+      if (unknownPointers.includes(pointer)) return declarationReference(value);
+      if (Object.hasOwn(mergeCalls, pointer)) {
+        const callArguments = [declarationReference(value), value];
+        const mergeCall = resolved.call(mergeCalls[pointer], callArguments);
+        return new resolved.Value('call', mergeCall, value.position);
+      }
+      return value;
+    },
+  );
   const fragment = readJson(path.join(folder, 'fragment.json'));
   const problems = fragment === null
     ? loaded.problems(documentValue, rules)
@@ -190,18 +196,25 @@ function declarationReference(value) {
   return new resolved.Value('reference', reference, value.position);
 }
 
-/** `value` with each value at or below `pointer` read by `reading`, its own values read first. */
-function withValuesRead(value, pointer, reading) {
+/**
+ * `value` with each value at or below `pointer` read by `reading`, its own values read
+ * first, and each entry at a pointer of `deferredKeyPointers` keyed by a deferred key.
+ */
+function withValuesRead(value, pointer, deferredKeyPointers, reading) {
   if (value.kind === 'map') {
     const entries = value.value.map((entry) => {
       const child = `${pointer}/${entry.key.replace(/~/gu, '~0').replace(/\//gu, '~1')}`;
-      return { ...entry, value: withValuesRead(entry.value, child, reading) };
+      const deferredKey = deferredKeyPointers.includes(child)
+        ? declarationReference(resolved.Value.string(entry.key, entry.keyPosition))
+        : entry.deferredKey;
+      const read = withValuesRead(entry.value, child, deferredKeyPointers, reading);
+      return { ...entry, deferredKey, value: read };
     });
     return reading(new resolved.Value('map', entries, value.position), pointer);
   }
   if (value.kind === 'list') {
     const items = value.value.map(
-      (item, index) => withValuesRead(item, `${pointer}/${index}`, reading),
+      (item, index) => withValuesRead(item, `${pointer}/${index}`, deferredKeyPointers, reading),
     );
     return reading(new resolved.Value('list', items, value.position), pointer);
   }

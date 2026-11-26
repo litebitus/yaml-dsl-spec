@@ -1,8 +1,12 @@
 'use strict';
 
-/** A problem found in a file, at the value it is about where there is one. */
+/**
+ * A problem found in a file, at the value it is about where there is one; its
+ * `severity` is `'error'`, which stops its reader, or `'warning'`, which only warns.
+ */
 class Diagnostic {
   constructor(position, message) {
+    this.severity = 'error';
     this.position = position;
     this.message = message;
     this.notes = null;
@@ -10,6 +14,12 @@ class Diagnostic {
 
   static at(position, message) {
     return new Diagnostic(position, message);
+  }
+
+  static warningAt(position, message) {
+    const warning = new Diagnostic(position, message);
+    warning.severity = 'warning';
+    return warning;
   }
 
   static unplaced(message) {

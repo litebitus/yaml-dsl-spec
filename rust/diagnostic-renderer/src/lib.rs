@@ -5,13 +5,6 @@ mod report_rendering;
 
 pub use report_rendering::render_diagnostic;
 
-/// Whether a diagnostic stops its reader or only warns.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Severity {
-    Error,
-    Warning,
-}
-
 /// The source a diagnostic is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DiagnosticSource<'a> {

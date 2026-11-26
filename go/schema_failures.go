@@ -52,8 +52,17 @@ func (checkFailure failedCheck) readsUnknownValue(loadedSchema *LoadedSchema, do
 		documentRecord.readsUnknown(checkFailure.instancePointer, checkFailure.failedKeyword) {
 		return true
 	}
+	namesResolvedKey := func(fieldName string) bool {
+		return !documentRecord.isDeferredKey(checkFailure.instancePointer, fieldName)
+	}
+	switch checkFailure.failedKeyword {
+	case "additionalProperties", "propertyNames":
+		return len(checkFailure.fieldNames) > 0 &&
+			!slices.ContainsFunc(checkFailure.fieldNames, namesResolvedKey)
+	}
 	memberIsKnown := func(memberName string) bool {
-		return !checkFailure.readsUnknownMember(loadedSchema, documentRecord, memberName)
+		return namesResolvedKey(memberName) &&
+			!checkFailure.readsUnknownMember(loadedSchema, documentRecord, memberName)
 	}
 	return strings.HasPrefix(checkFailure.failedKeyword, "unevaluated") &&
 		!slices.ContainsFunc(checkFailure.fieldNames, memberIsKnown)

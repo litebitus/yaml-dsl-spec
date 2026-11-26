@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 2,
   "column": 8,
   "message": "`arn` matches none of its allowed forms",

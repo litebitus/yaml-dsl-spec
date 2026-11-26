@@ -1,0 +1,17 @@
+{
+  "problems": [
+    {
+      "line": 4,
+      "column": 9,
+      "message": "`team` must be `string`",
+      "label": "is an integer",
+      "rule": "type, at schema.json#/properties/tags/properties/team/type"
+    },
+    {
+      "line": 5,
+      "column": 3,
+      "message": "`tema` is not defined in the schema",
+      "rule": "unevaluatedProperties, at schema.json#/properties/tags/unevaluatedProperties"
+    }
+  ]
+}

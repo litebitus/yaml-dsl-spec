@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 2,
   "column": 5,
   "message": "`paths[0]` must match pattern `^mock/[a-z]+$`: /mock/orders/2026, /mock/items; (mock) [mock] {mock}!",

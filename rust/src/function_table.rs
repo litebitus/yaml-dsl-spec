@@ -328,6 +328,7 @@ mod tests {
         let entry = |key: &str, line: usize, value: Value| MapEntry {
             key: key.to_owned(),
             key_position: at(line),
+            deferred_key: None,
             value,
         };
         let text = |text: &str, line: usize| Value::string(text, at(line));

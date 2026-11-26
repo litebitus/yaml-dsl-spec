@@ -5,8 +5,10 @@ const { scalarTextOf } = require('./yaml-node');
 /**
  * A value of the folded, expanded document, with where it was written. `kind` is
  * a node's kind, or `reference`, `call`, `template` or `loop`; `value` is what a node
- * of that kind holds, a list of values and of map entries `{ key, keyPosition, value }`
- * included, or the reference, the call, the template's parts, or the loop.
+ * of that kind holds, a list of values and of map entries
+ * `{ key, keyPosition, deferredKey, value }` included, `deferredKey` the key read as a
+ * value for a deferred key and `null` for a resolved key, or the reference, the call,
+ * the template's parts, or the loop.
  */
 class Value {
   constructor(kind, value, position) {
@@ -27,6 +29,7 @@ class Value {
       value = node.value.map((entry) => ({
         key: entry.key,
         keyPosition: entry.keyPosition,
+        deferredKey: null,
         value: Value.fromNode(entry.value),
       }));
     } else value = node.value;

@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 2,
   "column": 12,
   "message": "`command` uses $env %name +flag \\path and a(b) c[d] e{f}",

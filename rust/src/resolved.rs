@@ -46,6 +46,7 @@ impl Value {
                     .map(|entry| MapEntry {
                         key: entry.key.clone(),
                         key_position: entry.key_position.clone(),
+                        deferred_key: None,
                         value: Self::from_node(&entry.value),
                     })
                     .collect(),
@@ -79,6 +80,8 @@ pub enum ValueKind {
 pub struct MapEntry {
     pub key: String,
     pub key_position: Position,
+    /// The key read as a value, for a deferred key; none for a resolved key.
+    pub deferred_key: Option<Value>,
     pub value: Value,
 }
 

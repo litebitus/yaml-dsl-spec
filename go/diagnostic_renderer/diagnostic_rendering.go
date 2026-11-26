@@ -12,16 +12,6 @@ import (
 	yamldslspec "github.com/litebitus/yaml-dsl-spec/go"
 )
 
-// Severity is whether a diagnostic stops its reader or only warns.
-type Severity int
-
-const (
-	// SeverityError is a diagnostic that stops its reader.
-	SeverityError Severity = iota
-	// SeverityWarning is a diagnostic that only warns.
-	SeverityWarning
-)
-
 // DiagnosticSource is the source a diagnostic is about.
 type DiagnosticSource struct {
 	// Name is the name the `-->` line shows, such as a path.
@@ -89,10 +79,10 @@ func (style RenderStyle) headline(severityWord, wordColor, message string) strin
 }
 
 // RenderDiagnostic is a diagnostic as a compiler writes an error: the headline, the source's name and the position, the lines that hold the wrong text and the lines it is nested under, and the notes.
-func RenderDiagnostic(diagnostic yamldslspec.Diagnostic, severity Severity, source DiagnosticSource, style RenderStyle) string {
+func RenderDiagnostic(diagnostic yamldslspec.Diagnostic, source DiagnosticSource, style RenderStyle) string {
 	var rendered strings.Builder
 	severityWord, severityCode := "error", failureCode
-	if severity == SeverityWarning {
+	if diagnostic.Severity == yamldslspec.SeverityWarning {
 		severityWord, severityCode = "warning", attentionCode
 	}
 	rendered.WriteString(style.headline(severityWord, severityCode, diagnostic.Message))

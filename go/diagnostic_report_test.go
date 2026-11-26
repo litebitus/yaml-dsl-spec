@@ -17,6 +17,20 @@ func TestNotesAreSetOnlyWhenPresentAndACopyKeepsItsOwn(testingContext *testing.T
 	}
 }
 
+func TestAProblemIsAnErrorAndAWarningOnlyWarns(testingContext *testing.T) {
+	mockPosition := NewPosition("mock.yml", 2, 3)
+	if DiagnosticAt(mockPosition, "mock problem").Severity != SeverityError {
+		testingContext.Error("a placed problem is not an error")
+	}
+	if UnplacedDiagnostic("mock problem").Severity != SeverityError {
+		testingContext.Error("an unplaced problem is not an error")
+	}
+	mockWarning := WarningDiagnosticAt(mockPosition, "mock warning")
+	if mockWarning.Severity != SeverityWarning || mockWarning.String() != "mock.yml:2:3: mock warning" {
+		testingContext.Errorf("warning %+v", mockWarning)
+	}
+}
+
 func TestAResolvedValueKeepsEveryPosition(testingContext *testing.T) {
 	documentValue := ResolvedValueFromNode(parsedNode(testingContext, "a:\n  - b\n", nil))
 	listValue, _ := documentValue.Get("a")

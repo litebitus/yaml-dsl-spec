@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Documentation
+  - A reference stands in a key as in a value; a key is a deferred key or a resolved key, and a check a deferred key decides reports nothing.
+- Packages
+  - The map entry carries its deferred key, and schema validation reads an entry with one as unknown.
+  - A diagnostic carries its severity, an error or a warning, and a warning is made at a position; every problem the packages report is an error.
+  - The diagnostic renderer reads the diagnostic's own severity, and takes no severity argument.
+
 ## v0.4.0 — 2026-11-25
 
 - Documentation
@@ -18,7 +25,7 @@
 - Documentation
   - A loop whose collection references anything but a local is left to when the document is used.
 - Packages
-  - The resolved value holds a loop left for the target, `Loop`, `loop` and `ResolvedLoop`, its loop variables read as the `LoopVariable` target.
+  - The resolved value holds a loop left for the target, its loop variables read as references to themselves.
 
 ## v0.3.3 — 2026-11-12
 
@@ -27,8 +34,8 @@
   - `%C` writes a time by its required date format, such as `%{%Y-%02m-%02dT%02H:%02M:%02S%z|+08:00}C`: date verbs padded as verbs are, an optional time offset, in the years `0000` to `9999`.
   - `%C`'s precision states the digits of a second its operand counts in, such as `.3` for milliseconds.
 - Packages
-  - `format_layout`, `formatLayout` and `FormatLayout` write `%C` by its date format, time offset and precision.
-  - `parse_layout`, `parseLayout` and `ParseLayout` read a date format's parts, each date verb with its flags and width, and its time offset.
+  - Formatting writes `%C` by its date format, time offset and precision.
+  - Reading a layout reads a date format's parts, each date verb with its flags and width, and its time offset.
 - Conformance
   - `format/` and `layouts/` cover date formats, time offsets and `%C`'s precision.
 
@@ -37,8 +44,8 @@
 - Documentation
   - The specification defines the format function: a layout's verbs written from its operands.
 - Packages
-  - `format_layout`, `formatLayout` and `FormatLayout` write the format function.
-  - `parse_layout`, `parseLayout` and `ParseLayout` read a layout into its literal text and verbs.
+  - Formatting writes the format function's text.
+  - Reading a layout reads it into its literal text and verbs.
 - Conformance
   - `format/`: layouts with their operands, and the text or the problem each writes.
   - `layouts/`: layouts, and the parts or the problem each reads to.
@@ -82,7 +89,7 @@
   - A misspelt field's help also names a field the schema accepts through `if`, `then`, `else` or `dependentSchemas`.
   - A wrong value under an `unevaluatedProperties` or `unevaluatedItems` schema is reported as the value's own problem, as under `additionalProperties`.
   - The Go package, `github.com/litebitus/yaml-dsl-spec/go`: the whole core, passing every conformance case.
-  - The fence a message puts around a value is public: `code_span`, `codeSpan` and `CodeSpan`.
+  - The fence a message puts around a value is public.
   - The diagnostic renderer, `yaml-dsl-spec-diagnostic-renderer` and `github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer`: a diagnostic written as a compiler writes an error, alike in both for the subset of text the package design defines it for, by the cases of `conformance/diagnostic-rendering/`.
 - Conformance
   - A problem is compared with its schema note too; a case of `not` with and without a described schema.

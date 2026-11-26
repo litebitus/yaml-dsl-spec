@@ -36,6 +36,8 @@ type ResolvedValue struct {
 type MapEntry struct {
 	Key         string
 	KeyPosition Position
+	// DeferredKey is the key read as a value, for a deferred key; nil for a resolved key.
+	DeferredKey *ResolvedValue
 	Value       ResolvedValue
 }
 

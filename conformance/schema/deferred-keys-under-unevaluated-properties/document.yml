@@ -1,0 +1,5 @@
+tags:
+  mock-${local.mock_suffix}: mock-text
+  ref data_source.mock_team.name: 1
+  team: 7
+  tema: mock-team

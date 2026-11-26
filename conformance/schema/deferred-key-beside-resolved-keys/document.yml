@@ -1,0 +1,6 @@
+queues:
+  ${local.mock_queue}:
+    visiblity: thirty
+  mock-payments:
+    visibility: thirty
+    zzz: 7

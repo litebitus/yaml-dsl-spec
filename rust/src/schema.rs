@@ -229,6 +229,7 @@ impl LoadedSchema {
             unknown: BTreeSet::new(),
             copied: BTreeSet::new(),
             merge_calls: BTreeSet::new(),
+            deferred_keys: BTreeSet::new(),
         };
         let mut json = instance.json(document, String::new(), &document.position);
         self.read_quoted_values(schema_node, &mut json, rules);
@@ -544,6 +545,7 @@ impl LoadedSchema {
                 );
                 unexpected
                     .iter()
+                    .filter(|name| !instance.is_deferred_key(pointer, name))
                     .filter(|name| {
                         !is_unevaluated
                             || !instance.member_reads_unknown(pointer, || {
@@ -1156,6 +1158,8 @@ struct Instance<'r> {
     copied: BTreeSet<String>,
     /// The `merge` macro calls with an argument not known, by JSON pointer.
     merge_calls: BTreeSet<String>,
+    /// The entries whose key is a deferred key, by JSON pointer.
+    deferred_keys: BTreeSet<String>,
 }
 
 impl Instance<'_> {
@@ -1181,6 +1185,10 @@ impl Instance<'_> {
                 let mut object = Map::new();
                 for entry in entries {
                     let child = format!("{pointer}/{}", escape_pointer(&entry.key));
+                    if entry.deferred_key.is_some() {
+                        object.insert(entry.key.clone(), self.deferred_entry_json(entry, child));
+                        continue;
+                    }
                     let mut json = self.json(&entry.value, child, &entry.key_position);
                     if let JsonValue::Object(fields) = &mut json {
                         self.set_child_value(&entry.key, fields);
@@ -1218,6 +1226,18 @@ impl Instance<'_> {
         }
     }
 
+    /// An entry whose key is a deferred key, read as a value not known when the
+    /// document compiles.
+    fn deferred_entry_json(&mut self, entry: &MapEntry, pointer: String) -> JsonValue {
+        self.positions
+            .insert(pointer.clone(), entry.key_position.clone());
+        self.value_positions
+            .insert(pointer.clone(), entry.value.position.clone());
+        self.deferred_keys.insert(pointer.clone());
+        self.unknown.insert(pointer);
+        JsonValue::Null
+    }
+
     /// A call of a `merge` macro of the schema's function table, as the known maps
     /// among its arguments merged in order by the macro's `merge_behavior`; none
     /// for another call, or one with no known map among its arguments.
@@ -1240,7 +1260,7 @@ impl Instance<'_> {
 
     /// Whether the value at `pointer` requires no key: the content of a merge base
     /// key, or of a `merge` macro call with an argument not known, or a value
-    /// below one.
+    /// below one; or a map holding a deferred key.
     fn requires_no_key(&self, pointer: &str) -> bool {
         pointer
             .split('/')
@@ -1249,6 +1269,20 @@ impl Instance<'_> {
             || self.merge_calls.iter().any(|merge_call| {
                 pointer == merge_call || pointer.starts_with(&format!("{merge_call}/"))
             })
+            || self.holds_deferred_key(pointer)
+    }
+
+    fn holds_deferred_key(&self, pointer: &str) -> bool {
+        self.deferred_keys.iter().any(|deferred_key| {
+            deferred_key
+                .rsplit_once('/')
+                .is_some_and(|(holder, _)| holder == pointer)
+        })
+    }
+
+    fn is_deferred_key(&self, holder_pointer: &str, name: &str) -> bool {
+        self.deferred_keys
+            .contains(&format!("{holder_pointer}/{}", escape_pointer(name)))
     }
 
     /// A key such as `name mock-orders` sets the field `name` of the entry it keys,
@@ -1299,7 +1333,8 @@ impl Instance<'_> {
     /// Whether `error`, its instance path read below `instance_base`, comes from a
     /// value not known when the document compiles: the value itself, a check that
     /// reads a value below it through a subschema or compares the values below it,
-    /// or alternatives with a form whose every failure comes from one.
+    /// a check of deferred keys' names, or alternatives with a form whose every
+    /// failure comes from one.
     fn reads_unknown(&self, instance_base: &str, error: &ValidationError<'_>) -> bool {
         let pointer = format!("{instance_base}{}", error.instance_path().as_str());
         if self.is_unknown(&pointer) {
@@ -1319,6 +1354,14 @@ impl Instance<'_> {
             | ValidationErrorKind::Not { .. }
             | ValidationErrorKind::Contains
             | ValidationErrorKind::UniqueItems => self.holds_unknown_below(&pointer),
+            ValidationErrorKind::AdditionalProperties { unexpected }
+            | ValidationErrorKind::UnevaluatedProperties { unexpected } => unexpected
+                .iter()
+                .all(|name| self.is_deferred_key(&pointer, name)),
+            ValidationErrorKind::PropertyNames { error: inner } => inner
+                .instance()
+                .as_str()
+                .is_some_and(|name| self.is_deferred_key(&pointer, name)),
             _ => false,
         }
     }
@@ -1378,6 +1421,7 @@ mod tests {
                     .map(|(key, value)| MapEntry {
                         key: key.to_owned(),
                         key_position: position(),
+                        deferred_key: None,
                         value,
                     })
                     .collect(),
@@ -1592,6 +1636,7 @@ mod tests {
         let entry = |key: &str, line: usize, text: &str| MapEntry {
             key: key.to_owned(),
             key_position: at(line),
+            deferred_key: None,
             value: Value::string(text, Position::new(&file, line, 9)),
         };
         let queue = Value::new(
@@ -1602,6 +1647,7 @@ mod tests {
             ValueKind::Map(vec![MapEntry {
                 key: "queue".to_owned(),
                 key_position: Position::new(&file, 1, 1),
+                deferred_key: None,
                 value: queue,
             }]),
             Position::new(&file, 1, 1),
@@ -1738,6 +1784,7 @@ mod tests {
             ValueKind::Map(vec![MapEntry {
                 key: "visibility".to_owned(),
                 key_position: Position::new(&file, 2, 3),
+                deferred_key: None,
                 value: Value::string("thirty", Position::new(&file, 2, 15)),
             }]),
             Position::new(&file, 2, 3),

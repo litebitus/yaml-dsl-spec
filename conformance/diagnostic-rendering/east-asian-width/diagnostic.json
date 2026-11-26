@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 3,
   "column": 18,
   "message": "`description` must NOT have more than `10` characters",

@@ -6,9 +6,10 @@
 //!   `tag-keys.json`, to its node tree or its problem;
 //! - `conformance/schema/`: a `document.yml` validated against a `schema.json`, read
 //!   by the DSL `validator` block of an optional `validator.json`, each value at a
-//!   pointer of an optional `unknown-values.json` read as a reference, each map
-//!   at a pointer of an optional `merge-calls.json` read as a call of the macro
-//!   it names, its content not known, against the schema node an optional
+//!   pointer of an optional `unknown-values.json` read as a reference, each entry
+//!   at a pointer of an optional `deferred-keys.json` keyed by a deferred key,
+//!   each map at a pointer of an optional `merge-calls.json` read as a call of
+//!   the macro it names, its content not known, against the schema node an optional
 //!   `fragment.json` points at, to its problems and
 //!   the subjects of an optional `subjects.json`, or to why the schema is not read;
 //! - `conformance/patterns/cases.json`: each pattern, to its named groups and the
@@ -275,6 +276,9 @@ fn schema_reading(folder: &Path) -> Value {
         pointers: optional_json(&folder.join("unknown-values.json"))
             .map(|pointers| serde_json::from_value(pointers).unwrap())
             .unwrap_or_default(),
+        deferred_keys: optional_json(&folder.join("deferred-keys.json"))
+            .map(|pointers| serde_json::from_value(pointers).unwrap())
+            .unwrap_or_default(),
         merge_calls: optional_json(&folder.join("merge-calls.json"))
             .map(|merge_calls| serde_json::from_value(merge_calls).unwrap())
             .unwrap_or_default(),
@@ -301,10 +305,13 @@ fn schema_reading(folder: &Path) -> Value {
 }
 
 /// The values of a case not known when its document compiles: a reference to a
-/// declaration at each pointer, and a call of the named `merge` macro at each
-/// pointer of `merge_calls`, its arguments a reference and the map as written.
+/// declaration at each pointer, a deferred key reading a reference as the whole
+/// key at each entry pointer of `deferred_keys`, and a call of the named `merge`
+/// macro at each pointer of `merge_calls`, its arguments a reference and the map
+/// as written.
 struct UnknownValues {
     pointers: Vec<String>,
+    deferred_keys: Vec<String>,
     merge_calls: BTreeMap<String, String>,
 }
 
@@ -360,7 +367,13 @@ fn with_unknown_values_below(
                         "{pointer}/{}",
                         entry.key.replace('~', "~0").replace('/', "~1")
                     );
+                    let deferred_key = unknown_values.deferred_keys.contains(&child).then(|| {
+                        let written_key =
+                            ResolvedValue::string(&entry.key, entry.key_position.clone());
+                        declaration_reference(&written_key)
+                    });
                     MapEntry {
+                        deferred_key,
                         value: with_unknown_values(entry.value, &child, unknown_values),
                         ..entry
                     }

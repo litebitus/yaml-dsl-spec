@@ -1,0 +1,17 @@
+{
+  "problems": [
+    {
+      "line": 5,
+      "column": 17,
+      "message": "`visibility` must be `integer`",
+      "label": "is a string",
+      "rule": "type, at schema.json#/$defs/queue/properties/visibility/type"
+    },
+    {
+      "line": 6,
+      "column": 5,
+      "message": "`zzz` is not defined in the schema",
+      "rule": "additionalProperties, at schema.json#/$defs/queue/additionalProperties"
+    }
+  ]
+}

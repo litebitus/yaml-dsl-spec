@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 14,
   "column": 13,
   "message": "`tags[2]` must be `string`",

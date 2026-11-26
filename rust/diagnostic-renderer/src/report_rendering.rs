@@ -1,9 +1,9 @@
 use std::ops::Range;
 
-use yaml_dsl_spec::{Diagnostic, DiagnosticNotes, Position};
+use yaml_dsl_spec::{Diagnostic, DiagnosticNotes, Position, Severity};
 
 use crate::line_wrapping::{LEVEL_COLUMNS, WrappedLine, WrappedRow};
-use crate::{DiagnosticSource, RenderStyle, Severity};
+use crate::{DiagnosticSource, RenderStyle};
 
 const CONTEXT_LINES: usize = 2;
 const GUTTER_COLUMNS: usize = 3;
@@ -53,11 +53,10 @@ impl RenderStyle {
 /// A diagnostic as a compiler writes an error: the headline, the source's name and the position, the lines that hold the wrong text and the lines it is nested under, and the notes.
 pub fn render_diagnostic(
     diagnostic: &Diagnostic,
-    severity: Severity,
     source: DiagnosticSource<'_>,
     style: RenderStyle,
 ) -> String {
-    let (severity_word, severity_color) = match severity {
+    let (severity_word, severity_color) = match diagnostic.severity {
         Severity::Error => ("error", FAILURE),
         Severity::Warning => ("warning", ATTENTION),
     };

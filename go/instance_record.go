@@ -15,6 +15,7 @@ type instanceRecord struct {
 	unknownValues   map[string]bool
 	copiedValues    map[string]bool
 	unknownMerges   map[string]bool
+	deferredKeys    map[string]bool
 }
 
 func newInstanceRecord(validationRules ValidationRules, functionTable FunctionTable) *instanceRecord {
@@ -26,6 +27,7 @@ func newInstanceRecord(validationRules ValidationRules, functionTable FunctionTa
 		unknownValues:   map[string]bool{},
 		copiedValues:    map[string]bool{},
 		unknownMerges:   map[string]bool{},
+		deferredKeys:    map[string]bool{},
 	}
 }
 
@@ -53,7 +55,12 @@ func (documentRecord *instanceRecord) jsonOf(resolvedValue ResolvedValue, valueP
 		var keyOrder []string
 		for _, mapEntry := range localValue.Entries {
 			childPointer := valuePointer + "/" + escapePointer(mapEntry.Key)
-			childJSON := documentRecord.jsonOf(mapEntry.Value, childPointer, mapEntry.KeyPosition)
+			var childJSON any
+			if mapEntry.DeferredKey != nil {
+				documentRecord.recordDeferredEntry(mapEntry, childPointer)
+			} else {
+				childJSON = documentRecord.jsonOf(mapEntry.Value, childPointer, mapEntry.KeyPosition)
+			}
 			if childFields, isObject := childJSON.(map[string]any); isObject {
 				documentRecord.setChildValue(mapEntry.Key, childFields)
 			}
@@ -71,6 +78,13 @@ func (documentRecord *instanceRecord) jsonOf(resolvedValue ResolvedValue, valueP
 	}
 	documentRecord.unknownValues[valuePointer] = true
 	return nil
+}
+
+func (documentRecord *instanceRecord) recordDeferredEntry(mapEntry MapEntry, entryPointer string) {
+	documentRecord.keyPositions[entryPointer] = mapEntry.KeyPosition
+	documentRecord.valuePositions[entryPointer] = mapEntry.Value.Position
+	documentRecord.deferredKeys[entryPointer] = true
+	documentRecord.unknownValues[entryPointer] = true
 }
 
 func (documentRecord *instanceRecord) mergeCallFields(
@@ -144,6 +158,7 @@ func (documentRecord *instanceRecord) takeRecordsBelow(argumentRecord *instanceR
 	replacedRecords(documentRecord.unknownValues, argumentRecord.unknownValues, valuePointer)
 	replacedRecords(documentRecord.copiedValues, argumentRecord.copiedValues, valuePointer)
 	replacedRecords(documentRecord.unknownMerges, argumentRecord.unknownMerges, valuePointer)
+	replacedRecords(documentRecord.deferredKeys, argumentRecord.deferredKeys, valuePointer)
 }
 
 func replacedRecords[RecordedValue any](heldRecords, takenRecords map[string]RecordedValue, valuePointer string) {
@@ -158,7 +173,8 @@ func replacedRecords[RecordedValue any](heldRecords, takenRecords map[string]Rec
 }
 
 func (documentRecord *instanceRecord) requiresNoKeyAt(valuePointer string) bool {
-	if matchesOrBelow(documentRecord.unknownMerges, valuePointer) {
+	if matchesOrBelow(documentRecord.unknownMerges, valuePointer) ||
+		documentRecord.holdsDeferredKey(valuePointer) {
 		return true
 	}
 	for _, rawStep := range strings.Split(valuePointer, "/")[1:] {
@@ -167,6 +183,19 @@ func (documentRecord *instanceRecord) requiresNoKeyAt(valuePointer string) bool 
 		}
 	}
 	return false
+}
+
+func (documentRecord *instanceRecord) holdsDeferredKey(mapPointer string) bool {
+	for entryPointer := range documentRecord.deferredKeys {
+		if entryPointer[:strings.LastIndexByte(entryPointer, '/')] == mapPointer {
+			return true
+		}
+	}
+	return false
+}
+
+func (documentRecord *instanceRecord) isDeferredKey(mapPointer, entryKey string) bool {
+	return documentRecord.deferredKeys[mapPointer+"/"+escapePointer(entryKey)]
 }
 
 func (documentRecord *instanceRecord) setChildValue(entryKey string, childFields map[string]any) {

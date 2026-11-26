@@ -5,9 +5,17 @@ use crate::position::Position;
 /// A problem found in a file, at the value it is about where there is one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
+    pub severity: Severity,
     pub position: Option<Position>,
     pub message: String,
     pub notes: Option<Box<DiagnosticNotes>>,
+}
+
+/// Whether a diagnostic stops its reader or only warns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Severity {
+    Error,
+    Warning,
 }
 
 /// What a report writes beside a problem.
@@ -31,8 +39,16 @@ impl Diagnostic {
         }
     }
 
+    pub fn warning_at(position: &Position, message: impl Into<String>) -> Self {
+        Self {
+            severity: Severity::Warning,
+            ..Self::at(position, message)
+        }
+    }
+
     pub fn unplaced(message: impl Into<String>) -> Self {
         Self {
+            severity: Severity::Error,
             position: None,
             message: message.into(),
             notes: None,
@@ -78,3 +94,26 @@ impl fmt::Display for Diagnostic {
 }
 
 impl std::error::Error for Diagnostic {}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    #[test]
+    fn a_problem_is_an_error_and_a_warning_only_warns() {
+        let position = Position::new(&Arc::from("mock.yml"), 2, 3);
+        assert_eq!(
+            Diagnostic::at(&position, "mock problem").severity,
+            Severity::Error
+        );
+        assert_eq!(
+            Diagnostic::unplaced("mock problem").severity,
+            Severity::Error
+        );
+        let warning = Diagnostic::warning_at(&position, "mock warning");
+        assert_eq!(warning.severity, Severity::Warning);
+        assert_eq!(warning.to_string(), "mock.yml:2:3: mock warning");
+    }
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "queues": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z-]+$" },
+      "required": ["mock-orders"],
+      "properties": {
+        "mock-orders": { "$ref": "#/$defs/queue" },
+        "mock-payments": { "$ref": "#/$defs/queue" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "queue": {
+      "type": "object",
+      "required": ["visibility"],
+      "properties": { "visibility": { "type": "integer" } },
+      "additionalProperties": false
+    }
+  }
+}

@@ -669,16 +669,31 @@ function instanceHolds(outer, inner) {
 /**
  * Whether `error` stands whatever a value not known when the document compiles
  * turns out to be: a failing `anyOf` or `oneOf` over one when each of its forms
- * has an own failure that stands, any other error when it reads none.
+ * has an own failure that stands, any other error when it reads none and checks
+ * no deferred key's name.
  */
 function failsCertainly(error, alternatives, instance) {
   const formFailures = alternatives.formFailures.get(error);
   const isOverUnknown = formFailures !== undefined
     && !instance.isUnknown(error.instancePath)
     && instance.holdsUnknownBelow(error.instancePath);
-  if (!isOverUnknown) return !instance.readsUnknown(error.instancePath, error.keyword);
+  if (!isOverUnknown) {
+    return !instance.readsUnknown(error.instancePath, error.keyword)
+      && !instance.isDeferredKey(error.instancePath, checkedKeyName(error));
+  }
   return formFailures.every((ownErrors) =>
     ownErrors.some((inner) => failsCertainly(inner, alternatives, instance)));
+}
+
+/**
+ * The key whose name `error` checks, by `propertyNames`, `additionalProperties` or
+ * `unevaluatedProperties`; else `null`.
+ */
+function checkedKeyName(error) {
+  if (error.propertyName !== undefined) return error.propertyName;
+  if (error.keyword === 'additionalProperties') return error.params.additionalProperty;
+  if (error.keyword === 'unevaluatedProperties') return error.params.unevaluatedProperty;
+  return null;
 }
 
 /**
@@ -1009,6 +1024,7 @@ class InstanceRecord {
     this.unknown = [];
     this.copied = [];
     this.partlyKnownMergeCalls = [];
+    this.deferredKeys = [];
   }
 
   json(value, pointer, keyPosition) {
@@ -1028,6 +1044,10 @@ class InstanceRecord {
         const object = {};
         for (const entry of local.value) {
           const child = `${pointer}/${escapePointer(entry.key)}`;
+          if (entry.deferredKey) {
+            object[entry.key] = this.deferredEntryJson(entry, child);
+            continue;
+          }
           const json = this.json(entry.value, child, entry.keyPosition);
           if (isObject(json)) this.setChildValue(entry.key, json);
           object[entry.key] = json;
@@ -1045,6 +1065,18 @@ class InstanceRecord {
         return this.json(mergeCall.content, pointer, keyPosition);
       }
     }
+  }
+
+  /**
+   * An entry whose key is a deferred key, read as a value not known when the
+   * document compiles.
+   */
+  deferredEntryJson(entry, pointer) {
+    this.positions.set(pointer, entry.keyPosition);
+    this.valuePositions.set(pointer, entry.value.position);
+    this.deferredKeys.push(pointer);
+    this.unknown.push(pointer);
+    return null;
   }
 
   /**
@@ -1069,12 +1101,17 @@ class InstanceRecord {
 
   /**
    * Whether the value at `pointer` requires no key: it lies in a merge base key's
-   * content, or in a merge call's with an argument not known.
+   * content, or in a merge call's with an argument not known, or holds a deferred key.
    */
   requiresNoKey(pointer) {
     return pointerSteps(pointer).some((step) => this.rules.mergeBaseKeys.includes(step))
       || this.partlyKnownMergeCalls
-        .some((call) => pointer === call || pointer.startsWith(`${call}/`));
+        .some((call) => pointer === call || pointer.startsWith(`${call}/`))
+      || this.deferredKeys.some((entry) => entry.slice(0, entry.lastIndexOf('/')) === pointer);
+  }
+
+  isDeferredKey(pointer, name) {
+    return name !== null && this.deferredKeys.includes(`${pointer}/${escapePointer(name)}`);
   }
 
   /** A key such as `name mock-orders` sets the field `name` of the entry it keys, unless it writes the field. */

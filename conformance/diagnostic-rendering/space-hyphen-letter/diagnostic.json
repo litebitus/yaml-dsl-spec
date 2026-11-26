@@ -1,4 +1,5 @@
 {
+  "severity": "error",
   "line": 2,
   "column": 10,
   "message": "`flags` holds run -v -x --mock -name a -b",
