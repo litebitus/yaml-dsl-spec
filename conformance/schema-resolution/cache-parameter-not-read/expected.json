@@ -1,0 +1,23 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "https://mock.example/mock.schema.json?yaml_dsl_mock=1",
+      "named_by": {
+        "modeline": {
+          "line": 1,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "mock-dsl.yml",
+      "line": 1,
+      "column": 33,
+      "message": "`yaml_dsl_mock` is not a parameter of a schema URL"
+    }
+  ]
+}

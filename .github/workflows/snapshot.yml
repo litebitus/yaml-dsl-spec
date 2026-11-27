@@ -74,6 +74,11 @@ jobs:
           cargo update --workspace --manifest-path rust/Cargo.toml
           jq --arg version "${VERSION#v}" '.version = $version' javascript/package.json > "$RUNNER_TEMP/package.json"
           mv "$RUNNER_TEMP/package.json" javascript/package.json
+          for package in javascript/schema-reader-github javascript/schema-reader-s3; do
+            jq --arg version "${VERSION#v}" '.version = $version | .peerDependencies["yaml-dsl-spec"] = $version' \
+              "$package/package.json" > "$RUNNER_TEMP/package.json"
+            mv "$RUNNER_TEMP/package.json" "$package/package.json"
+          done
           mkdir -p rust/schemas
           cp schemas/*.schema.json rust/schemas/
 
@@ -82,9 +87,12 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --workspace --manifest-path rust/Cargo.toml --allow-dirty
 
-      - name: Publish the snapshot JS package
-        working-directory: javascript
-        run: npm publish --tag snapshot
+      - name: Publish the snapshot JS packages
+        run: |
+          set -euo pipefail
+          for package in javascript javascript/schema-reader-github javascript/schema-reader-s3; do
+            npm publish --tag snapshot "./$package"
+          done
 
       - name: Tag and push the snapshot
         env:
@@ -106,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "Published \`yaml-dsl-spec\` \`${VERSION#v}\` to crates.io, to npm with the \`snapshot\` tag, and tagged the Go module \`go/${VERSION}\`, from commit \`${GITHUB_SHA::7}\`."
+            echo "Published \`yaml-dsl-spec\` and its extra packages \`${VERSION#v}\` to crates.io, to npm with the \`snapshot\` tag, and tagged the Go module \`go/${VERSION}\`, from commit \`${GITHUB_SHA::7}\`."
             echo
             echo '```toml'
             echo "yaml-dsl-spec = \"=${VERSION#v}\""

@@ -1,0 +1,2 @@
+# yaml-language-server: $schema={server}/mock.schema.json?mock=1#/properties/queue
+name: mock

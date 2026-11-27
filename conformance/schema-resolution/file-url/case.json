@@ -1,0 +1,5 @@
+{
+  "document": "stack/mock-dsl.yml",
+  "config_root": ".",
+  "search_paths": [{ "path_text": "{case}/schemas/mock%20schema.json", "line": 1, "column": 1 }]
+}

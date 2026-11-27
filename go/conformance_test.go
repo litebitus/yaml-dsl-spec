@@ -1,14 +1,21 @@
 package yamldslspec
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"testing"
+	"unicode"
+
+	"github.com/litebitus/yaml-dsl-spec/go/core"
 )
 
 const conformanceFolder = "../conformance"
@@ -391,7 +398,7 @@ func withValuesRead(
 	readValue := documentValue
 	readValue.Entries = nil
 	for _, mapEntry := range documentValue.Entries {
-		entryPointer := valuePointer + "/" + escapePointer(mapEntry.Key)
+		entryPointer := valuePointer + "/" + core.EscapePointer(mapEntry.Key)
 		if slices.Contains(deferredKeyPointers, entryPointer) {
 			deferredKey := unknownReference(StringValue(mapEntry.Key, mapEntry.KeyPosition))
 			mapEntry.DeferredKey = &deferredKey
@@ -560,4 +567,132 @@ func TestEveryPatternCaseCompilesAndMatchesAsExpected(testingContext *testing.T)
 		prettyText, _ := json.MarshalIndent(actualValue, "", "  ")
 		testingContext.Errorf("patterns read to:\n%s", prettyText)
 	}
+}
+
+// servedPaths is a server answering each path a case serves with its status and body, and 404 to any other.
+func servedPaths(testingContext *testing.T, servedAnswers map[string]any) string {
+	answeringServer := httptest.NewServer(http.HandlerFunc(
+		func(responseWriter http.ResponseWriter, servedRequest *http.Request) {
+			requestPath, _, _ := strings.Cut(servedRequest.RequestURI, "?")
+			pathAnswer, isServed := servedAnswers[requestPath].(map[string]any)
+			if !isServed {
+				responseWriter.WriteHeader(http.StatusNotFound)
+				return
+			}
+			answerStatus, _ := pathAnswer["status"].(float64)
+			answerBody, _ := pathAnswer["body"].(string)
+			responseWriter.WriteHeader(int(answerStatus))
+			_, _ = responseWriter.Write([]byte(answerBody))
+		}))
+	testingContext.Cleanup(answeringServer.Close)
+	return answeringServer.URL
+}
+
+func schemaResolutionReading(testingContext *testing.T, caseFolder string) any {
+	absoluteFolder, absoluteError := filepath.Abs(caseFolder)
+	if absoluteError != nil {
+		testingContext.Fatal(absoluteError)
+	}
+	resolvedFolder, resolveError := filepath.EvalSymlinks(absoluteFolder)
+	if resolveError != nil {
+		testingContext.Fatal(resolveError)
+	}
+	caseValue, _ := readOptionalJSON(testingContext, filepath.Join(resolvedFolder, "case.json"))
+	caseFields, _ := caseValue.(map[string]any)
+	serverAddress := ""
+	if servedAnswers, isServed := caseFields["served"].(map[string]any); isServed {
+		serverAddress = servedPaths(testingContext, servedAnswers)
+	}
+	caseURL := "file://" + resolvedFolder
+	filledText := func(writtenText string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(writtenText, "{case}", caseURL), "{server}", serverAddress)
+	}
+	unfilledText := func(readText string) string {
+		readText = strings.ReplaceAll(readText, caseURL, "{case}")
+		if serverAddress == "" {
+			return readText
+		}
+		return strings.ReplaceAll(readText, serverAddress, "{server}")
+	}
+	var searchPaths []SchemaSearchPath
+	listedPaths, _ := caseFields["search_paths"].([]any)
+	for _, listedPath := range listedPaths {
+		pathFields, _ := listedPath.(map[string]any)
+		pathText, _ := pathFields["path_text"].(string)
+		searchPath := SchemaSearchPath{PathText: filledText(pathText)}
+		if lineNumber, hasLine := pathFields["line"].(float64); hasLine {
+			columnNumber, _ := pathFields["column"].(float64)
+			writtenAt := NewPosition("mock-yaml-dsl.yml", int(lineNumber), int(columnNumber))
+			searchPath.WrittenAt = &writtenAt
+		}
+		searchPaths = append(searchPaths, searchPath)
+	}
+	documentName, _ := caseFields["document"].(string)
+	documentFile := filepath.Join(resolvedFolder, documentName)
+	documentBytes, readError := os.ReadFile(documentFile)
+	if readError != nil {
+		testingContext.Fatal(readError)
+	}
+	configRootName, _ := caseFields["config_root"].(string)
+	schemaFinding := NewSchemaCache().DocumentSchema(context.Background(), documentFile,
+		filledText(string(documentBytes)), searchPaths, filepath.Join(resolvedFolder, configRootName))
+	return findingJSON(schemaFinding, resolvedFolder, unfilledText)
+}
+
+func findingJSON(schemaFinding SchemaFinding, caseFolder string, unfilledText func(string) string) map[string]any {
+	casePrefix := caseFolder + string(filepath.Separator)
+	triedCandidates := []any{}
+	for _, triedCandidate := range schemaFinding.TriedCandidates {
+		var namedBy any
+		switch candidateNamer := triedCandidate.NamedBy; candidateNamer.NamerKind {
+		case NamedByModeline:
+			namedBy = map[string]any{"modeline": map[string]any{
+				"line":   candidateNamer.ModelinePosition.Line,
+				"column": candidateNamer.ModelinePosition.Column,
+			}}
+		case NamedBySearchPath:
+			namedBy = map[string]any{"search_path": candidateNamer.SearchPathIndex}
+		default:
+			namedBy = "caller"
+		}
+		triedCandidates = append(triedCandidates, map[string]any{
+			"schema_location": unfilledText(triedCandidate.SchemaLocation),
+			"named_by":        namedBy,
+		})
+	}
+	var foundJSON any
+	if foundSchema := schemaFinding.FoundSchema; foundSchema != nil {
+		foundJSON = map[string]any{
+			"schema_name":     unfilledText(foundSchema.SchemaName),
+			"schema_text":     strings.TrimRightFunc(foundSchema.SchemaText, unicode.IsSpace),
+			"schema_fragment": foundSchema.SchemaFragment,
+			"found_candidate": slices.Index(schemaFinding.TriedCandidates, foundSchema.FoundCandidate),
+		}
+	}
+	findingProblems := []any{}
+	for _, findingProblem := range schemaFinding.FindingProblems {
+		problemFields := map[string]any{"severity": "error"}
+		if findingProblem.Severity == SeverityWarning {
+			problemFields["severity"] = "warning"
+		}
+		if findingProblem.Position != nil {
+			problemFields["file"] = strings.TrimPrefix(findingProblem.Position.File, casePrefix)
+		}
+		for fieldName, fieldValue := range problemJSON(findingProblem) {
+			if fieldText, isText := fieldValue.(string); isText {
+				fieldValue = unfilledText(fieldText)
+			}
+			problemFields[fieldName] = fieldValue
+		}
+		findingProblems = append(findingProblems, problemFields)
+	}
+	return map[string]any{
+		"tried_candidates": triedCandidates,
+		"found_schema":     foundJSON,
+		"finding_problems": findingProblems,
+	}
+}
+
+func TestEverySchemaResolutionCaseFindsAsExpected(testingContext *testing.T) {
+	runCases(testingContext, "schema-resolution", "case.json", schemaResolutionReading)
 }

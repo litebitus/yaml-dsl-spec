@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/litebitus/yaml-dsl-spec/go/core"
 )
 
 //go:embed schemas/*.schema.json
@@ -137,7 +139,7 @@ func minorVersionOf(fileName, familyStem string) (int, int, bool) {
 	}
 	versionText := strings.TrimSuffix(strings.TrimPrefix(fileName, namePrefix), nameSuffix)
 	majorText, minorText, hasDot := strings.Cut(versionText, ".")
-	if !hasDot || majorText == "" || minorText == "" || !onlyDigits(majorText) || !onlyDigits(minorText) {
+	if !hasDot || majorText == "" || minorText == "" || !core.OnlyDigits(majorText) || !core.OnlyDigits(minorText) {
 		return 0, 0, false
 	}
 	majorNumber, majorError := strconv.Atoi(majorText)

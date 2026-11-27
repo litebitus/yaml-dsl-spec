@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/litebitus/yaml-dsl-spec/go/core"
 )
 
 const concernToken = "{concern}"
@@ -112,7 +114,7 @@ func versionSchema(rootNode Node, fileName string) (versionedSchema, *Diagnostic
 	}
 	shownVersion := "`" + versionText + "`"
 	if versionNode.Kind != NodeString {
-		shownVersion = "`" + jsonText(versionNode.ToJSON()) + "`"
+		shownVersion = "`" + core.JSONText(versionNode.ToJSON()) + "`"
 	}
 	var versionHelp *string
 	if closestVersion, isClose := ClosestName(versionText, readVersions); isClose {

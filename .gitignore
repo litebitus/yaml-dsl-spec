@@ -1,6 +1,7 @@
 /rust/target
 /rust/schemas
 /javascript/node_modules
+/javascript/*/node_modules
 /javascript/schemas
 /go/coverage.out
 /go/schemas

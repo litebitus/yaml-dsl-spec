@@ -350,21 +350,16 @@ A schema URL is read without credentials. One carrying `yaml_dsl_machine_credent
 
 | Link | Read with, in order |
 |---|---|
-| a GitHub link under `https://github.com/<owner>/<repo>/releases/`, or `www.github.com` | no credentials; then `GH_TOKEN`, `GITHUB_TOKEN`, the `gh` command's login (`gh auth token`), then the `.netrc` entry for `api.github.com` |
 | an S3 URL | no credentials; then the machine's AWS credentials: the AWS environment variables, the profile `AWS_PROFILE` names with its SSO login, or a container's or an instance's role |
-| any other | no credentials; then the `.netrc` entry for the link's host, sent as Basic auth |
+| an `http` or `https` link | no credentials; then the `.netrc` entry for the link's host, sent as Basic auth |
 
-- An answer is refused when it is 401 or 403, or 404 from a GitHub link, which GitHub gives for a private repository; and from S3, when access is denied or the credentials are expired, absent or not valid.
-- A schema is missing when the answer is 404 from any other link, a release or an asset the repository lacks, or an S3 key or bucket that is not there.
+- A reader may read the links of a host its own way, with that host's own credentials, such as a git host's release assets read through the host's API.
+- An answer is refused when it is 401 or 403; and from S3, when access is denied or the credentials are expired, absent or not valid.
+- A schema is missing when the answer is 404, or an S3 key or bucket that is not there.
 - `assume_role=<role ARN>` on an S3 URL reads the object as that role, assumed with the machine's AWS credentials.
 - An S3 object is read in its bucket's own region.
-- A source the machine lacks is skipped: a variable that is not set, `gh` not installed or not logged in, a `.netrc` without an entry for the host.
-- `.netrc` is the file `NETRC` names, else the one in the user's home folder.
-- With a GitHub token, the link is read through GitHub's API. The release comes from the link's path: `download/<tag>/<asset>` is the release by its tag, and `latest/download/<asset>` is the latest release. The asset is then read by its name, following GitHub's redirect without the token.
-- A link no credential reads is reported by what is known:
-  - a release or asset the repository lacks is a missing release or asset;
-  - a repository no credential can see is not found, naming the repository;
-  - a refused credential is reported with where it came from and what renews it.
+- `.netrc` is the file `NETRC` names, else the one in the user's home folder. A `.netrc` without an entry for the host gives no credentials.
+- A refused credential is reported with where it came from and what renews it.
 - Once all credentials are refused, they are read again for the next read, so a renewed login takes effect without a restart.
 
 ## JSON Schema drafts

@@ -1,0 +1,22 @@
+{
+  "name": "yaml-dsl-spec-schema-reader-github",
+  "version": "0.4.1",
+  "description": "The YAML DSL standard's reader of schema URLs on GitHub, a release asset read through GitHub's API with the machine's tokens.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/litebitus/yaml-dsl-spec.git",
+    "directory": "javascript/schema-reader-github"
+  },
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "lib/*.js"
+  ],
+  "scripts": {
+    "test": "node --test --test-timeout=5000 --test-force-exit --experimental-test-coverage --test-coverage-exclude=test/** --test-coverage-exclude=../** --test-coverage-lines=90 test/"
+  },
+  "peerDependencies": {
+    "yaml-dsl-spec": "0.4.1"
+  }
+}

@@ -55,9 +55,41 @@ The specification is [docs/spec.md](docs/spec.md): what each part of a `yaml-dsl
     <td><a href="https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer"><code>github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer</code></a></td>
     <td><a href="go/diagnostic_renderer"><code>go/diagnostic_renderer/</code></a></td>
   </tr>
+  <tr>
+    <td rowspan="3">S3 schema reader</td>
+    <td>Rust</td>
+    <td><a href="https://crates.io/crates/yaml-dsl-spec-schema-reader-s3"><code>yaml-dsl-spec-schema-reader-s3</code></a></td>
+    <td><a href="rust/schema-reader-s3"><code>rust/schema-reader-s3/</code></a></td>
+  </tr>
+  <tr>
+    <td>JavaScript</td>
+    <td><a href="https://www.npmjs.com/package/yaml-dsl-spec-schema-reader-s3"><code>yaml-dsl-spec-schema-reader-s3</code></a></td>
+    <td><a href="javascript/schema-reader-s3"><code>javascript/schema-reader-s3/</code></a></td>
+  </tr>
+  <tr>
+    <td>Go</td>
+    <td><a href="https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go/schema_reader_s3"><code>github.com/litebitus/yaml-dsl-spec/go/schema_reader_s3</code></a></td>
+    <td><a href="go/schema_reader_s3"><code>go/schema_reader_s3/</code></a></td>
+  </tr>
+  <tr>
+    <td rowspan="3">GitHub schema reader</td>
+    <td>Rust</td>
+    <td><a href="https://crates.io/crates/yaml-dsl-spec-schema-reader-github"><code>yaml-dsl-spec-schema-reader-github</code></a></td>
+    <td><a href="rust/schema-reader-github"><code>rust/schema-reader-github/</code></a></td>
+  </tr>
+  <tr>
+    <td>JavaScript</td>
+    <td><a href="https://www.npmjs.com/package/yaml-dsl-spec-schema-reader-github"><code>yaml-dsl-spec-schema-reader-github</code></a></td>
+    <td><a href="javascript/schema-reader-github"><code>javascript/schema-reader-github/</code></a></td>
+  </tr>
+  <tr>
+    <td>Go</td>
+    <td><a href="https://pkg.go.dev/github.com/litebitus/yaml-dsl-spec/go/schema_reader_github"><code>github.com/litebitus/yaml-dsl-spec/go/schema_reader_github</code></a></td>
+    <td><a href="go/schema_reader_github"><code>go/schema_reader_github/</code></a></td>
+  </tr>
 </table>
 
-What each package implements is designed in [docs/package-design.md](docs/package-design.md): the core, and the packages beyond it.
+What each package implements is designed in [docs/package-design.md](docs/package-design.md): the core, and the extra packages.
 
 ## Conformance
 
@@ -69,6 +101,7 @@ What each package implements is designed in [docs/package-design.md](docs/packag
 | `yaml/<case>/` | an `input.yml`, and the tag keys of an optional `tag-keys.json` | its node tree with every value's line and column, or its problem |
 | `schema/<case>/` | a `document.yml`, its `schema.json`, the DSL `validator` block of an optional `validator.json`, the JSON pointers of an optional `unknown-values.json`, each value read as a reference to a declaration, the entry pointers of an optional `deferred-keys.json`, each entry's key read as a deferred key, the maps of an optional `merge-calls.json`, each read as a call of the named `merge` macro with a content not known, and the fragment of an optional `fragment.json` the document is validated against | its problems, with their subjects where a `subjects.json` lists them, or why the schema is not read |
 | `patterns/cases.json` | a pattern of the standard's subset, and texts | whether it compiles, its named groups, and each text's captures |
+| `schema-resolution/<case>/` | a `case.json` naming a document, its config root, its search paths with where each is written, and the paths a server serves, beside the files it reads; `{case}` stands for the case folder's `file` URL and `{server}` for the server's | the candidates tried, the schema found, and the problems |
 | `diagnostic-rendering/<case>/` | a `diagnostic.json` with its severity, the source name and style of a `rendering.json`, and the source text of an optional `source.yml`, all within the subset the package design defines rendering for | the diagnostic renderer's text, its lines in `expected.json` |
 | `diagnostic-rendering/subset-corpus.json` | texts drawn from that subset, each an error's message and its source's one line, placed at its start | its text at each style it lists |
 

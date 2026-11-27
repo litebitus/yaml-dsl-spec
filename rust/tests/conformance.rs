@@ -16,7 +16,12 @@
 //!   captures of each text, or to not compiling;
 //! - `conformance/templates/`: an `input.yml` read as a template of the template
 //!   language of the category's `yaml-dsl.yml`, to its masked text, actions,
-//!   conditionals and loops, loop variables and problems.
+//!   conditionals and loops, loop variables and problems;
+//! - `conformance/schema-resolution/`: the schema of the document a `case.json`
+//!   names, found by its modeline and the case's search paths, each served path of
+//!   the case answered by a server, to the candidates tried, the schema found and
+//!   the problems. `{case}` stands for the case folder's `file` URL and `{server}`
+//!   for the server's.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -30,10 +35,11 @@ use yaml_dsl_spec::resolved::{
     Call, MapEntry, Reference, Target, Value as ResolvedValue, ValueKind,
 };
 use yaml_dsl_spec::schema::SchemaCache;
+use yaml_dsl_spec::schema::resolution::{CandidateNamer, SchemaFinding, SchemaSearchPath};
 use yaml_dsl_spec::{
-    DateFormat, DateFormatPart, Diagnostic, LayoutPart, Node, NodeKind, Position, TemplateBlock,
-    TemplateDefinition, ValidationRules, format_layout, parse_layout, read_definitions,
-    read_template, yaml_reader,
+    DateFormat, DateFormatPart, Diagnostic, LayoutPart, Node, NodeKind, Position, Severity,
+    TemplateBlock, TemplateDefinition, ValidationRules, format_layout, parse_layout,
+    read_definitions, read_template, yaml_reader,
 };
 
 fn conformance_folder() -> PathBuf {
@@ -567,4 +573,175 @@ fn every_pattern_case_compiles_and_matches_as_expected() {
         "{}",
         serde_json::to_string_pretty(&actual).unwrap()
     );
+}
+
+/// A server answering each path a case serves with its status and body, and 404
+/// to any other. Dropping it, as a failing test does too, stops and joins its thread.
+struct ServedPaths {
+    address: String,
+    server: Arc<tiny_http::Server>,
+    serving: Option<std::thread::JoinHandle<()>>,
+}
+
+impl ServedPaths {
+    fn start(served: &Map<String, Value>) -> Self {
+        let server = Arc::new(tiny_http::Server::http("127.0.0.1:0").unwrap());
+        let address = format!("http://{}", server.server_addr());
+        let answers: BTreeMap<String, (u16, String)> = served
+            .iter()
+            .map(|(path, answer)| {
+                let status = answer["status"].as_u64().unwrap() as u16;
+                let body = answer["body"].as_str().unwrap_or_default().to_owned();
+                (path.clone(), (status, body))
+            })
+            .collect();
+        let listening = Arc::clone(&server);
+        let serving = std::thread::spawn(move || {
+            for request in listening.incoming_requests() {
+                let path = request
+                    .url()
+                    .split('?')
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned();
+                let (status, body) = answers.get(&path).cloned().unwrap_or((404, String::new()));
+                let _ = request
+                    .respond(tiny_http::Response::from_string(body).with_status_code(status));
+            }
+        });
+        Self {
+            address,
+            server,
+            serving: Some(serving),
+        }
+    }
+}
+
+impl Drop for ServedPaths {
+    fn drop(&mut self) {
+        self.server.unblock();
+        if let Some(serving) = self.serving.take() {
+            let _ = serving.join();
+        }
+    }
+}
+
+fn schema_resolution_reading(folder: &Path) -> Value {
+    let folder = &fs::canonicalize(folder).unwrap();
+    let case: Value =
+        serde_json::from_str(&fs::read_to_string(folder.join("case.json")).unwrap()).unwrap();
+    let served = case["served"].as_object().map(ServedPaths::start);
+    let case_url = format!("file://{}", folder.display());
+    let server_address = served
+        .as_ref()
+        .map(|served| served.address.clone())
+        .unwrap_or_default();
+    let filled = |text: &str| {
+        text.replace("{case}", &case_url)
+            .replace("{server}", &server_address)
+    };
+    let unfilled = |text: &str| {
+        let text = text.replace(&case_url, "{case}");
+        if server_address.is_empty() {
+            text
+        } else {
+            text.replace(&server_address, "{server}")
+        }
+    };
+    let search_paths_file: Arc<str> = Arc::from("mock-yaml-dsl.yml");
+    let search_paths: Vec<SchemaSearchPath> = case["search_paths"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|entry| SchemaSearchPath {
+            path_text: filled(entry["path_text"].as_str().unwrap()),
+            written_at: entry["line"].as_u64().map(|line| {
+                Position::new(
+                    &search_paths_file,
+                    line as usize,
+                    entry["column"].as_u64().unwrap() as usize,
+                )
+            }),
+        })
+        .collect();
+    let document = folder.join(case["document"].as_str().unwrap());
+    let text = filled(&fs::read_to_string(&document).unwrap());
+    let config_root = folder.join(case["config_root"].as_str().unwrap());
+    let finding =
+        SchemaCache::default().document_schema(&document, &text, &search_paths, &config_root);
+    finding_json(&finding, folder, &unfilled)
+}
+
+fn finding_json(
+    finding: &SchemaFinding,
+    folder: &Path,
+    unfilled: &dyn Fn(&str) -> String,
+) -> Value {
+    let case_prefix = format!("{}/", folder.display());
+    let candidates: Vec<Value> = finding
+        .tried_candidates
+        .iter()
+        .map(|candidate| {
+            let named_by = match &candidate.named_by {
+                CandidateNamer::Modeline { position } => {
+                    json!({ "modeline": { "line": position.line, "column": position.column } })
+                }
+                CandidateNamer::SearchPath { index } => json!({ "search_path": index }),
+                CandidateNamer::Caller => json!("caller"),
+            };
+            json!({ "schema_location": unfilled(&candidate.schema_location), "named_by": named_by })
+        })
+        .collect();
+    let found = finding.found_schema.as_ref().map(|found| {
+        let index = finding
+            .tried_candidates
+            .iter()
+            .position(|candidate| *candidate == found.found_candidate);
+        json!({
+            "schema_name": unfilled(&found.schema_name),
+            "schema_text": found.schema_text.trim_end(),
+            "schema_fragment": found.schema_fragment,
+            "found_candidate": index,
+        })
+    });
+    let problems: Vec<Value> = finding
+        .finding_problems
+        .iter()
+        .map(|problem| {
+            let mut fields = Map::new();
+            let severity = match problem.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            fields.insert("severity".to_owned(), json!(severity));
+            if let Some(position) = &problem.position {
+                let file = position
+                    .file
+                    .strip_prefix(&case_prefix)
+                    .unwrap_or(&position.file);
+                fields.insert("file".to_owned(), json!(file));
+            }
+            if let Value::Object(rest) = problem_json(problem) {
+                for (name, value) in rest {
+                    let value = match value {
+                        Value::String(text) => json!(unfilled(&text)),
+                        other => other,
+                    };
+                    fields.insert(name, value);
+                }
+            }
+            Value::Object(fields)
+        })
+        .collect();
+    json!({
+        "tried_candidates": candidates,
+        "found_schema": found,
+        "finding_problems": problems,
+    })
+}
+
+#[test]
+fn every_schema_resolution_case_finds_as_expected() {
+    let mismatches = mismatches_of("schema-resolution", "case.json", schema_resolution_reading);
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }

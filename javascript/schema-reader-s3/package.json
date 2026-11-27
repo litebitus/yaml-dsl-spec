@@ -1,0 +1,26 @@
+{
+  "name": "yaml-dsl-spec-schema-reader-s3",
+  "version": "0.4.1",
+  "description": "The YAML DSL standard's reader of schema URLs on S3, `s3://<bucket>/<key>`, read with the AWS SDK.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/litebitus/yaml-dsl-spec.git",
+    "directory": "javascript/schema-reader-s3"
+  },
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "lib/*.js"
+  ],
+  "scripts": {
+    "test": "node --test --test-timeout=5000 --test-force-exit --experimental-test-coverage --test-coverage-exclude=test/** --test-coverage-exclude=../** --test-coverage-lines=90 test/"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1178.0",
+    "@aws-sdk/credential-providers": "3.1178.0"
+  },
+  "peerDependencies": {
+    "yaml-dsl-spec": "0.4.1"
+  }
+}

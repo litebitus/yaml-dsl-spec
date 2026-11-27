@@ -11,7 +11,9 @@
   "main": "index.js",
   "files": [
     "index.js",
-    "lib/*.js",
+    "core/*.js",
+    "core/schema/*.js",
+    "core/schema/resolution/*.js",
     "schema-versions.js",
     "schemas/*-v*.schema.json"
   ],

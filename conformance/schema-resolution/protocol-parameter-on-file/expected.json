@@ -1,0 +1,24 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "{case}/mock.schema.json?mock=1",
+      "named_by": {
+        "modeline": {
+          "line": 1,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "mock-dsl.yml",
+      "line": 1,
+      "column": 33,
+      "message": "reading `mock.schema.json?mock=1` failed",
+      "label": "`mock` is not a parameter of a `file` URL"
+    }
+  ]
+}

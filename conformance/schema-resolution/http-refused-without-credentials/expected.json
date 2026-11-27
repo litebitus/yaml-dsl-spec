@@ -1,0 +1,25 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "{server}/private.schema.json",
+      "named_by": {
+        "modeline": {
+          "line": 1,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "mock-dsl.yml",
+      "line": 1,
+      "column": 33,
+      "message": "127.0.0.1 refused to read `{server}/private.schema.json`",
+      "label": "403",
+      "help": "add `yaml_dsl_machine_credentials=true` to read it with the machine's credentials"
+    }
+  ]
+}

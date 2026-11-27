@@ -1,0 +1,36 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "{case}/absent/mock.schema.json",
+      "named_by": {
+        "modeline": {
+          "line": 2,
+          "column": 33
+        }
+      }
+    },
+    {
+      "schema_location": "{case}/stack/.schema/*/mock.schema.json",
+      "named_by": {
+        "search_path": 0
+      }
+    },
+    {
+      "schema_location": "{case}/absent.schema.json",
+      "named_by": {
+        "search_path": 1
+      }
+    }
+  ],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "stack/mock-dsl.yml",
+      "line": 2,
+      "column": 1,
+      "message": "no schema found",
+      "help": "`../absent/mock.schema.json`: no file is there\n`.schema/*/mock.schema.json`: no file matches\n`{config_root}/absent.schema.json`: no file is there"
+    }
+  ]
+}

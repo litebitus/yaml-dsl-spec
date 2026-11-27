@@ -10,21 +10,25 @@
  * the newest minor of that major the package carries.
  */
 
-const schemaCatalog = require('./lib/schema-catalog');
-const { readDslDefinitions, readDefinitions } = require('./lib/definition-reader');
-const { Diagnostic } = require('./lib/diagnostic-report');
-const { Position } = require('./lib/source-position');
-const { Node, numberJson } = require('./lib/yaml-node');
-const { codeSpan } = require('./lib/problem-wording');
-const { formatLayout, parseLayout } = require('./lib/format-function');
-const functionTable = require('./lib/function-table');
-const dslDefinition = require('./lib/dsl-definition');
-const jsonPath = require('./lib/json-path');
-const resolved = require('./lib/resolved-value');
-const schemaValidation = require('./lib/schema-validation');
-const { SchemaCache } = require('./lib/schema-cache');
-const templateReader = require('./lib/template-reader');
-const yamlReader = require('./lib/yaml-reader');
+const schemaCatalog = require('./core/schema-catalog');
+const { readDslDefinitions, readDefinitions } = require('./core/definition-reader');
+const { Diagnostic } = require('./core/diagnostic-report');
+const { Position } = require('./core/source-position');
+const { Node, numberJson } = require('./core/yaml-node');
+const { codeSpan, jsonPointerSteps } = require('./core/problem-wording');
+const { formatLayout, parseLayout } = require('./core/format-function');
+const functionTable = require('./core/function-table');
+const dslDefinition = require('./core/dsl-definition');
+const jsonPath = require('./core/json-path');
+const resolved = require('./core/resolved-value');
+const schemaValidation = require('./core/schema/schema-validation');
+const { SchemaCache } = require('./core/schema/schema-cache');
+const { SchemaFolderStore } = require('./core/schema/schema-folder-store');
+const httpReading = require('./core/schema/resolution/http-reading');
+const { HostLogin, netrcLogin } = require('./core/schema/resolution/machine-credentials');
+const schemaUrlReading = require('./core/schema/resolution/schema-url-reading');
+const templateReader = require('./core/template-reader');
+const yamlReader = require('./core/yaml-reader');
 
 module.exports = {
   readDslDefinitions,
@@ -43,6 +47,7 @@ module.exports = {
   parseCallKey: functionTable.parseCallKey,
   closestName: schemaValidation.closestName,
   codeSpan,
+  jsonPointerSteps,
   formatLayout,
   parseLayout,
   yamlReader: { parseYaml: yamlReader.parseYaml },
@@ -66,8 +71,19 @@ module.exports = {
   },
   schemaValidation: {
     SchemaCache,
+    SchemaFolderStore,
     LoadedSchema: schemaValidation.LoadedSchema,
     ValidationRules: schemaValidation.ValidationRules,
     childValue: schemaValidation.childValue,
+  },
+  schemaResolution: {
+    HostLogin,
+    netrcLogin,
+    httpGet: httpReading.httpGet,
+    httpConditionalHeaders: httpReading.httpConditionalHeaders,
+    answerOf: schemaUrlReading.answerOf,
+    refusedAnswer: schemaUrlReading.refusedAnswer,
+    failedAnswer: schemaUrlReading.failedAnswer,
+    missingAnswer: schemaUrlReading.missingAnswer,
   },
 };

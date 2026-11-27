@@ -1,0 +1,20 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "{case}/mock.schema.json?yaml_dsl_max_age_days=1",
+      "named_by": {
+        "search_path": 0
+      }
+    }
+  ],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "mock-yaml-dsl.yml",
+      "line": 3,
+      "column": 9,
+      "message": "`yaml_dsl_max_age_days` is not a parameter of a `file` URL"
+    }
+  ]
+}

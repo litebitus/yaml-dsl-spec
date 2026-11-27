@@ -1,6 +1,6 @@
 # Package design
 
-Each language reads the standard through packages: the core, which every language implements alike, and packages beyond it.
+Each language reads the standard through packages: the core, which every language implements alike, and extra packages.
 
 ## The core
 
@@ -15,7 +15,7 @@ Each language reads the standard through packages: the core, which every languag
 9. Schema validation: a document validated against its schema.
 10. The format function: a layout's verbs written from its operands.
 11. The template reader: a template's actions masked, its conditionals and loops read, and its problems.
-12. Schema resolution: a document's schema found and read, each URL by the reader of its scheme.
+12. Schema resolution: a document's schema found and read, each URL by the reader of its prefix.
 
 - The core grows as readers need it.
 
@@ -133,12 +133,15 @@ Each entry is named in each language's own case. A version is a minor, such as `
 | a schema finding | `SchemaFinding { tried_candidates, found_schema, finding_problems }` | `{ triedCandidates, foundSchema, findingProblems }` | `SchemaFinding{TriedCandidates, FoundSchema, FindingProblems}` | each candidate tried, in order; the schema found, if one is; and the finding's problems, its warnings among them |
 | a candidate | `SchemaCandidate { schema_location, named_by }` | `{ schemaLocation, namedBy }` | `SchemaCandidate{SchemaLocation, NamedBy}` | a location as resolved, and what named it: the modeline at its position, the search path at its index, or the caller |
 | a found schema | `FoundSchema { schema_name, schema_text, schema_fragment, found_candidate }` | `{ schemaName, schemaText, schemaFragment, foundCandidate }` | `FoundSchema{SchemaName, SchemaText, SchemaFragment, FoundCandidate}` | the name the schema loads under, its text, the fragment its location names, if it names one, and the candidate it was read from |
-| a URL reader | `SchemaUrlReader` trait: `url_schemes()`, `reads_remote_sources()`, `read_schema_url(request)` | `{ urlSchemes, readsRemoteSources, readSchemaUrl(request) }`, its answer a promise | `SchemaURLReader` interface: `URLSchemes()`, `ReadsRemoteSources()`, `ReadSchemaURL(ctx, request)` | a protocol's reader: the schemes it reads, whether its sources are remote, and its answer to a request |
-| register a reader | `.with_url_reader(reader)` | `new SchemaCache({ urlReaders })` | `WithURLReader(reader)` | a cache reading the reader's schemes beside the core's |
+| a URL reader | `SchemaUrlReader` trait: `url_prefixes()`, `reads_remote_sources()`, `read_schema_url(request)` | `{ urlPrefixes, readsRemoteSources, readSchemaUrl(request) }`, its answer a promise | `SchemaURLReader` interface: `URLPrefixes()`, `ReadsRemoteSources()`, `ReadSchemaURL(ctx, request)` | a reader of URLs: the prefixes of the URLs it reads, such as `s3://`, whether its sources are remote, and its answer to a request |
+| register a reader | `.with_url_reader(reader)` | `new SchemaCache({ urlReaders })` | `WithURLReader(reader)` | a cache reading the URLs of the reader's prefixes beside the core's |
 | a request | `SchemaUrlRequest { fetch_url, machine_credentials, kept_copy_version, answer_deadline }` | `{ fetchUrl, machineCredentials, keptCopyVersion, signal }` | `SchemaURLRequest{FetchURL, MachineCredentials, KeptCopyVersion}`, its deadline `ctx`'s | the URL without the cache's parameters, whether to read it with the machine's credentials, the kept copy's version, if one is kept, and when the answer is due |
 | an answer | `SchemaUrlAnswer { read_outcome, read_refusals }` | `{ readOutcome, readRefusals }` | `SchemaURLAnswer{ReadOutcome, ReadRefusals}` | what the read came to, and each refusal the source gave in it |
 | an outcome | `SchemaUrlOutcome::TextSent { schema_text, copy_version }`, `CopyConfirmed`, `SourceMissing { missing_reason }`, `ReadRefused`, `ReadFailed { failure_reason }` | `{ outcomeKind, … }`, the kind `'textSent'`, `'copyConfirmed'`, `'sourceMissing'`, `'readRefused'` or `'readFailed'`, with the same fields | `SchemaURLOutcome{OutcomeKind, …}`, the kind `OutcomeTextSent`, `OutcomeCopyConfirmed`, `OutcomeSourceMissing`, `OutcomeReadRefused` or `OutcomeReadFailed`, with the same fields | the text with its version; the kept copy confirmed current; a source that is not there, and why; a read the source refused; or a read that failed, and why |
-| a refusal | `ReadRefusal { refused_by, credential_origin, refusal_reason, renewal_fix }` | `{ refusedBy, credentialOrigin, refusalReason, renewalFix }` | `ReadRefusal{RefusedBy, CredentialOrigin, RefusalReason, RenewalFix}` | who refused, such as `GitHub`; where the credential refused came from, such as `` `GH_TOKEN` ``, none for a read without credentials; what the source answered; and what renews the credential, if it has one |
+| an HTTP read | `http_get(url, headers, answer_deadline)` | `httpGet(url, headers, signal)`, a promise | `HTTPGet(ctx, url, headers)` | a server's answer to a GET, as an `HttpReply`: its status, the copy version its `ETag` and `Last-Modified` give, and, for a `200`, its text read as UTF-8; a redirect followed without the `Authorization` header; else why there is none |
+| the conditional headers | `http_conditional_headers(kept_copy_version)` | `httpConditionalHeaders(keptCopyVersion)` | `HTTPConditionalHeaders(keptCopyVersion)` | the headers asking a server whether a kept copy is current: `If-None-Match` with its `etag`, else `If-Modified-Since` with its `last_modified` |
+| a host's login | `netrc_login(host)` | `netrcLogin(host)` | `NetrcLogin(host)` | the login the machine's `.netrc` gives `host`, its `machine` entry else its `default` entry, as a `HostLogin`: where it came from, its name and password, what renews it, and the `Authorization` header it is sent as; none without one |
+| a refusal | `ReadRefusal { refused_by, credential_origin, refusal_reason, renewal_fix }` | `{ refusedBy, credentialOrigin, refusalReason, renewalFix }` | `ReadRefusal{RefusedBy, CredentialOrigin, RefusalReason, RenewalFix}` | who refused, such as `AWS`; where the credential refused came from, such as the `.netrc` entry for a host, none for a read without credentials; what the source answered; and what renews the credential, if it has one |
 
 - A copy version is the language's JSON value, as a format operand is.
 
@@ -254,7 +257,7 @@ A schema is loaded once per name and text: prepared, then built into the validat
 
 ## Schema resolution
 
-A document's schema is found, then read, through a schema cache: each location by the reader of its URL's scheme. The specification states where a document's schema is looked for and how a schema URL is read; this section states how the package divides that between the cache and its readers.
+A document's schema is found, then read, through a schema cache: each location by the reader of its URL's prefix. The specification states where a document's schema is looked for and how a schema URL is read; this section states how the package divides that between the cache and its readers.
 
 ### Locations
 
@@ -272,16 +275,19 @@ A location is a URL. A path stands for its `file` URL:
 
 ### Readers
 
-A reader reads the URLs of its schemes. A cache holds the core's readers and each reader its consumer registers, one reader per scheme.
+A reader reads the URLs of its prefixes. A cache holds the core's readers and each reader its consumer registers.
 
-| Scheme | Reader | Sources |
+| Prefix | Reader | Sources |
 |---|---|---|
-| `file` | the core's | on the machine |
-| `http`, `https` | the core's, a GitHub release link read as the specification states | remote |
-| `s3` | the S3 schema reader, a package beyond the core | remote |
+| `file://` | the core's | on the machine |
+| `http://`, `https://` | the core's, with the `.netrc` entry for the link's host | remote |
+| `s3://` | the S3 schema reader, an extra package | remote |
+| `https://github.com/`, `https://www.github.com/` | the GitHub schema reader, an extra package | remote |
 
+- A URL is read by the reader of the longest prefix it starts with, prefixes compared without regard to case.
+- The core's readers give a source that is not there as `no file is there`, `no file matches` for a `*` pattern, and `the server answered 404`.
 - A remote source's text is kept as a copy. A source on the machine is read each time.
-- A second reader registered for a scheme faults where the cache is made.
+- A second reader registered for a prefix faults where the cache is made.
 
 ### A read
 
@@ -341,21 +347,22 @@ A problem is placed where its location is written: a modeline's at the location 
 | a read that failed | `` reading `<location>` failed `` | the failure reason | |
 | a read refused | `` <refused by> refused to read `<location>` `` | each refusal, `<credential origin>: <reason>`, or its reason alone for a read without credentials, joined by `, ` | each renewal fix, once, joined by `; `; for a URL without `yaml_dsl_machine_credentials=true`, `` add `yaml_dsl_machine_credentials=true` to read it with the machine's credentials `` |
 | a parameter of the cache's that does not read | `` `yaml_dsl_mock` is not a parameter of a schema URL ``, `` `yaml_dsl_max_age_days` must be a whole number of days ``, `` `yaml_dsl_machine_credentials` must be `true` or `false` `` | | |
-| a scheme without a reader | `` `gs` is a scheme no reader reads `` | | |
+| a URL no reader reads | `` no reader reads `<location>` `` | | |
 
 | Warning | Message | Label | Help |
 |---|---|---|---|
 | a kept copy given for a read refused | `` <refused by> refused to read `<location>`, so its kept copy was read `` | as a read refused | as a read refused |
 | a refusal before a credential was let in | `` <refused by> refused <credential origin> `` | its reason | its renewal fix |
 
-## Beyond the core
+## Extra packages
 
-A package beyond the core is built in the languages its readers use, and carries the core's version.
+An extra package is built in the languages its readers use, and carries the core's version.
 
 | Package | Rust | JavaScript | Go |
 |---|---|---|---|
 | the diagnostic renderer | `yaml-dsl-spec-diagnostic-renderer` | | `github.com/litebitus/yaml-dsl-spec/go/diagnostic_renderer` |
-| the S3 schema reader | `yaml-dsl-spec-s3-schema-reader` | `yaml-dsl-spec-s3-schema-reader` | `github.com/litebitus/yaml-dsl-spec/go/s3_schema_reader` |
+| the S3 schema reader | `yaml-dsl-spec-schema-reader-s3` | `yaml-dsl-spec-schema-reader-s3` | `github.com/litebitus/yaml-dsl-spec/go/schema_reader_s3` |
+| the GitHub schema reader | `yaml-dsl-spec-schema-reader-github` | `yaml-dsl-spec-schema-reader-github` | `github.com/litebitus/yaml-dsl-spec/go/schema_reader_github` |
 
 ### Diagnostic renderer
 
@@ -451,7 +458,7 @@ The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
 
 | Entry | Rust | JavaScript | Go | Gives |
 |---|---|---|---|---|
-| the reader | `S3SchemaReader::new(role_session_name)` | `new S3SchemaReader(roleSessionName)` | `NewS3SchemaReader(roleSessionName)` | a URL reader of the `s3` scheme, a role assumed under `role_session_name`, the consumer's name for itself |
+| the reader | `S3SchemaReader::new(role_session_name)` | `new S3SchemaReader(roleSessionName)` | `NewS3SchemaReader(roleSessionName)` | a URL reader of `s3://` URLs, a role assumed under `role_session_name`, the consumer's name for itself |
 
 - Without the machine's credentials, an object is read by an unsigned request.
 - The machine's credentials are the SDK's default chain: the AWS environment variables, the profile `AWS_PROFILE` names with its SSO login, a container's or an instance's role.
@@ -463,7 +470,7 @@ The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
 |---|---|---|
 | the object | `TextSent` | |
 | the kept `ETag` still current | `CopyConfirmed` | |
-| a key or a bucket that is not there | `SourceMissing` | |
+| a key or a bucket that is not there | `SourceMissing`, `` no key `<key>` in bucket `<bucket>` `` or `` no bucket `<bucket>` `` | |
 | credentials expired, absent or not valid | `ReadRefused` | `` run `aws sso login`, or set `AWS_PROFILE` to a profile that reads it `` |
 | access denied, read as a role | `ReadRefused` | `` allow <role> `s3:GetObject` on it `` |
 | access denied, read as the machine | `ReadRefused` | `` use a profile allowed `s3:GetObject` on it, such as `AWS_PROFILE=<profile>` `` |
@@ -472,9 +479,38 @@ The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
 
 - A refusal is refused by `AWS`, its reason the error's code and the identity it names, such as `AccessDenied for arn:aws:iam::<account>:user/<name>`.
 
+### GitHub schema reader
+
+The URL reader of GitHub links, `https://github.com/` and `https://www.github.com/`.
+
+| Entry | Rust | JavaScript | Go | Gives |
+|---|---|---|---|---|
+| the reader | `GithubSchemaReader::new()` | `new GithubSchemaReader()` | `NewGithubSchemaReader()` | a URL reader of GitHub links |
+
+- Without the machine's credentials, a link is read as written.
+- With them, a release asset link, `<owner>/<repo>/releases/download/<tag>/<asset>` or `<owner>/<repo>/releases/latest/download/<asset>`, is read through GitHub's API with each token in turn: `GH_TOKEN`, `GITHUB_TOKEN`, the `gh` command's login (`gh auth token`), then the `.netrc` entry for `api.github.com`. A token the machine lacks is skipped: a variable that is not set, `gh` not installed or not logged in, a `.netrc` without the entry.
+- The release comes from the link's path, the tag or the latest; the asset is read by its name, following GitHub's redirect without the token.
+- Any other GitHub link is read as written, the machine's credentials never sent.
+- A copy version is the answer's `ETag` and `Last-Modified`, and a read asks with them whether the kept copy is current.
+
+| GitHub answers | Outcome | Renewal fix |
+|---|---|---|
+| the link or the asset | `TextSent` | |
+| the kept copy still current | `CopyConfirmed` | |
+| 401, 403, or 404, which GitHub gives for a private repository, to a read without credentials | `ReadRefused` | |
+| a release the repository lacks | `SourceMissing`, `` `<owner>/<repo>` has no release `<tag>` `` | |
+| an asset the release lacks | `SourceMissing`, `` release `<tag>` of `<owner>/<repo>` has no asset `<asset>` `` | |
+| 401 or 403 to a token | the next token tried, the refusal listed | `` replace `GH_TOKEN` ``, `` replace `GITHUB_TOKEN` ``, `` run `gh auth login` ``, or `` update the `.netrc` entry for api.github.com ``, by the token |
+| every token refused | `ReadRefused` | |
+| no token set | `ReadRefused` | `` set `GH_TOKEN`, run `gh auth login`, or add a `.netrc` entry for api.github.com `` |
+| a repository no token can see | `ReadFailed`, `` no credential can see `<owner>/<repo>` `` | |
+| anything else | `ReadFailed` | |
+
+- A refusal is refused by `GitHub`.
+
 ## TODO
 
-- Schema resolution is built as "Schema resolution" and "S3 schema reader" state, in all three languages, and the specification's "Finding the schema" and "Schema URLs" state its rules. [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator) and the [YAML DSL editor](https://github.com/litebitus/vscode-yaml-dsl-editor) find and read schemas through it in place of their own code, and a consumer reading a problem's subject, such as [zerox](https://github.com/litebitus/zerox) finding the input a problem is about, reads its steps through `json_pointer_steps` in place of its own unescaping.
+- Schema resolution is built as "Schema resolution", "S3 schema reader" and "GitHub schema reader" state, in all three languages, and the specification's "Finding the schema" and "Schema URLs" state its rules. [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator) and the [YAML DSL editor](https://github.com/litebitus/vscode-yaml-dsl-editor) find and read schemas through it in place of their own code, and a consumer reading a problem's subject, such as [zerox](https://github.com/litebitus/zerox) finding the input a problem is about, reads its steps through `json_pointer_steps` in place of its own unescaping.
 - Deprecation warnings join the core as an opt-in: a deprecated field or value a document uses is reported as a warning.
 - Message bundles, a separate pass and release. Every message the packages write comes from a bundle, one per language, shared by all three languages:
   - A bundle is `messages/<tag>.json`, the tag a BCP 47 language tag such as `en` or `zh-Hant-TW`. Each package's build copies the bundles in, as it copies the schemas.

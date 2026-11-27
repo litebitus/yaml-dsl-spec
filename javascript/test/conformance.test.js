@@ -2,14 +2,15 @@
 
 const assert = require('node:assert');
 const fs = require('node:fs');
+const http = require('node:http');
 const path = require('node:path');
 const test = require('node:test');
 
 const {
   formatLayout, parseLayout, readDslDefinitions, readDefinitions, yamlReader, schemaValidation, resolved, templateReader,
-  TemplateConditional,
+  TemplateConditional, Position,
 } = require('..');
-const { compilePattern, groupNamesOf } = require('../lib/pattern-dialect');
+const { compilePattern, groupNamesOf } = require('../core/pattern-dialect');
 
 const CONFORMANCE = path.join(__dirname, '..', '..', 'conformance');
 
@@ -30,13 +31,24 @@ function caseFolders(category, input) {
 function mismatchesOf(category, input, reading) {
   const folders = caseFolders(category, input);
   assert.ok(folders.length > 0, `no ${category} cases`);
-  return folders.flatMap((folder) => {
-    const actual = reading(folder);
-    const expected = readJson(path.join(folder, 'expected.json'));
-    return JSON.stringify(actual) === JSON.stringify(expected)
-      ? []
-      : [`${category}/${path.basename(folder)}: ${JSON.stringify(actual, null, 2)}`];
-  });
+  return folders.flatMap((folder) => mismatchOf(category, folder, reading(folder)));
+}
+
+/** Every case of a category whose `expected.json` states otherwise than what it reads to, read in turn. */
+async function asyncMismatchesOf(category, input, reading) {
+  const folders = caseFolders(category, input);
+  assert.ok(folders.length > 0, `no ${category} cases`);
+  const mismatches = [];
+  for (const folder of folders) mismatches.push(...mismatchOf(category, folder, await reading(folder)));
+  return mismatches;
+}
+
+/** The case's mismatch, none where `expected.json` states what it read to. */
+function mismatchOf(category, folder, actual) {
+  const expected = readJson(path.join(folder, 'expected.json'));
+  return JSON.stringify(actual) === JSON.stringify(expected)
+    ? []
+    : [`${category}/${path.basename(folder)}: ${JSON.stringify(actual, null, 2)}`];
 }
 
 function problemJson(problem) {
@@ -254,6 +266,86 @@ test('every yaml case reads as expected', () => {
 
 test('every schema case validates as expected', () => {
   const mismatches = mismatchesOf('schema', 'schema.json', schemaReading);
+  assert.deepStrictEqual(mismatches, []);
+});
+
+/** A server answering each path a case serves with its status and body, and 404 to any other. */
+async function startedServer(servedPaths) {
+  const server = http.createServer((request, response) => {
+    const [requestPath] = request.url.split('?');
+    const served = Object.hasOwn(servedPaths, requestPath) ? servedPaths[requestPath] : { status: 404 };
+    response.writeHead(served.status);
+    response.end(served.body || '');
+  });
+  await new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  return server;
+}
+
+async function schemaResolutionReading(caseFolder) {
+  const folder = fs.realpathSync(caseFolder);
+  const caseSpec = readJson(path.join(folder, 'case.json'));
+  const server = caseSpec.served ? await startedServer(caseSpec.served) : null;
+  try {
+    const caseUrl = `file://${folder}`;
+    const serverAddress = server === null ? '' : `http://127.0.0.1:${server.address().port}`;
+    const filled = (text) => text.replaceAll('{case}', caseUrl).replaceAll('{server}', serverAddress);
+    const unfilled = (text) => {
+      const caseUnfilled = text.replaceAll(caseUrl, '{case}');
+      return serverAddress === '' ? caseUnfilled : caseUnfilled.replaceAll(serverAddress, '{server}');
+    };
+    const searchPaths = (caseSpec.search_paths || []).map((entry) => ({
+      pathText: filled(entry.path_text),
+      writtenAt: entry.line === undefined ? null : new Position('mock-yaml-dsl.yml', entry.line, entry.column),
+    }));
+    const document = path.join(folder, caseSpec.document);
+    const text = filled(fs.readFileSync(document, 'utf8'));
+    const configRoot = path.join(folder, caseSpec.config_root);
+    const finding = await new schemaValidation.SchemaCache().documentSchema(document, text, searchPaths, configRoot);
+    return findingJson(finding, folder, unfilled);
+  } finally {
+    if (server !== null) {
+      server.closeAllConnections();
+      server.close();
+    }
+  }
+}
+
+function findingJson(finding, folder, unfilled) {
+  const casePrefix = `${folder}/`;
+  const candidates = finding.triedCandidates.map((candidate) => {
+    const { namedBy } = candidate;
+    let namedByJson = 'caller';
+    if (namedBy.namerKind === 'modeline') {
+      namedByJson = { modeline: { line: namedBy.position.line, column: namedBy.position.column } };
+    } else if (namedBy.namerKind === 'searchPath') {
+      namedByJson = { search_path: namedBy.index };
+    }
+    return { schema_location: unfilled(candidate.schemaLocation), named_by: namedByJson };
+  });
+  const found = finding.foundSchema === null ? null : {
+    schema_name: unfilled(finding.foundSchema.schemaName),
+    schema_text: finding.foundSchema.schemaText.trimEnd(),
+    schema_fragment: finding.foundSchema.schemaFragment,
+    found_candidate: finding.triedCandidates.indexOf(finding.foundSchema.foundCandidate),
+  };
+  const problems = finding.findingProblems.map((problem) => {
+    const fields = { severity: problem.severity };
+    if (problem.position) {
+      const file = String(problem.position.file);
+      fields.file = file.startsWith(casePrefix) ? file.slice(casePrefix.length) : file;
+    }
+    for (const [name, value] of Object.entries(problemJson(problem))) {
+      fields[name] = typeof value === 'string' ? unfilled(value) : value;
+    }
+    return fields;
+  });
+  return { tried_candidates: candidates, found_schema: found, finding_problems: problems };
+}
+
+test('every schema resolution case finds as expected', async () => {
+  const mismatches = await asyncMismatchesOf('schema-resolution', 'case.json', schemaResolutionReading);
   assert.deepStrictEqual(mismatches, []);
 });
 

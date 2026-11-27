@@ -3,7 +3,7 @@
 const assert = require('node:assert');
 const test = require('node:test');
 
-const { SchemaCache, storeKey } = require('../lib/schema-cache');
+const { SchemaCache, storeKey } = require('../core/schema/schema-cache');
 
 const SCHEMA = '{"type": "object", "properties": {"name": {"type": "string"}}}';
 const OTHER_SCHEMA = '{"type": "object", "required": ["name"]}';

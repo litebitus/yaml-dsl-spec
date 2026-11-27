@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const test = require('node:test');
 
 const { schemaValidation, resolved, Position, closestName } = require('..');
-const resolvedValue = require('../lib/resolved-value');
+const resolvedValue = require('../core/resolved-value');
 
 const { LoadedSchema, ValidationRules } = schemaValidation;
 const { Value, call, loop } = resolved;

@@ -1,0 +1,20 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "{server}/mock.schema.json?mock=1",
+      "named_by": {
+        "modeline": {
+          "line": 1,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "found_schema": {
+    "schema_name": "{server}/mock.schema.json?mock=1",
+    "schema_text": "{\"type\": \"object\"}",
+    "schema_fragment": "/properties/queue",
+    "found_candidate": 0
+  },
+  "finding_problems": []
+}

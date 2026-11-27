@@ -103,9 +103,12 @@ jobs:
           cp schemas/*.schema.json rust/schemas/
           cargo publish --workspace --manifest-path rust/Cargo.toml --dry-run --allow-dirty
 
-      - name: Check the package before changing anything
-        working-directory: javascript
-        run: npm pack --dry-run
+      - name: Check the packages before changing anything
+        run: |
+          set -euo pipefail
+          for package in javascript javascript/schema-reader-github javascript/schema-reader-s3; do
+            npm pack --dry-run "./$package"
+          done
 
       - name: Stamp the changelog and every package's version, tag and push
         if: ${{ !inputs.dry_run }}
@@ -121,9 +124,20 @@ jobs:
           cargo update --workspace --manifest-path rust/Cargo.toml
           jq --arg version "${NEXT#v}" '.version = $version' javascript/package.json > "$RUNNER_TEMP/package.json"
           mv "$RUNNER_TEMP/package.json" javascript/package.json
+          for package in javascript/schema-reader-github javascript/schema-reader-s3; do
+            jq --arg version "${NEXT#v}" '.version = $version | .peerDependencies["yaml-dsl-spec"] = $version' \
+              "$package/package.json" > "$RUNNER_TEMP/package.json"
+            mv "$RUNNER_TEMP/package.json" "$package/package.json"
+            jq --arg version "${NEXT#v}" \
+              '.version = $version | .packages[""].version = $version | .packages[""].peerDependencies["yaml-dsl-spec"] = $version' \
+              "$package/package-lock.json" > "$RUNNER_TEMP/package-lock.json"
+            mv "$RUNNER_TEMP/package-lock.json" "$package/package-lock.json"
+          done
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md schemas/CHANGELOG.md rust/Cargo.toml rust/Cargo.lock javascript/package.json
+          git add CHANGELOG.md schemas/CHANGELOG.md rust/Cargo.toml rust/Cargo.lock javascript/package.json \
+            javascript/schema-reader-github/package.json javascript/schema-reader-github/package-lock.json \
+            javascript/schema-reader-s3/package.json javascript/schema-reader-s3/package-lock.json
           git commit -m "docs(changelog): ${NEXT}"
           git tag -a "$NEXT" -m "Release $NEXT"
           go -C go generate ./...
@@ -138,10 +152,13 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --workspace --manifest-path rust/Cargo.toml --allow-dirty
 
-      - name: Publish the JS package
+      - name: Publish the JS packages
         if: ${{ !inputs.dry_run }}
-        working-directory: javascript
-        run: npm publish
+        run: |
+          set -euo pipefail
+          for package in javascript javascript/schema-reader-github javascript/schema-reader-s3; do
+            npm publish "./$package"
+          done
 
       - name: Publish the GitHub release
         if: ${{ !inputs.dry_run }}
@@ -160,7 +177,7 @@ jobs:
         run: |
           set -euo pipefail
           commit="$(git rev-parse --short=7 "${NEXT}^{commit}")"
-          echo "Published \`yaml-dsl-spec\` \`${NEXT#v}\` to crates.io and npm and tagged the Go module \`go/${NEXT}\`, from commit \`${commit}\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "Published \`yaml-dsl-spec\` and its extra packages \`${NEXT#v}\` to crates.io and npm and tagged the Go module \`go/${NEXT}\`, from commit \`${commit}\`." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Dry run summary
         if: ${{ inputs.dry_run }}

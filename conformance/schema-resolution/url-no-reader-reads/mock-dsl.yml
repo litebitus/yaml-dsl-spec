@@ -1,0 +1,2 @@
+# yaml-language-server: $schema=gs://mock-bucket/mock.schema.json
+name: mock

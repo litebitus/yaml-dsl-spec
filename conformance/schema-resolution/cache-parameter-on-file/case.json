@@ -1,0 +1,5 @@
+{
+  "document": "mock-dsl.yml",
+  "config_root": ".",
+  "search_paths": [{ "path_text": "mock.schema.json?yaml_dsl_max_age_days=1", "line": 3, "column": 9 }]
+}

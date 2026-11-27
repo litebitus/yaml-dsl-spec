@@ -1,0 +1,23 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "gs://mock-bucket/mock.schema.json",
+      "named_by": {
+        "modeline": {
+          "line": 1,
+          "column": 33
+        }
+      }
+    }
+  ],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "mock-dsl.yml",
+      "line": 1,
+      "column": 33,
+      "message": "no reader reads `gs://mock-bucket/mock.schema.json`"
+    }
+  ]
+}

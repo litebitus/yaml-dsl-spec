@@ -1,0 +1,5 @@
+{
+  "document": "mock-dsl.yml",
+  "config_root": ".",
+  "served": { "/mock.schema.json": { "status": 200, "body": "{\"type\": \"object\"}" } }
+}

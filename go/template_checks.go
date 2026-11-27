@@ -1,6 +1,10 @@
 package yamldslspec
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/litebitus/yaml-dsl-spec/go/core"
+)
 
 type templateChecks struct {
 	blockChecks
@@ -12,7 +16,9 @@ func (templateCheck *templateChecks) allProblems(earlierTemplates []Node) []Diag
 	templateCheck.checkRepeatedID(earlierTemplates)
 	templateCheck.checkTemplatedDSL()
 	if startNode, isFound := nodeAt(templateCheck.templateBlock, "loop", "start"); isFound {
-		templateCheck.checkPattern(startNode, []expectedGroup{{groupName: loopVariablesGroup, heldMeaning: "the loop variables a loop binds"}})
+		templateCheck.checkPattern(startNode, []expectedGroup{
+			{groupName: core.LoopVariablesGroup, heldMeaning: "the loop variables a loop binds"},
+		})
 	}
 	if variableNode, isFound := nodeAt(templateCheck.templateBlock, "loop", "variable"); isFound {
 		templateCheck.checkPattern(variableNode, nil)

@@ -1,0 +1,17 @@
+{
+  "tried_candidates": [
+    {
+      "schema_location": "{case}/stack/.schema/key-a/mock.schema.json",
+      "named_by": {
+        "search_path": 0
+      }
+    }
+  ],
+  "found_schema": {
+    "schema_name": "mock.schema.json",
+    "schema_text": "{\"title\": \"first\"}",
+    "schema_fragment": null,
+    "found_candidate": 0
+  },
+  "finding_problems": []
+}

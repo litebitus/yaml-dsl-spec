@@ -1,0 +1,13 @@
+{
+  "tried_candidates": [],
+  "found_schema": null,
+  "finding_problems": [
+    {
+      "severity": "error",
+      "file": "mock-dsl.yml",
+      "line": 1,
+      "column": 1,
+      "message": "no schema found"
+    }
+  ]
+}

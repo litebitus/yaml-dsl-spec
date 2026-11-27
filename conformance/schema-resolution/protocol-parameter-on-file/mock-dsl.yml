@@ -1,0 +1,2 @@
+# yaml-language-server: $schema=mock.schema.json?mock=1
+name: mock
