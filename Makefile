@@ -1,20 +1,16 @@
 RUST = --manifest-path rust/Cargo.toml
 COVERAGE_FLOOR = 90
 JAVASCRIPT_EXTRA_PACKAGES = javascript/schema-reader-github javascript/schema-reader-s3
-MOTO_SOURCE_IMAGE = docker.io/motoserver/moto:5.2.6
 MOTO_IMAGE = ghcr.io/litebitus/motoserver/moto:5.2.6
 MOTO_CREDENTIALS = AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
 
-.PHONY: build mirrored-images test test-go test-javascript test-rust
+.PHONY: build test test-go test-javascript test-rust
 
 build: test
 	cargo build $(RUST) --workspace --release
 	npm --prefix javascript run build
 	go -C go generate ./...
 	go -C go build ./...
-
-mirrored-images:
-	@echo "$(MOTO_SOURCE_IMAGE) $(MOTO_IMAGE)"
 
 test:
 	@container="$$(docker run -d --rm -p 127.0.0.1::5000 $(MOTO_IMAGE))" || exit 1; \

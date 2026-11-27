@@ -20,14 +20,7 @@ permissions:
   contents: read
 
 jobs:
-  mirror-images:
-    uses: ./.github/workflows/mirror-images.yml
-    permissions:
-      contents: read
-      packages: write
-
   test:
-    needs: mirror-images
     runs-on: ubuntu-26.04
     timeout-minutes: 15
     steps:
