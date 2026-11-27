@@ -2926,7 +2926,7 @@ checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
 
 [[package]]
 name = "yaml-dsl-spec"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "fancy-regex 0.20.0",
  "jsonschema",
@@ -2940,7 +2940,7 @@ dependencies = [
 
 [[package]]
 name = "yaml-dsl-spec-diagnostic-renderer"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "serde_json",
  "unicode-linebreak",
@@ -2950,7 +2950,7 @@ dependencies = [
 
 [[package]]
 name = "yaml-dsl-spec-schema-reader-github"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "serde_json",
  "tiny_http",
@@ -2959,7 +2959,7 @@ dependencies = [
 
 [[package]]
 name = "yaml-dsl-spec-schema-reader-s3"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",

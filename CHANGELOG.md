@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.5.0 — 2026-11-27
+
 - Documentation
   - A schema is named by a path, its steps separated by `/` on every operating system, or by a `file`, `http`, `https` or `s3` URL; a missing schema moves the search on to the next.
   - A schema URL's parameters other than the `yaml_dsl_` ones are its protocol's, and a reader may read a host's links its host's own way.

@@ -1,6 +1,6 @@
 {
   "name": "yaml-dsl-spec-schema-reader-s3",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "The YAML DSL standard's reader of schema URLs on S3, `s3://<bucket>/<key>`, read with the AWS SDK.",
   "license": "MIT",
   "repository": {
@@ -21,6 +21,6 @@
     "@aws-sdk/credential-providers": "3.1178.0"
   },
   "peerDependencies": {
-    "yaml-dsl-spec": "0.4.1"
+    "yaml-dsl-spec": "0.5.0"
   }
 }
