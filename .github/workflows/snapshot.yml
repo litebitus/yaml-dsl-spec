@@ -8,8 +8,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  mirror-images:
+    uses: ./.github/workflows/mirror-images.yml
+    permissions:
+      contents: read
+      packages: write
+
   pre-release:
-    runs-on: ubuntu-24.04
+    needs: mirror-images
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: write

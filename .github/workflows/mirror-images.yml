@@ -1,0 +1,40 @@
+name: Mirror images
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Log in to the GitHub Container Registry
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Mirror each image the tests run
+        env:
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          make -s mirrored-images > "$RUNNER_TEMP/mirrored-images"
+          while read -r source mirror; do
+            if docker buildx imagetools inspect "$mirror" >/dev/null 2>&1; then
+              echo "$mirror is mirrored already"
+              continue
+            fi
+            docker buildx imagetools create \
+              --annotation "index:org.opencontainers.image.source=${REPOSITORY_URL}" \
+              --tag "$mirror" \
+              "$source"
+            echo "mirrored $source to $mirror"
+          done < "$RUNNER_TEMP/mirrored-images"
