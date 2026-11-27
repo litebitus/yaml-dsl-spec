@@ -513,7 +513,6 @@ The URL reader of GitHub links, `https://github.com/` and `https://www.github.co
 
 ## TODO
 
-- Schema resolution is built as "Schema resolution", "S3 schema reader" and "GitHub schema reader" state, in all three languages, and the specification's "Finding the schema" and "Schema URLs" state its rules. [tfgen](https://github.com/litebitus/yaml-dsl-terraform-generator) and the [YAML DSL editor](https://github.com/litebitus/vscode-yaml-dsl-editor) find and read schemas through it in place of their own code, and a consumer reading a problem's subject, such as [zerox](https://github.com/litebitus/zerox) finding the input a problem is about, reads its steps through `json_pointer_steps` in place of its own unescaping.
 - Deprecation warnings join the core as an opt-in: a deprecated field or value a document uses is reported as a warning.
 - Message bundles, a separate pass and release. Every message the packages write comes from a bundle, one per language, shared by all three languages:
   - A bundle is `messages/<tag>.json`, the tag a BCP 47 language tag such as `en` or `zh-Hant-TW`. Each package's build copies the bundles in, as it copies the schemas.
