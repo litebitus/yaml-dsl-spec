@@ -465,6 +465,7 @@ The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
 - The machine's credentials are the SDK's default chain: the AWS environment variables, the profile `AWS_PROFILE` names with its SSO login, a container's or an instance's role.
 - `assume_role=<role ARN>`, the one parameter the protocol takes, reads the object as that role, assumed with the machine's credentials. A role's credentials are kept, and renewed as they expire.
 - An object is read in its bucket's own region, whatever region the machine is set to.
+- Where the machine's AWS configuration names an endpoint, such as `AWS_ENDPOINT_URL`, an object is read by its path, `<endpoint>/<bucket>/<key>`, as an S3-compatible server serves it.
 - A copy version is the object's `ETag`, and a read asks with it whether the kept copy is current.
 
 | S3 answers | Outcome | Renewal fix |

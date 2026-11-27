@@ -2,7 +2,9 @@ package schema_reader_s3
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -35,7 +37,29 @@ func motoEndpoint(testingContext *testing.T) string {
 }
 
 func motoReader(testingContext *testing.T) *S3SchemaReader {
-	return newEndpointReader("mock-session", motoEndpoint(testingContext))
+	motoEndpoint(testingContext)
+	return NewS3SchemaReader("mock-session")
+}
+
+// motoRecorderCall is a call of the Moto server's request recorder, such as `start-recording`, and its answer.
+func motoRecorderCall(testingContext *testing.T, httpMethod, recorderAction string) string {
+	recorderContext, cancelRecorder := context.WithTimeout(context.Background(), time.Second)
+	defer cancelRecorder()
+	recorderRequest, requestError := http.NewRequestWithContext(recorderContext, httpMethod,
+		motoEndpoint(testingContext)+"/moto-api/recorder/"+recorderAction, nil)
+	if requestError != nil {
+		testingContext.Fatal(requestError)
+	}
+	recorderResponse, responseError := http.DefaultClient.Do(recorderRequest)
+	if responseError != nil {
+		testingContext.Fatal(responseError)
+	}
+	defer recorderResponse.Body.Close()
+	recorderAnswer, readError := io.ReadAll(recorderResponse.Body)
+	if readError != nil || recorderResponse.StatusCode != http.StatusOK {
+		testingContext.Fatalf("%s answered %d: %v", recorderAction, recorderResponse.StatusCode, readError)
+	}
+	return string(recorderAnswer)
 }
 
 // seedBucket creates bucketName holding seededObjects in the Moto server, anyone allowed to read the objects
@@ -121,6 +145,37 @@ func TestAnObjectIsSentWithItsETagAndACurrentCopyIsConfirmed(testingContext *tes
 			testingContext.Fatalf("confirmed %+v", confirmedAnswer)
 		}
 	}
+}
+
+func TestAnObjectIsReadByItsPathWhereTheEnvironmentNamesTheEndpoint(testingContext *testing.T) {
+	hostEndpoint := strings.Replace(motoEndpoint(testingContext), "http://127.0.0.1:", "http://localhost:", 1)
+	testingContext.Setenv("AWS_ENDPOINT_URL", hostEndpoint)
+	seedBucket(testingContext, "mock-path-bucket", map[string]string{"mock.schema.json": mockSchemaText},
+		"mock.schema.json")
+	motoRecorderCall(testingContext, http.MethodPost, "reset-recording")
+	motoRecorderCall(testingContext, http.MethodPost, "start-recording")
+	testingContext.Cleanup(func() {
+		motoRecorderCall(testingContext, http.MethodPost, "stop-recording")
+		motoRecorderCall(testingContext, http.MethodPost, "reset-recording")
+	})
+	sentAnswer := readObject(testingContext, NewS3SchemaReader("mock-session"),
+		"s3://mock-path-bucket/mock.schema.json", false, nil)
+	if sentAnswer.ReadOutcome.OutcomeKind != yamldslspec.OutcomeTextSent {
+		testingContext.Fatalf("sent %+v", sentAnswer)
+	}
+	motoRecorderCall(testingContext, http.MethodPost, "stop-recording")
+	pathURL := hostEndpoint + "/mock-path-bucket/mock.schema.json"
+	recordedRequests := motoRecorderCall(testingContext, http.MethodGet, "download-recording")
+	for recordedLine := range strings.SplitSeq(recordedRequests, "\n") {
+		var recordedRequest struct {
+			RequestURL string `json:"url"`
+		}
+		if json.Unmarshal([]byte(recordedLine), &recordedRequest) == nil &&
+			strings.HasPrefix(recordedRequest.RequestURL, pathURL) {
+			return
+		}
+	}
+	testingContext.Fatalf("no request to %s in %s", pathURL, recordedRequests)
 }
 
 func TestAPrivateObjectReadWithoutCredentialsIsRefused(testingContext *testing.T) {

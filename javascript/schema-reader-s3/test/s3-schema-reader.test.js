@@ -10,7 +10,7 @@ const {
 
 const { S3SchemaReader } = require('..');
 const {
-  s3SchemaReaderAt, parsedS3Object, errorAnswer, redirectedRegion, credentialsAnswer, refusalReason,
+  parsedS3Object, errorAnswer, redirectedRegion, credentialsAnswer, refusalReason,
 } = require('../lib/s3-schema-reader');
 
 const MOCK_SCHEMA = '{"type": "object"}';
@@ -28,8 +28,10 @@ function motoEndpoint() {
   return endpoint;
 }
 
+/** The reader, reading from the Moto server the environment names. */
 function mockReader() {
-  return s3SchemaReaderAt('mock-session', motoEndpoint());
+  motoEndpoint();
+  return new S3SchemaReader('mock-session');
 }
 
 function seedingClient() {
@@ -50,7 +52,9 @@ function seededBucket(bucketName, objects, publicKeys = []) {
     await client.send(new CreateBucketCommand({ Bucket: bucketName }));
     for (const [objectKey, objectBody] of Object.entries(objects)) {
       const objectAcl = publicKeys.includes(objectKey) ? 'public-read' : undefined;
-      await client.send(new PutObjectCommand({ Bucket: bucketName, Key: objectKey, Body: objectBody, ACL: objectAcl }));
+      await client.send(new PutObjectCommand({
+        Bucket: bucketName, Key: objectKey, Body: objectBody, ACL: objectAcl,
+      }));
     }
   });
   test.afterEach(async () => {
@@ -103,6 +107,51 @@ test.describe('an object read as a role', () => {
     const url = `s3://mock-role-bucket/mock.schema.json?assume_role=${MOCK_ROLE}`;
     const sent = await mockReader().readSchemaUrl(mockRequest(url, true));
     assert.strictEqual(sent.readOutcome.outcomeKind, 'textSent', JSON.stringify(sent));
+  });
+});
+
+/** Posts `recorderAction` to the Moto server's request recorder. */
+async function motoRecorder(recorderAction) {
+  const answer = await fetch(`${motoEndpoint()}/moto-api/recorder/${recorderAction}`, { method: 'POST' });
+  assert.ok(answer.ok, `the Moto recorder answered ${recorderAction} with ${answer.status}`);
+}
+
+/** The addresses the Moto server recorded objects read at, `<origin><path>` each. */
+async function recordedReadAddresses() {
+  const answer = await fetch(`${motoEndpoint()}/moto-api/recorder/download-recording`);
+  const recordedLines = (await answer.text()).split('\n').filter((recordedLine) => recordedLine !== '');
+  return recordedLines
+    .map((recordedLine) => JSON.parse(recordedLine))
+    .filter((recordedRequest) => recordedRequest.method === 'GET')
+    .map((recordedRequest) => new URL(recordedRequest.url))
+    .map((readUrl) => `${readUrl.origin}${readUrl.pathname}`);
+}
+
+test.describe('an endpoint the environment names by host name', () => {
+  seededBucket('mock-path-bucket', { 'mock.schema.json': MOCK_SCHEMA }, ['mock.schema.json']);
+  let environmentEndpoint;
+  let hostNamedEndpoint;
+
+  test.beforeEach(async () => {
+    environmentEndpoint = process.env.AWS_ENDPOINT_URL;
+    const hostNamedUrl = new URL(motoEndpoint());
+    hostNamedUrl.hostname = 'localhost';
+    hostNamedEndpoint = hostNamedUrl.origin;
+    process.env.AWS_ENDPOINT_URL = hostNamedEndpoint;
+    await motoRecorder('reset-recording');
+    await motoRecorder('start-recording');
+  });
+  test.afterEach(async () => {
+    await motoRecorder('stop-recording');
+    await motoRecorder('reset-recording');
+    process.env.AWS_ENDPOINT_URL = environmentEndpoint;
+  });
+
+  test('an object is read by its path at the endpoint', async () => {
+    const url = 's3://mock-path-bucket/mock.schema.json';
+    const sent = await mockReader().readSchemaUrl(mockRequest(url, false));
+    assert.strictEqual(sent.readOutcome.outcomeKind, 'textSent', JSON.stringify(sent));
+    assert.deepStrictEqual(await recordedReadAddresses(), [`${hostNamedEndpoint}/mock-path-bucket/mock.schema.json`]);
   });
 });
 

@@ -46,9 +46,9 @@ class S3SchemaReader {
     this.urlPrefixes = [S3_PREFIX];
     this.readsRemoteSources = true;
     this.roleSessionName = roleSessionName;
-    this.endpointOverride = null;
     this.machineCredentials = null;
     this.machineRegion = undefined;
+    this.configuredEndpoint = undefined;
     this.identityClients = new Map();
     this.bucketRegions = new Map();
   }
@@ -109,27 +109,34 @@ class S3SchemaReader {
       ...(keptEtag === null ? {} : { IfNoneMatch: keptEtag }),
     });
     try {
-      return { objectOutput: await this.identityClient(identity, region).send(command, { abortSignal: answerSignal }) };
+      const client = await this.identityClient(identity, region);
+      return { objectOutput: await client.send(command, { abortSignal: answerSignal }) };
     } catch (error) {
       return { readError: error };
     }
   }
 
   /** The client a read as `identity` in `region` is made with, kept with its credentials until they are refused. */
-  identityClient(identity, region) {
+  async identityClient(identity, region) {
+    const pathStyle = await this.pathStyleAddressing();
     const clientKey = JSON.stringify([identity.identityKind, identity.assumedRole || null, region]);
     if (!this.identityClients.has(clientKey)) {
       const clientConfig = { region, credentials: this.credentialsOf(identity) };
       if (identity.identityKind === 'unsigned') {
         clientConfig.signer = { sign: async (unsignedRequest) => unsignedRequest };
       }
-      if (this.endpointOverride !== null) {
-        clientConfig.endpoint = this.endpointOverride;
-        clientConfig.forcePathStyle = true;
-      }
+      if (pathStyle) clientConfig.forcePathStyle = true;
       this.identityClients.set(clientKey, new S3Client(clientConfig));
     }
     return this.identityClients.get(clientKey);
+  }
+
+  /** Whether an object is read by its path: where the machine's AWS configuration names an endpoint. */
+  async pathStyleAddressing() {
+    if (this.configuredEndpoint === undefined) {
+      this.configuredEndpoint = (await new S3Client({}).config.serviceConfiguredEndpoint()) || null;
+    }
+    return this.configuredEndpoint !== null;
   }
 
   credentialsOf(identity) {
@@ -159,15 +166,9 @@ class S3SchemaReader {
   forgetCredentials() {
     this.machineCredentials = null;
     this.machineRegion = undefined;
+    this.configuredEndpoint = undefined;
     this.identityClients.clear();
   }
-}
-
-/** The reader reading from `endpoint`, its bucket in the path. */
-function s3SchemaReaderAt(roleSessionName, endpoint) {
-  const reader = new S3SchemaReader(roleSessionName);
-  reader.endpointOverride = endpoint;
-  return reader;
 }
 
 /** An `s3://<bucket>/<key>` URL: where its object is, and the role it is read as; else throws why it is none. */
@@ -287,7 +288,6 @@ function refusalReason(code, message) {
 
 module.exports = {
   S3SchemaReader,
-  s3SchemaReaderAt,
   parsedS3Object,
   errorAnswer,
   redirectedRegion,

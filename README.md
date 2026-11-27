@@ -159,7 +159,7 @@ version: "1.0"
 
 | Target | Does |
 |---|---|
-| `make test` | the crates' format check, clippy with warnings as errors and tests, then the package's tests, then the Go module's format check, vet and tests; each package's tests fail under 90% line coverage |
+| `make test` | the crates' format check, clippy with warnings as errors and tests, then the packages' tests, then the Go module's format check, vet and tests, the S3 ones against a Moto server in Docker; each package's tests fail under 90% line coverage |
 | `make build` | `make test`, then builds every package with the schemas of the checkout |
 
 The `Release` workflow is dispatched by hand: it stamps `CHANGELOG.md` and the version of every package, tags, the Go module as `go/<version>` on a commit of its own that carries the schemas, publishes the crates and the npm package, and attaches the schemas to a GitHub release. Every package carries the same version.

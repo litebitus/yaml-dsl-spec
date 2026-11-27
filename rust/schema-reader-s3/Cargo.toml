@@ -21,6 +21,7 @@ name = "yaml_dsl_spec_schema_reader_s3"
 [dependencies]
 aws-config = "1.13.4"
 aws-sdk-s3 = "1.162.0"
+aws-types = "1.7.0"
 serde_json = "1.0.154"
 tokio = { version = "1.54.1", features = ["rt-multi-thread"] }
 yaml-dsl-spec.workspace = true

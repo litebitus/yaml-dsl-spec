@@ -14,6 +14,7 @@ use aws_sdk_s3::Client;
 use aws_sdk_s3::config::SharedCredentialsProvider;
 use aws_sdk_s3::error::{DisplayErrorContext, ProvideErrorMetadata, SdkError};
 use aws_sdk_s3::operation::get_object::{GetObjectError, GetObjectOutput};
+use aws_types::service_config::ServiceConfigKey;
 use serde_json::{Value as JsonValue, json};
 use yaml_dsl_spec::code_span;
 use yaml_dsl_spec::schema::resolution::{
@@ -23,6 +24,9 @@ use yaml_dsl_spec::schema::resolution::{
 const S3_PREFIX: &str = "s3://";
 const ASSUME_ROLE_PARAMETER: &str = "assume_role";
 const DEFAULT_REGION: &str = "us-east-1";
+const S3_SERVICE_ID: &str = "S3";
+const ENDPOINT_VARIABLE: &str = "AWS_ENDPOINT_URL";
+const ENDPOINT_PROFILE_KEY: &str = "endpoint_url";
 const BUCKET_REGION_HEADER: &str = "x-amz-bucket-region";
 const AWS_REFUSER: &str = "AWS";
 const MACHINE_CREDENTIALS_ORIGIN: &str = "the machine's AWS credentials";
@@ -52,7 +56,6 @@ pub struct S3SchemaReader {
 /// role's credentials, read when first needed, and each bucket's region.
 struct ReaderState {
     role_session_name: String,
-    endpoint_override: Option<String>,
     machine_config: Mutex<Option<SdkConfig>>,
     role_credentials: Mutex<BTreeMap<String, SharedCredentialsProvider>>,
     bucket_regions: Mutex<BTreeMap<String, String>>,
@@ -82,10 +85,6 @@ impl S3SchemaReader {
     ///
     /// When the machine cannot start the reader's runtime's threads.
     pub fn new(role_session_name: &str) -> Self {
-        Self::with_endpoint(role_session_name, None)
-    }
-
-    fn with_endpoint(role_session_name: &str, endpoint_override: Option<String>) -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -95,7 +94,6 @@ impl S3SchemaReader {
             runtime,
             shared: Arc::new(ReaderState {
                 role_session_name: role_session_name.to_owned(),
-                endpoint_override,
                 machine_config: Mutex::default(),
                 role_credentials: Mutex::default(),
                 bucket_regions: Mutex::default(),
@@ -203,8 +201,8 @@ impl ReaderState {
                     .operation_timeout(remaining)
                     .build(),
             );
-        if let Some(endpoint) = &self.endpoint_override {
-            builder = builder.endpoint_url(endpoint).force_path_style(true);
+        if names_endpoint(config) {
+            builder = builder.force_path_style(true);
         }
         let mut call = Client::from_conf(builder.build())
             .get_object()
@@ -341,6 +339,20 @@ impl S3Object {
             assume_role,
         })
     }
+}
+
+/// Whether the machine's AWS configuration names an endpoint for S3: the one
+/// `AWS_ENDPOINT_URL_S3` or the profile's `s3` section names, else the one every
+/// service shares.
+fn names_endpoint(config: &SdkConfig) -> bool {
+    let s3_endpoint = ServiceConfigKey::builder()
+        .service_id(S3_SERVICE_ID)
+        .env(ENDPOINT_VARIABLE)
+        .profile(ENDPOINT_PROFILE_KEY)
+        .build()
+        .ok()
+        .and_then(|key| config.service_config()?.load_config(key));
+    s3_endpoint.is_some() || config.endpoint_url().is_some()
 }
 
 async fn sent_answer(output: GetObjectOutput) -> SchemaUrlAnswer {
@@ -504,8 +516,10 @@ mod tests {
         endpoint
     }
 
+    /// The reader as a consumer makes it, the Moto server named by the environment only.
     fn reader() -> S3SchemaReader {
-        S3SchemaReader::with_endpoint("mock-session", Some(moto_endpoint()))
+        moto_endpoint();
+        S3SchemaReader::new("mock-session")
     }
 
     /// An object a test seeds: its key, its text, and whether anyone may read it.
@@ -678,6 +692,16 @@ mod tests {
             failed.read_outcome,
             SchemaUrlOutcome::ReadFailed { .. }
         ));
+    }
+
+    #[test]
+    fn a_configuration_naming_an_endpoint_is_told_from_one_naming_none() {
+        let unnamed = SdkConfig::builder().build();
+        assert!(!names_endpoint(&unnamed));
+        let named = SdkConfig::builder()
+            .endpoint_url("http://localhost:4566")
+            .build();
+        assert!(names_endpoint(&named));
     }
 
     #[test]

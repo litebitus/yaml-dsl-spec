@@ -60,12 +60,11 @@ var (
 
 // S3SchemaReader is the URL reader of `s3://<bucket>/<key>`.
 type S3SchemaReader struct {
-	roleSessionName  string
-	endpointOverride string
-	stateLock        sync.Mutex
-	machineConfig    *aws.Config
-	roleCredentials  map[string]aws.CredentialsProvider
-	bucketRegions    map[string]string
+	roleSessionName string
+	stateLock       sync.Mutex
+	machineConfig   *aws.Config
+	roleCredentials map[string]aws.CredentialsProvider
+	bucketRegions   map[string]string
 }
 
 // s3Object is an `s3://<bucket>/<key>` URL: where its object is, and the role it is read as.
@@ -92,15 +91,10 @@ type readIdentity struct {
 // NewS3SchemaReader is a URL reader of `s3://` URLs, a role assumed under roleSessionName, the consumer's name for
 // itself.
 func NewS3SchemaReader(roleSessionName string) *S3SchemaReader {
-	return newEndpointReader(roleSessionName, "")
-}
-
-func newEndpointReader(roleSessionName, endpointOverride string) *S3SchemaReader {
 	return &S3SchemaReader{
-		roleSessionName:  roleSessionName,
-		endpointOverride: endpointOverride,
-		roleCredentials:  map[string]aws.CredentialsProvider{},
-		bucketRegions:    map[string]string{},
+		roleSessionName: roleSessionName,
+		roleCredentials: map[string]aws.CredentialsProvider{},
+		bucketRegions:   map[string]string{},
 	}
 }
 
@@ -179,8 +173,7 @@ func (reader *S3SchemaReader) getObject(
 ) (*s3.GetObjectOutput, error) {
 	s3Client := s3.NewFromConfig(readConfig, func(clientOptions *s3.Options) {
 		clientOptions.Region = bucketRegion
-		if reader.endpointOverride != "" {
-			clientOptions.BaseEndpoint = aws.String(reader.endpointOverride)
+		if clientOptions.BaseEndpoint != nil {
 			clientOptions.UsePathStyle = true
 		}
 	})
