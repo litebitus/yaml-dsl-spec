@@ -11,8 +11,8 @@ use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 
 use super::schema_locations::{
-    FILE_SCHEME, ResolvedLocation, file_url_of, file_url_path, first_matching_file, has_pattern,
-    modeline_of, resolve_location,
+    FILE_SCHEME, ResolvedLocation, document_modeline, file_url_of, file_url_path,
+    first_matching_file, has_pattern, resolve_location,
 };
 use super::schema_url_reading::{
     ReadRefusal, SchemaUrlAnswer, SchemaUrlOutcome, SchemaUrlReader, SchemaUrlRequest,
@@ -117,7 +117,7 @@ impl SchemaCache {
         let shown_file: Arc<str> = Arc::from(file.to_string_lossy().as_ref());
         let folder = absolute(file.parent().unwrap_or(Path::new("")));
         let config_root = absolute(config_root);
-        let modeline = modeline_of(text);
+        let modeline = document_modeline(text);
         let fallback_position = Position::new(
             &shown_file,
             modeline.as_ref().map_or(1, |modeline| modeline.line),

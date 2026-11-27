@@ -14,6 +14,7 @@ pub use machine_credentials::{HostLogin, netrc_login};
 pub use schema_finding::{
     CandidateNamer, FoundSchema, SchemaCandidate, SchemaFinding, SchemaSearchPath,
 };
+pub use schema_locations::{SchemaModeline, document_modeline};
 pub use schema_url_reading::{
     ReadRefusal, SchemaUrlAnswer, SchemaUrlOutcome, SchemaUrlReader, SchemaUrlRequest,
 };

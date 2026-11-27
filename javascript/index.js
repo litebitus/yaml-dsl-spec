@@ -26,6 +26,7 @@ const { SchemaCache } = require('./core/schema/schema-cache');
 const { SchemaFolderStore } = require('./core/schema/schema-folder-store');
 const httpReading = require('./core/schema/resolution/http-reading');
 const { HostLogin, netrcLogin } = require('./core/schema/resolution/machine-credentials');
+const schemaLocations = require('./core/schema/resolution/schema-locations');
 const schemaUrlReading = require('./core/schema/resolution/schema-url-reading');
 const templateReader = require('./core/template-reader');
 const yamlReader = require('./core/yaml-reader');
@@ -77,6 +78,7 @@ module.exports = {
     childValue: schemaValidation.childValue,
   },
   schemaResolution: {
+    documentModeline: schemaLocations.documentModeline,
     HostLogin,
     netrcLogin,
     httpGet: httpReading.httpGet,

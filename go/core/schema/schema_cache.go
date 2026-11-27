@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sync"
+
+	"github.com/litebitus/yaml-dsl-spec/go/core/schema/resolution"
 )
 
 const modulePath = "github.com/litebitus/yaml-dsl-spec/go"
@@ -35,7 +37,7 @@ func WithStore(schemaStore SchemaStore) SchemaCacheOption {
 
 // WithURLReader reads the URLs of urlReader's prefixes beside the core's; it panics where another reader reads one
 // of its prefixes.
-func WithURLReader(urlReader SchemaURLReader) SchemaCacheOption {
+func WithURLReader(urlReader resolution.SchemaURLReader) SchemaCacheOption {
 	return func(schemaCache *SchemaCache) {
 		for _, urlPrefix := range urlReader.URLPrefixes() {
 			for _, registeredReader := range schemaCache.urlReaders {
@@ -57,7 +59,7 @@ type SchemaCache struct {
 	askedTurn    uint64
 	heldCapacity int
 	schemaStore  SchemaStore
-	urlReaders   []SchemaURLReader
+	urlReaders   []resolution.SchemaURLReader
 	// fetchURLLocks hold one lock per URL a reader is asked for, so reads of one URL at once run in turn.
 	fetchURLLocks  map[string]*sync.Mutex
 	fetchLockGuard sync.Mutex
@@ -82,8 +84,10 @@ type schemaLoad struct {
 // NewSchemaCache is an empty schema cache, set by cacheOptions.
 func NewSchemaCache(cacheOptions ...SchemaCacheOption) *SchemaCache {
 	schemaCache := &SchemaCache{
-		heldSchemas:   map[schemaCacheKey]*heldSchema{},
-		urlReaders:    []SchemaURLReader{fileSchemaReader{}, newHTTPSchemaReader(&machineCredentials{})},
+		heldSchemas: map[schemaCacheKey]*heldSchema{},
+		urlReaders: []resolution.SchemaURLReader{
+			resolution.FileSchemaReader{}, resolution.NewHTTPSchemaReader(),
+		},
 		fetchURLLocks: map[string]*sync.Mutex{},
 	}
 	for _, cacheOption := range cacheOptions {
@@ -116,8 +120,8 @@ func (schemaCache *SchemaCache) Load(schemaName, schemaText string) (*LoadedSche
 }
 
 // urlReaderOf is the reader of the longest prefix locationURL starts with, if the cache has one.
-func (schemaCache *SchemaCache) urlReaderOf(locationURL string) (SchemaURLReader, bool) {
-	var longestReader SchemaURLReader
+func (schemaCache *SchemaCache) urlReaderOf(locationURL string) (resolution.SchemaURLReader, bool) {
+	var longestReader resolution.SchemaURLReader
 	longestLength := -1
 	for _, urlReader := range schemaCache.urlReaders {
 		for _, urlPrefix := range urlReader.URLPrefixes() {

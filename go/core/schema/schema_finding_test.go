@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/litebitus/yaml-dsl-spec/go/core"
+	"github.com/litebitus/yaml-dsl-spec/go/core/schema/resolution"
 )
 
 const (
@@ -21,21 +22,21 @@ const (
 // scriptedReader is a reader of `mock://` URLs answering what a test scripts: one answer for a read without
 // credentials and one for a read with them, each request kept.
 type scriptedReader struct {
-	answerWithout   SchemaURLAnswer
-	answerWith      SchemaURLAnswer
+	answerWithout   resolution.SchemaURLAnswer
+	answerWith      resolution.SchemaURLAnswer
 	requestLock     sync.Mutex
-	askedRequests   []SchemaURLRequest
+	askedRequests   []resolution.SchemaURLRequest
 	readCount       atomic.Int64
 	requestDeadline atomic.Bool
 }
 
-func answeringReader(answerWithout, answerWith SchemaURLAnswer) *scriptedReader {
+func answeringReader(answerWithout, answerWith resolution.SchemaURLAnswer) *scriptedReader {
 	return &scriptedReader{answerWithout: answerWithout, answerWith: answerWith}
 }
 
 func sendingReader(schemaText string) *scriptedReader {
-	sentAnswer := OutcomeAnswer(SchemaURLOutcome{
-		OutcomeKind: OutcomeTextSent,
+	sentAnswer := resolution.OutcomeAnswer(resolution.SchemaURLOutcome{
+		OutcomeKind: resolution.OutcomeTextSent,
 		SchemaText:  schemaText,
 		CopyVersion: map[string]any{"mock_version": 1},
 	})
@@ -50,7 +51,9 @@ func (*scriptedReader) ReadsRemoteSources() bool {
 	return true
 }
 
-func (reader *scriptedReader) ReadSchemaURL(readContext context.Context, urlRequest SchemaURLRequest) SchemaURLAnswer {
+func (reader *scriptedReader) ReadSchemaURL(
+	readContext context.Context, urlRequest resolution.SchemaURLRequest,
+) resolution.SchemaURLAnswer {
 	reader.readCount.Add(1)
 	_, hasDeadline := readContext.Deadline()
 	reader.requestDeadline.Store(hasDeadline)
@@ -76,8 +79,8 @@ func mockWrittenAt() *core.Position {
 	return &writtenAt
 }
 
-func mockRefusal(credentialOrigin, renewalFix *string) ReadRefusal {
-	return ReadRefusal{
+func mockRefusal(credentialOrigin, renewalFix *string) resolution.ReadRefusal {
+	return resolution.ReadRefusal{
 		RefusedBy:        "mock-host",
 		CredentialOrigin: credentialOrigin,
 		RefusalReason:    "403",
@@ -136,7 +139,8 @@ func TestARemoteTextIsKeptAsACopyWithItsVersionAndReadBackWithinItsMaxAge(testin
 }
 
 func TestACopyPastItsMaxAgeIsAskedAboutWithItsVersionAndAConfirmationKeepsIt(testingContext *testing.T) {
-	confirmedAnswer := OutcomeAnswer(SchemaURLOutcome{OutcomeKind: OutcomeCopyConfirmed})
+	confirmedAnswer := resolution.OutcomeAnswer(
+		resolution.SchemaURLOutcome{OutcomeKind: resolution.OutcomeCopyConfirmed})
 	reader, store := answeringReader(confirmedAnswer, confirmedAnswer), newMockStore()
 	keepMockCopy(testingContext, store, mockSchemaURL, 0)
 	schemaFinding := scriptedCache(reader, store).ReadSchema(context.Background(), mockSchemaURL, nil)
@@ -153,10 +157,10 @@ func TestACopyPastItsMaxAgeIsAskedAboutWithItsVersionAndAConfirmationKeepsIt(tes
 }
 
 func TestARefusedReadIsAskedAgainWithCredentialsOnlyWhereTheURLOptsIn(testingContext *testing.T) {
-	refusedAnswer := RefusedAnswer([]ReadRefusal{mockRefusal(nil, nil)})
-	sentAnswer := SchemaURLAnswer{
-		ReadOutcome: SchemaURLOutcome{OutcomeKind: OutcomeTextSent, SchemaText: "{}"},
-		ReadRefusals: []ReadRefusal{
+	refusedAnswer := resolution.RefusedAnswer([]resolution.ReadRefusal{mockRefusal(nil, nil)})
+	sentAnswer := resolution.SchemaURLAnswer{
+		ReadOutcome: resolution.SchemaURLOutcome{OutcomeKind: resolution.OutcomeTextSent, SchemaText: "{}"},
+		ReadRefusals: []resolution.ReadRefusal{
 			mockRefusal(new("`MOCK_TOKEN`"), new("replace `MOCK_TOKEN`")),
 		},
 	}
@@ -191,7 +195,7 @@ func TestARefusedReadIsAskedAgainWithCredentialsOnlyWhereTheURLOptsIn(testingCon
 }
 
 func TestEveryCredentialRefusedReadsTheKeptCopyWithAWarningElseEndsTheFinding(testingContext *testing.T) {
-	refusedAnswer := RefusedAnswer([]ReadRefusal{
+	refusedAnswer := resolution.RefusedAnswer([]resolution.ReadRefusal{
 		mockRefusal(new("`MOCK_TOKEN`"), new("replace `MOCK_TOKEN`")),
 		mockRefusal(new("`OTHER_TOKEN`"), new("replace `MOCK_TOKEN`")),
 	})
@@ -216,7 +220,7 @@ func TestEveryCredentialRefusedReadsTheKeptCopyWithAWarningElseEndsTheFinding(te
 }
 
 func TestAFailedReadGivesTheKeptCopyAndAMissingSourceNeverDoes(testingContext *testing.T) {
-	failedAnswer := FailedAnswer("mock failure")
+	failedAnswer := resolution.FailedAnswer("mock failure")
 	failingReader, store := answeringReader(failedAnswer, failedAnswer), newMockStore()
 	unkeptFinding := scriptedCache(failingReader, store).ReadSchema(context.Background(), mockSchemaURL, nil)
 	if unkeptFinding.FindingProblems[0].Message != "reading `"+mockSchemaURL+"` failed" ||
@@ -228,7 +232,7 @@ func TestAFailedReadGivesTheKeptCopyAndAMissingSourceNeverDoes(testingContext *t
 	if keptFinding.FoundSchema == nil || len(keptFinding.FindingProblems) != 0 {
 		testingContext.Fatalf("finding %+v", keptFinding)
 	}
-	missingAnswer := MissingAnswer("mock reason")
+	missingAnswer := resolution.MissingAnswer("mock reason")
 	absentReader := answeringReader(missingAnswer, missingAnswer)
 	missingFinding := scriptedCache(absentReader, store).ReadSchema(
 		context.Background(), mockSchemaURL, mockWrittenAt())
@@ -240,7 +244,8 @@ func TestAFailedReadGivesTheKeptCopyAndAMissingSourceNeverDoes(testingContext *t
 }
 
 func TestACopyConfirmedButNeverKeptFails(testingContext *testing.T) {
-	confirmedAnswer := OutcomeAnswer(SchemaURLOutcome{OutcomeKind: OutcomeCopyConfirmed})
+	confirmedAnswer := resolution.OutcomeAnswer(
+		resolution.SchemaURLOutcome{OutcomeKind: resolution.OutcomeCopyConfirmed})
 	reader := answeringReader(confirmedAnswer, confirmedAnswer)
 	schemaFinding := scriptedCache(reader, newMockStore()).ReadSchema(context.Background(), mockSchemaURL, nil)
 	if *schemaFinding.FindingProblems[0].Notes.Label != neverKeptCopyReason {
@@ -272,7 +277,7 @@ func TestARelativePathIsReadAgainstTheWorkingDirectory(testingContext *testing.T
 	if directoryError != nil {
 		testingContext.Fatal(directoryError)
 	}
-	expectedLocation := fileURLOf(filepath.Join(workingDirectory, "schema_finding.go"))
+	expectedLocation := resolution.FileURLOf(filepath.Join(workingDirectory, "schema_finding.go"))
 	callerFinding := NewSchemaCache().ReadSchema(context.Background(), "schema_finding.go", nil)
 	modelineText := "# yaml-language-server: $schema=schema_finding.go\n"
 	documentFinding := NewSchemaCache().DocumentSchema(context.Background(), "mock-dsl.yml", modelineText, nil, "")
@@ -327,8 +332,8 @@ func (prefixReader) ReadsRemoteSources() bool {
 	return true
 }
 
-func (reader prefixReader) ReadSchemaURL(context.Context, SchemaURLRequest) SchemaURLAnswer {
-	return MissingAnswer(reader.readPrefixes[0])
+func (reader prefixReader) ReadSchemaURL(context.Context, resolution.SchemaURLRequest) resolution.SchemaURLAnswer {
+	return resolution.MissingAnswer(reader.readPrefixes[0])
 }
 
 func TestAURLIsReadByTheReaderOfItsLongestPrefix(testingContext *testing.T) {
@@ -347,15 +352,16 @@ func TestAURLIsReadByTheReaderOfItsLongestPrefix(testingContext *testing.T) {
 
 func TestALocalReaderRefusalOrConfirmationIsAProblemWhereTheLocationIsWritten(testingContext *testing.T) {
 	answerCases := []struct {
-		localAnswer     SchemaURLAnswer
+		localAnswer     resolution.SchemaURLAnswer
 		expectedMessage string
 	}{
 		{
-			localAnswer:     RefusedAnswer([]ReadRefusal{mockRefusal(nil, nil)}),
+			localAnswer:     resolution.RefusedAnswer([]resolution.ReadRefusal{mockRefusal(nil, nil)}),
 			expectedMessage: "mock-host refused to read `local://mock.schema.json`",
 		},
 		{
-			localAnswer:     OutcomeAnswer(SchemaURLOutcome{OutcomeKind: OutcomeCopyConfirmed}),
+			localAnswer: resolution.OutcomeAnswer(
+				resolution.SchemaURLOutcome{OutcomeKind: resolution.OutcomeCopyConfirmed}),
 			expectedMessage: "reading `local://mock.schema.json` failed",
 		},
 	}
@@ -370,7 +376,7 @@ func TestALocalReaderRefusalOrConfirmationIsAProblemWhereTheLocationIsWritten(te
 
 // localReader is a reader of `local://` sources on the machine, answering what a test scripts.
 type localReader struct {
-	localAnswer SchemaURLAnswer
+	localAnswer resolution.SchemaURLAnswer
 }
 
 func (localReader) URLPrefixes() []string {
@@ -381,6 +387,18 @@ func (localReader) ReadsRemoteSources() bool {
 	return false
 }
 
-func (reader localReader) ReadSchemaURL(context.Context, SchemaURLRequest) SchemaURLAnswer {
+func TestAFileNameIsTheLastStepOfItsURLElseTheURL(testingContext *testing.T) {
+	expectedNames := map[string]string{
+		"file:///mock/mock%20schema.json": "mock schema.json",
+		"file:///mock/":                   "file:///mock/",
+	}
+	for fileURL, expectedName := range expectedNames {
+		if fileName := fileNameOf(fileURL); fileName != expectedName {
+			testingContext.Fatalf("%s names %s", fileURL, fileName)
+		}
+	}
+}
+
+func (reader localReader) ReadSchemaURL(context.Context, resolution.SchemaURLRequest) resolution.SchemaURLAnswer {
 	return reader.localAnswer
 }

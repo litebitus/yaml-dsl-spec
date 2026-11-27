@@ -5,43 +5,53 @@ import (
 	"net/http"
 
 	"github.com/litebitus/yaml-dsl-spec/go/core/schema"
+	"github.com/litebitus/yaml-dsl-spec/go/core/schema/resolution"
 )
 
 // The types of package schema, read as it defines them.
 type (
-	CandidateNamer       = schema.CandidateNamer
-	CandidateNamerKind   = schema.CandidateNamerKind
-	FoundSchema          = schema.FoundSchema
-	HTTPReply            = schema.HTTPReply
-	HostLogin            = schema.HostLogin
-	LoadedSchema         = schema.LoadedSchema
-	ReadRefusal          = schema.ReadRefusal
-	SchemaCache          = schema.SchemaCache
-	SchemaCacheOption    = schema.SchemaCacheOption
-	SchemaCandidate      = schema.SchemaCandidate
-	SchemaFinding        = schema.SchemaFinding
-	SchemaFolderStore    = schema.SchemaFolderStore
-	SchemaProblem        = schema.SchemaProblem
-	SchemaSearchPath     = schema.SchemaSearchPath
-	SchemaStore          = schema.SchemaStore
-	SchemaURLAnswer      = schema.SchemaURLAnswer
-	SchemaURLOutcome     = schema.SchemaURLOutcome
-	SchemaURLOutcomeKind = schema.SchemaURLOutcomeKind
-	SchemaURLReader      = schema.SchemaURLReader
-	SchemaURLRequest     = schema.SchemaURLRequest
-	ValidationRules      = schema.ValidationRules
+	CandidateNamer     = schema.CandidateNamer
+	CandidateNamerKind = schema.CandidateNamerKind
+	FoundSchema        = schema.FoundSchema
+	LoadedSchema       = schema.LoadedSchema
+	SchemaCache        = schema.SchemaCache
+	SchemaCacheOption  = schema.SchemaCacheOption
+	SchemaCandidate    = schema.SchemaCandidate
+	SchemaFinding      = schema.SchemaFinding
+	SchemaFolderStore  = schema.SchemaFolderStore
+	SchemaProblem      = schema.SchemaProblem
+	SchemaSearchPath   = schema.SchemaSearchPath
+	SchemaStore        = schema.SchemaStore
+	ValidationRules    = schema.ValidationRules
+)
+
+// The types of package resolution, read as it defines them.
+type (
+	HTTPReply            = resolution.HTTPReply
+	HostLogin            = resolution.HostLogin
+	ReadRefusal          = resolution.ReadRefusal
+	SchemaModeline       = resolution.SchemaModeline
+	SchemaURLAnswer      = resolution.SchemaURLAnswer
+	SchemaURLOutcome     = resolution.SchemaURLOutcome
+	SchemaURLOutcomeKind = resolution.SchemaURLOutcomeKind
+	SchemaURLReader      = resolution.SchemaURLReader
+	SchemaURLRequest     = resolution.SchemaURLRequest
 )
 
 // The constants of package schema, read as it defines them.
 const (
-	NamedByCaller        = schema.NamedByCaller
-	NamedByModeline      = schema.NamedByModeline
-	NamedBySearchPath    = schema.NamedBySearchPath
-	OutcomeCopyConfirmed = schema.OutcomeCopyConfirmed
-	OutcomeReadFailed    = schema.OutcomeReadFailed
-	OutcomeReadRefused   = schema.OutcomeReadRefused
-	OutcomeSourceMissing = schema.OutcomeSourceMissing
-	OutcomeTextSent      = schema.OutcomeTextSent
+	NamedByCaller     = schema.NamedByCaller
+	NamedByModeline   = schema.NamedByModeline
+	NamedBySearchPath = schema.NamedBySearchPath
+)
+
+// The constants of package resolution, read as it defines them.
+const (
+	OutcomeCopyConfirmed = resolution.OutcomeCopyConfirmed
+	OutcomeReadFailed    = resolution.OutcomeReadFailed
+	OutcomeReadRefused   = resolution.OutcomeReadRefused
+	OutcomeSourceMissing = resolution.OutcomeSourceMissing
+	OutcomeTextSent      = resolution.OutcomeTextSent
 )
 
 // ChildValue is schema.ChildValue.
@@ -54,19 +64,24 @@ func ClosestName(misspeltName string, candidateNames []string) (string, bool) {
 	return schema.ClosestName(misspeltName, candidateNames)
 }
 
-// FailedAnswer is schema.FailedAnswer.
+// DocumentModeline is resolution.DocumentModeline.
+func DocumentModeline(documentText string) (SchemaModeline, bool) {
+	return resolution.DocumentModeline(documentText)
+}
+
+// FailedAnswer is resolution.FailedAnswer.
 func FailedAnswer(failureReason string) SchemaURLAnswer {
-	return schema.FailedAnswer(failureReason)
+	return resolution.FailedAnswer(failureReason)
 }
 
-// HTTPConditionalHeaders is schema.HTTPConditionalHeaders.
+// HTTPConditionalHeaders is resolution.HTTPConditionalHeaders.
 func HTTPConditionalHeaders(keptCopyVersion any) http.Header {
-	return schema.HTTPConditionalHeaders(keptCopyVersion)
+	return resolution.HTTPConditionalHeaders(keptCopyVersion)
 }
 
-// HTTPGet is schema.HTTPGet.
+// HTTPGet is resolution.HTTPGet.
 func HTTPGet(readContext context.Context, linkURL string, requestHeaders http.Header) (HTTPReply, error) {
-	return schema.HTTPGet(readContext, linkURL, requestHeaders)
+	return resolution.HTTPGet(readContext, linkURL, requestHeaders)
 }
 
 // JSONPointerSteps is schema.JSONPointerSteps.
@@ -74,14 +89,14 @@ func JSONPointerSteps(jsonPointer string) ([]string, error) {
 	return schema.JSONPointerSteps(jsonPointer)
 }
 
-// MissingAnswer is schema.MissingAnswer.
+// MissingAnswer is resolution.MissingAnswer.
 func MissingAnswer(missingReason string) SchemaURLAnswer {
-	return schema.MissingAnswer(missingReason)
+	return resolution.MissingAnswer(missingReason)
 }
 
-// NetrcLogin is schema.NetrcLogin.
+// NetrcLogin is resolution.NetrcLogin.
 func NetrcLogin(hostName string) (HostLogin, bool) {
-	return schema.NetrcLogin(hostName)
+	return resolution.NetrcLogin(hostName)
 }
 
 // NewSchemaCache is schema.NewSchemaCache.
@@ -94,14 +109,14 @@ func NewSchemaFolderStore(storeFolder string, entryCapacity int) *SchemaFolderSt
 	return schema.NewSchemaFolderStore(storeFolder, entryCapacity)
 }
 
-// OutcomeAnswer is schema.OutcomeAnswer.
+// OutcomeAnswer is resolution.OutcomeAnswer.
 func OutcomeAnswer(readOutcome SchemaURLOutcome) SchemaURLAnswer {
-	return schema.OutcomeAnswer(readOutcome)
+	return resolution.OutcomeAnswer(readOutcome)
 }
 
-// RefusedAnswer is schema.RefusedAnswer.
+// RefusedAnswer is resolution.RefusedAnswer.
 func RefusedAnswer(readRefusals []ReadRefusal) SchemaURLAnswer {
-	return schema.RefusedAnswer(readRefusals)
+	return resolution.RefusedAnswer(readRefusals)
 }
 
 // ValidationRulesFromValidator is schema.ValidationRulesFromValidator.

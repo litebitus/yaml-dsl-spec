@@ -29,10 +29,11 @@ function splitOnce(text, separator) {
 }
 
 /**
- * The first line of `text` reading `# yaml-language-server: $schema=<uri>`: the
- * schema URI, its line and the column it starts at; `null` without one.
+ * The modeline of a document's `text`, its first line reading
+ * `# yaml-language-server: $schema=<uri>`: the schema URI, the fragment after its
+ * `#`, its line and the column it starts at; `null` without one.
  */
-function modelineOf(text) {
+function documentModeline(text) {
   const lines = text.split('\n').map((line) => (line.endsWith('\r') ? line.slice(0, -1) : line));
   for (const [lineIndex, line] of lines.entries()) {
     const trimmedLine = line.replace(LEADING_WHITE_SPACE, '');
@@ -49,8 +50,11 @@ function modelineOf(text) {
     }
     if (uriCharacters.length === 0) continue;
     const uriStart = line.length - uriAndRest.length;
+    const schemaUri = uriCharacters.join('');
+    const fragmentStart = schemaUri.indexOf('#');
     return {
-      schemaUri: uriCharacters.join(''),
+      schemaUri,
+      schemaFragment: fragmentStart === -1 ? null : schemaUri.slice(fragmentStart + 1),
       line: lineIndex + 1,
       column: Array.from(line.slice(0, uriStart)).length + 1,
     };
@@ -293,7 +297,7 @@ function hasPattern(machinePath) {
 
 module.exports = {
   FILE_SCHEME,
-  modelineOf,
+  documentModeline,
   resolveLocation,
   urlSchemeOf,
   fileUrlPath,

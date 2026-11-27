@@ -18,7 +18,7 @@ const {
   fileUrlPath,
   firstMatchingFile,
   hasPattern,
-  modelineOf,
+  documentModeline,
   resolveLocation,
 } = require('./schema-locations');
 
@@ -38,7 +38,7 @@ async function documentSchemaFinding(cache, file, text, searchPaths, configRoot)
   const shownFile = String(file);
   const documentFolder = path.resolve(path.dirname(shownFile));
   const configFolder = path.resolve(String(configRoot));
-  const modeline = modelineOf(text);
+  const modeline = documentModeline(text);
   const fallbackPosition = new Position(shownFile, modeline === null ? 1 : modeline.line, 1);
   const namedLocations = [];
   if (modeline !== null) {

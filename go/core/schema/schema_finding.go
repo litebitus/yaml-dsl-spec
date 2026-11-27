@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/litebitus/yaml-dsl-spec/go/core"
+	"github.com/litebitus/yaml-dsl-spec/go/core/schema/resolution"
 )
 
 const (
@@ -111,7 +112,7 @@ type missingCandidate struct {
 
 // namedLocation is a candidate before it is read: what it says, where it says it, and what named it.
 type namedLocation struct {
-	resolvedAt resolvedLocation
+	resolvedAt resolution.ResolvedLocation
 	writtenAt  *core.Position
 	namedBy    CandidateNamer
 }
@@ -124,24 +125,24 @@ func (schemaCache *SchemaCache) DocumentSchema(
 ) SchemaFinding {
 	documentFolder := absolutePath(filepath.Dir(documentFile))
 	rootFolder := absolutePath(configRoot)
-	documentModeline, hasModeline := modelineOf(documentText)
+	foundModeline, hasModeline := resolution.DocumentModeline(documentText)
 	fallbackLine := 1
 	if hasModeline {
-		fallbackLine = documentModeline.lineNumber
+		fallbackLine = foundModeline.LineNumber
 	}
 	fallbackPosition := core.NewPosition(documentFile, fallbackLine, 1)
 	var namedLocations []namedLocation
 	if hasModeline {
-		modelinePosition := core.NewPosition(documentFile, documentModeline.lineNumber, documentModeline.columnNumber)
+		modelinePosition := core.NewPosition(documentFile, foundModeline.LineNumber, foundModeline.ColumnNumber)
 		namedLocations = append(namedLocations, namedLocation{
-			resolvedAt: resolveLocation(documentModeline.schemaURI, documentFolder, rootFolder),
+			resolvedAt: resolution.ResolveLocation(foundModeline.SchemaURI, documentFolder, rootFolder),
 			writtenAt:  &modelinePosition,
 			namedBy:    CandidateNamer{NamerKind: NamedByModeline, ModelinePosition: modelinePosition},
 		})
 	}
 	for pathIndex, searchPath := range searchPaths {
-		resolvedPath := resolveLocation(searchPath.PathText, documentFolder, rootFolder)
-		resolvedPath.schemaFragment = nil
+		resolvedPath := resolution.ResolveLocation(searchPath.PathText, documentFolder, rootFolder)
+		resolvedPath.SchemaFragment = nil
 		writtenAt := fallbackPosition
 		if searchPath.WrittenAt != nil {
 			writtenAt = *searchPath.WrittenAt
@@ -175,7 +176,7 @@ func (schemaCache *SchemaCache) ReadSchema(
 ) SchemaFinding {
 	workingDirectory := absolutePath("")
 	callerLocation := namedLocation{
-		resolvedAt: resolveLocation(schemaLocation, workingDirectory, workingDirectory),
+		resolvedAt: resolution.ResolveLocation(schemaLocation, workingDirectory, workingDirectory),
 		writtenAt:  writtenAt,
 		namedBy:    CandidateNamer{NamerKind: NamedByCaller},
 	}
@@ -200,26 +201,26 @@ func (schemaCache *SchemaCache) findingOf(
 		readCandidate := schemaCache.candidateReadOf(findContext, location, &schemaFinding.FindingProblems)
 		schemaLocation := readCandidate.schemaLocation
 		if readCandidate.readKind == candidateReadProblem {
-			schemaLocation = location.resolvedAt.locationURL
+			schemaLocation = location.resolvedAt.LocationURL
 		}
 		triedCandidate := SchemaCandidate{SchemaLocation: schemaLocation, NamedBy: location.namedBy}
 		schemaFinding.TriedCandidates = append(schemaFinding.TriedCandidates, triedCandidate)
 		switch readCandidate.readKind {
 		case candidateTextRead:
-			schemaName := location.resolvedAt.writtenLocation
-			if location.resolvedAt.urlScheme == fileScheme {
+			schemaName := location.resolvedAt.WrittenLocation
+			if location.resolvedAt.URLScheme == resolution.FileScheme {
 				schemaName = fileNameOf(readCandidate.schemaLocation)
 			}
 			schemaFinding.FoundSchema = &FoundSchema{
 				SchemaName:     schemaName,
 				SchemaText:     readCandidate.schemaText,
-				SchemaFragment: location.resolvedAt.schemaFragment,
+				SchemaFragment: location.resolvedAt.SchemaFragment,
 				FoundCandidate: triedCandidate,
 			}
 			return schemaFinding, nil, false
 		case candidateSourceMissing:
 			missingCandidates = append(missingCandidates, missingCandidate{
-				writtenLocation: location.resolvedAt.writtenLocation,
+				writtenLocation: location.resolvedAt.WrittenLocation,
 				missingReason:   readCandidate.missingReason,
 			})
 		default:
@@ -235,17 +236,17 @@ func (schemaCache *SchemaCache) candidateReadOf(
 	findContext context.Context, location namedLocation, findingWarnings *[]core.Diagnostic,
 ) candidateRead {
 	resolvedAt := location.resolvedAt
-	if resolvedAt.cacheParameterProblem != nil {
-		return problemRead(problemAt(location.writtenAt, *resolvedAt.cacheParameterProblem))
+	if resolvedAt.CacheParameterProblem != nil {
+		return problemRead(problemAt(location.writtenAt, *resolvedAt.CacheParameterProblem))
 	}
-	urlReader, hasReader := schemaCache.urlReaderOf(resolvedAt.locationURL)
+	urlReader, hasReader := schemaCache.urlReaderOf(resolvedAt.LocationURL)
 	if !hasReader {
-		return problemRead(problemAt(location.writtenAt, "no reader reads "+core.CodeSpan(resolvedAt.writtenLocation)))
+		return problemRead(problemAt(location.writtenAt, "no reader reads "+core.CodeSpan(resolvedAt.WrittenLocation)))
 	}
 	if !urlReader.ReadsRemoteSources() {
-		if len(resolvedAt.cacheParameterNames) > 0 {
-			return problemRead(problemAt(location.writtenAt, core.CodeSpan(resolvedAt.cacheParameterNames[0])+
-				" is not a parameter of a "+core.CodeSpan(resolvedAt.urlScheme)+" URL"))
+		if len(resolvedAt.CacheParameterNames) > 0 {
+			return problemRead(problemAt(location.writtenAt, core.CodeSpan(resolvedAt.CacheParameterNames[0])+
+				" is not a parameter of a "+core.CodeSpan(resolvedAt.URLScheme)+" URL"))
 		}
 		return localRead(findContext, urlReader, location)
 	}
@@ -253,65 +254,68 @@ func (schemaCache *SchemaCache) candidateReadOf(
 }
 
 // localRead is a source on the machine, read each time; a `file` pattern's first match.
-func localRead(findContext context.Context, urlReader SchemaURLReader, location namedLocation) candidateRead {
+func localRead(
+	findContext context.Context, urlReader resolution.SchemaURLReader, location namedLocation,
+) candidateRead {
 	resolvedAt := location.resolvedAt
-	fetchURL, schemaLocation := resolvedAt.fetchURL, resolvedAt.locationURL
-	if resolvedAt.filePath != "" && hasPattern(resolvedAt.filePath) {
-		matchedFile, hasMatch := firstMatchingFile(resolvedAt.filePath)
+	fetchURL, schemaLocation := resolvedAt.FetchURL, resolvedAt.LocationURL
+	if resolvedAt.FilePath != "" && resolution.HasPattern(resolvedAt.FilePath) {
+		matchedFile, hasMatch := resolution.FirstMatchingFile(resolvedAt.FilePath)
 		if !hasMatch {
 			return candidateRead{
 				readKind: candidateSourceMissing, missingReason: noMatchReason, schemaLocation: schemaLocation,
 			}
 		}
-		schemaLocation = fileURLOf(matchedFile)
+		schemaLocation = resolution.FileURLOf(matchedFile)
 		fetchURL = schemaLocation
-		if _, queryText, hasQuery := strings.Cut(resolvedAt.fetchURL, "?"); hasQuery {
+		if _, queryText, hasQuery := strings.Cut(resolvedAt.FetchURL, "?"); hasQuery {
 			fetchURL = schemaLocation + "?" + queryText
 		}
 	}
 	readContext, cancelRead := context.WithTimeout(findContext, readLimit)
 	defer cancelRead()
-	urlAnswer := urlReader.ReadSchemaURL(readContext, SchemaURLRequest{FetchURL: fetchURL})
+	urlAnswer := urlReader.ReadSchemaURL(readContext, resolution.SchemaURLRequest{FetchURL: fetchURL})
 	switch readOutcome := urlAnswer.ReadOutcome; readOutcome.OutcomeKind {
-	case OutcomeTextSent:
+	case resolution.OutcomeTextSent:
 		return candidateRead{
 			readKind: candidateTextRead, schemaText: readOutcome.SchemaText, schemaLocation: schemaLocation,
 		}
-	case OutcomeSourceMissing:
+	case resolution.OutcomeSourceMissing:
 		return candidateRead{
 			readKind: candidateSourceMissing, missingReason: readOutcome.MissingReason, schemaLocation: schemaLocation,
 		}
-	case OutcomeReadRefused:
+	case resolution.OutcomeReadRefused:
 		return problemRead(
-			refusedProblem(location.writtenAt, resolvedAt.writtenLocation, urlAnswer.ReadRefusals, false))
-	case OutcomeReadFailed:
-		return problemRead(failedProblem(location.writtenAt, resolvedAt.writtenLocation, readOutcome.FailureReason))
+			refusedProblem(location.writtenAt, resolvedAt.WrittenLocation, urlAnswer.ReadRefusals, false))
+	case resolution.OutcomeReadFailed:
+		return problemRead(failedProblem(location.writtenAt, resolvedAt.WrittenLocation, readOutcome.FailureReason))
 	}
-	return problemRead(failedProblem(location.writtenAt, resolvedAt.writtenLocation, neverKeptCopyReason))
+	return problemRead(failedProblem(location.writtenAt, resolvedAt.WrittenLocation, neverKeptCopyReason))
 }
 
 // remoteRead is a remote source: its kept copy while it is younger than its max age, else what the reader answers,
 // read again with the machine's credentials where it is refused and the URL asks for them.
 func (schemaCache *SchemaCache) remoteRead(
-	findContext context.Context, urlReader SchemaURLReader, location namedLocation, findingWarnings *[]core.Diagnostic,
+	findContext context.Context, urlReader resolution.SchemaURLReader, location namedLocation,
+	findingWarnings *[]core.Diagnostic,
 ) candidateRead {
 	resolvedAt := location.resolvedAt
-	schemaLocation := resolvedAt.locationURL
-	urlLock := schemaCache.fetchURLLock(resolvedAt.fetchURL)
+	schemaLocation := resolvedAt.LocationURL
+	urlLock := schemaCache.fetchURLLock(resolvedAt.FetchURL)
 	urlLock.Lock()
 	defer urlLock.Unlock()
-	storeKey := copyKey(resolvedAt.fetchURL)
-	storedKept, hasKept := schemaCache.keptCopyOf(storeKey, resolvedAt.fetchURL)
+	storeKey := copyKey(resolvedAt.FetchURL)
+	storedKept, hasKept := schemaCache.keptCopyOf(storeKey, resolvedAt.FetchURL)
 	secondsNow := uint64(max(time.Now().Unix(), 0))
 	textRead := func(schemaText string) candidateRead {
 		return candidateRead{readKind: candidateTextRead, schemaText: schemaText, schemaLocation: schemaLocation}
 	}
-	if hasKept && resolvedAt.maxAgeDays > 0 &&
-		secondsNow-min(secondsNow, storedKept.ConfirmedAt) < resolvedAt.maxAgeDays*daySeconds {
+	if hasKept && resolvedAt.MaxAgeDays > 0 &&
+		secondsNow-min(secondsNow, storedKept.ConfirmedAt) < resolvedAt.MaxAgeDays*daySeconds {
 		return textRead(storedKept.CopyBody)
 	}
-	askReader := func(machineCredentials bool) SchemaURLAnswer {
-		urlRequest := SchemaURLRequest{FetchURL: resolvedAt.fetchURL, MachineCredentials: machineCredentials}
+	askReader := func(machineCredentials bool) resolution.SchemaURLAnswer {
+		urlRequest := resolution.SchemaURLRequest{FetchURL: resolvedAt.FetchURL, MachineCredentials: machineCredentials}
 		if hasKept {
 			urlRequest.KeptCopyVersion = storedKept.CopyVersion
 		}
@@ -320,40 +324,41 @@ func (schemaCache *SchemaCache) remoteRead(
 		return urlReader.ReadSchemaURL(readContext, urlRequest)
 	}
 	urlAnswer := askReader(false)
-	credentialsAsked := urlAnswer.ReadOutcome.OutcomeKind == OutcomeReadRefused && resolvedAt.machineCredentials
+	credentialsAsked := urlAnswer.ReadOutcome.OutcomeKind == resolution.OutcomeReadRefused &&
+		resolvedAt.MachineCredentials
 	if credentialsAsked {
 		urlAnswer = askReader(true)
 	}
 	readOutcome := urlAnswer.ReadOutcome
-	if readOutcome.OutcomeKind != OutcomeReadRefused {
+	if readOutcome.OutcomeKind != resolution.OutcomeReadRefused {
 		for _, readRefusal := range urlAnswer.ReadRefusals {
 			if readRefusal.CredentialOrigin != nil {
 				*findingWarnings = append(*findingWarnings, refusalWarning(location.writtenAt, readRefusal))
 			}
 		}
 	}
-	writtenLocation := resolvedAt.writtenLocation
+	writtenLocation := resolvedAt.WrittenLocation
 	switch readOutcome.OutcomeKind {
-	case OutcomeTextSent:
+	case resolution.OutcomeTextSent:
 		schemaCache.keepCopy(storeKey, keptCopy{
-			CopyURL:     resolvedAt.fetchURL,
+			CopyURL:     resolvedAt.FetchURL,
 			CopyVersion: readOutcome.CopyVersion,
 			ConfirmedAt: secondsNow,
 			CopyBody:    readOutcome.SchemaText,
 		})
 		return textRead(readOutcome.SchemaText)
-	case OutcomeCopyConfirmed:
+	case resolution.OutcomeCopyConfirmed:
 		if !hasKept {
 			return problemRead(failedProblem(location.writtenAt, writtenLocation, neverKeptCopyReason))
 		}
 		storedKept.ConfirmedAt = secondsNow
 		schemaCache.keepCopy(storeKey, storedKept)
 		return textRead(storedKept.CopyBody)
-	case OutcomeSourceMissing:
+	case resolution.OutcomeSourceMissing:
 		return candidateRead{
 			readKind: candidateSourceMissing, missingReason: readOutcome.MissingReason, schemaLocation: schemaLocation,
 		}
-	case OutcomeReadRefused:
+	case resolution.OutcomeReadRefused:
 		readRefused := refusedProblem(location.writtenAt, writtenLocation, urlAnswer.ReadRefusals, credentialsAsked)
 		if !hasKept {
 			return problemRead(readRefused)
@@ -417,7 +422,7 @@ func problemAt(writtenAt *core.Position, problemMessage string) core.Diagnostic 
 }
 
 func refusedProblem(
-	writtenAt *core.Position, writtenLocation string, readRefusals []ReadRefusal, credentialsAsked bool,
+	writtenAt *core.Position, writtenLocation string, readRefusals []resolution.ReadRefusal, credentialsAsked bool,
 ) core.Diagnostic {
 	refusedBy := "the source"
 	if len(readRefusals) > 0 {
@@ -452,7 +457,7 @@ func failedProblem(writtenAt *core.Position, writtenLocation, failureReason stri
 	return problemAt(writtenAt, "reading "+core.CodeSpan(writtenLocation)+" failed").WithLabel(failureReason)
 }
 
-func refusalWarning(writtenAt *core.Position, readRefusal ReadRefusal) core.Diagnostic {
+func refusalWarning(writtenAt *core.Position, readRefusal resolution.ReadRefusal) core.Diagnostic {
 	credentialOrigin := ""
 	if readRefusal.CredentialOrigin != nil {
 		credentialOrigin = *readRefusal.CredentialOrigin
@@ -465,7 +470,7 @@ func refusalWarning(writtenAt *core.Position, readRefusal ReadRefusal) core.Diag
 // fileNameOf is the name of the file a `file` URL names, else the URL.
 func fileNameOf(fileURL string) string {
 	lastSegment := fileURL[strings.LastIndexByte(fileURL, '/')+1:]
-	segmentPath := fileURLPath("file:///" + lastSegment)
+	segmentPath := resolution.FileURLPath("file:///" + lastSegment)
 	fileName := filepath.Base(segmentPath)
 	if fileName == "." || fileName == ".." || fileName == string(filepath.Separator) {
 		return fileURL

@@ -1,4 +1,4 @@
-package schema
+package resolution
 
 import (
 	"encoding/base64"

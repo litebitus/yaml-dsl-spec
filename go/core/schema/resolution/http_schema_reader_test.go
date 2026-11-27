@@ -1,4 +1,4 @@
-package schema
+package resolution
 
 import (
 	"context"
@@ -87,7 +87,7 @@ func mockLogin(loginPassword string) *HostLogin {
 }
 
 func readLink(
-	testingContext *testing.T, reader *httpSchemaReader, linkURL string, machineCredentials bool, keptVersion any,
+	testingContext *testing.T, reader *HTTPSchemaReader, linkURL string, machineCredentials bool, keptVersion any,
 ) SchemaURLAnswer {
 	readContext, cancelRead := context.WithTimeout(context.Background(), 4*time.Second)
 	testingContext.Cleanup(cancelRead)
@@ -98,7 +98,7 @@ func readLink(
 
 func TestALinkIsSentWithItsVersionAndACurrentCopyIsConfirmed(testingContext *testing.T) {
 	schemaServer := mockSchemaServer(testingContext)
-	reader := newHTTPSchemaReader(&givenLogin{})
+	reader := httpSchemaReaderWith(&givenLogin{})
 	sentAnswer := readLink(testingContext, reader, schemaServer.URL+"/schema.json", false, nil)
 	sentOutcome := sentAnswer.ReadOutcome
 	expectedVersion := map[string]any{"etag": mockEntityTag, "last_modified": mockLastModified}
@@ -121,7 +121,7 @@ func TestALinkIsSentWithItsVersionAndACurrentCopyIsConfirmed(testingContext *tes
 
 func TestA404IsMissingAndAnotherStatusOrNoAnswerFails(testingContext *testing.T) {
 	schemaServer := mockSchemaServer(testingContext)
-	reader := newHTTPSchemaReader(&givenLogin{})
+	reader := httpSchemaReaderWith(&givenLogin{})
 	missingAnswer := readLink(testingContext, reader, schemaServer.URL+"/absent.json", false, nil)
 	if missingAnswer.ReadOutcome != (SchemaURLOutcome{
 		OutcomeKind: OutcomeSourceMissing, MissingReason: "the server answered 404",
@@ -148,7 +148,7 @@ func TestA404IsMissingAndAnotherStatusOrNoAnswerFails(testingContext *testing.T)
 
 func TestARedirectIsFollowedWithoutTheLogin(testingContext *testing.T) {
 	schemaServer := mockSchemaServer(testingContext)
-	loggedInReader := newHTTPSchemaReader(&givenLogin{namedLogin: mockLogin("mock-secret")})
+	loggedInReader := httpSchemaReaderWith(&givenLogin{namedLogin: mockLogin("mock-secret")})
 	movedAnswer := readLink(testingContext, loggedInReader, schemaServer.URL+"/moved.json", true, nil)
 	if movedAnswer.ReadOutcome.OutcomeKind != OutcomeTextSent {
 		testingContext.Fatalf("moved %+v", movedAnswer)
@@ -157,13 +157,13 @@ func TestARedirectIsFollowedWithoutTheLogin(testingContext *testing.T) {
 
 func TestARefusedLinkIsReadWithTheNetrcLoginOfItsHost(testingContext *testing.T) {
 	schemaServer := mockSchemaServer(testingContext)
-	anonymousReader := newHTTPSchemaReader(&givenLogin{})
+	anonymousReader := httpSchemaReaderWith(&givenLogin{})
 	refusedAnswer := readLink(testingContext, anonymousReader, schemaServer.URL+"/private.json", false, nil)
 	if refusedAnswer.ReadOutcome.OutcomeKind != OutcomeReadRefused ||
 		refusedAnswer.ReadRefusals[0].RefusalReason != "401" || refusedAnswer.ReadRefusals[0].CredentialOrigin != nil {
 		testingContext.Fatalf("refused %+v", refusedAnswer)
 	}
-	loggedInReader := newHTTPSchemaReader(&givenLogin{namedLogin: mockLogin("mock-secret")})
+	loggedInReader := httpSchemaReaderWith(&givenLogin{namedLogin: mockLogin("mock-secret")})
 	sentAnswer := readLink(testingContext, loggedInReader, schemaServer.URL+"/private.json", true, nil)
 	if sentAnswer.ReadOutcome.OutcomeKind != OutcomeTextSent {
 		testingContext.Fatalf("sent %+v", sentAnswer)
@@ -174,7 +174,7 @@ func TestARefusedLoginIsListedAndTheCredentialsReadAgainNextTime(testingContext 
 	schemaServer := mockSchemaServer(testingContext)
 	staleLogin := &givenLogin{namedLogin: mockLogin("mock-stale")}
 	privateLink := schemaServer.URL + "/private.json"
-	refusedAnswer := readLink(testingContext, newHTTPSchemaReader(staleLogin), privateLink, true, nil)
+	refusedAnswer := readLink(testingContext, httpSchemaReaderWith(staleLogin), privateLink, true, nil)
 	expectedRefusals := []ReadRefusal{{
 		RefusedBy:        "127.0.0.1",
 		CredentialOrigin: new("the `.netrc` entry for 127.0.0.1"),
@@ -185,7 +185,7 @@ func TestARefusedLoginIsListedAndTheCredentialsReadAgainNextTime(testingContext 
 		!reflect.DeepEqual(refusedAnswer.ReadRefusals, expectedRefusals) || staleLogin.forgetCount.Load() != 1 {
 		testingContext.Fatalf("refused %+v", refusedAnswer)
 	}
-	unsetAnswer := readLink(testingContext, newHTTPSchemaReader(&givenLogin{}), privateLink, true, nil)
+	unsetAnswer := readLink(testingContext, httpSchemaReaderWith(&givenLogin{}), privateLink, true, nil)
 	if *unsetAnswer.ReadRefusals[0].RenewalFix != "add a `.netrc` entry for 127.0.0.1" {
 		testingContext.Fatalf("unset %+v", unsetAnswer)
 	}
@@ -211,15 +211,15 @@ func TestAFileIsReadEachTimeAndAFolderOrAQueryIsNotOne(testingContext *testing.T
 		testingContext.Fatal(writeError)
 	}
 	expectedOutcomes := map[string]SchemaURLOutcome{
-		fileURLOf(scratchFolder): {OutcomeKind: OutcomeSourceMissing, MissingReason: noFileReason},
-		fileURLOf(invalidFile):   {OutcomeKind: OutcomeReadFailed, FailureReason: notUTF8Reason},
-		fileURLOf(invalidFile) + "?mock=1&b": {
+		FileURLOf(scratchFolder): {OutcomeKind: OutcomeSourceMissing, MissingReason: noFileReason},
+		FileURLOf(invalidFile):   {OutcomeKind: OutcomeReadFailed, FailureReason: notUTF8Reason},
+		FileURLOf(invalidFile) + "?mock=1&b": {
 			OutcomeKind:   OutcomeReadFailed,
 			FailureReason: "`mock` is not a parameter of a `file` URL",
 		},
 	}
 	for fileURL, expectedOutcome := range expectedOutcomes {
-		fileAnswer := fileSchemaReader{}.ReadSchemaURL(context.Background(), SchemaURLRequest{FetchURL: fileURL})
+		fileAnswer := FileSchemaReader{}.ReadSchemaURL(context.Background(), SchemaURLRequest{FetchURL: fileURL})
 		if fileAnswer.ReadOutcome != expectedOutcome {
 			testingContext.Fatalf("%s reads to %+v", fileURL, fileAnswer.ReadOutcome)
 		}

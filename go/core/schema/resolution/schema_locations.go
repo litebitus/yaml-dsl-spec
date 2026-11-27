@@ -1,4 +1,4 @@
-package schema
+package resolution
 
 import (
 	"fmt"
@@ -20,18 +20,20 @@ const (
 	cacheParameterPrefix        = "yaml_dsl_"
 	maxAgeParameter             = "yaml_dsl_max_age_days"
 	machineCredentialsParameter = "yaml_dsl_machine_credentials"
-	fileScheme                  = "file"
+	FileScheme                  = "file"
 )
 
-// schemaModeline is a document's modeline: the schema URI it names and where that URI starts.
-type schemaModeline struct {
-	schemaURI    string
-	lineNumber   int
-	columnNumber int
+// SchemaModeline is a document's modeline: the schema URI it names, the fragment after its `#`, nil without one,
+// and the line and column that URI starts at.
+type SchemaModeline struct {
+	SchemaURI      string
+	SchemaFragment *string
+	LineNumber     int
+	ColumnNumber   int
 }
 
-// modelineOf is the first line of documentText reading `# yaml-language-server: $schema=<uri>`.
-func modelineOf(documentText string) (schemaModeline, bool) {
+// DocumentModeline is the modeline of documentText: its first line reading `# yaml-language-server: $schema=<uri>`.
+func DocumentModeline(documentText string) (SchemaModeline, bool) {
 	textLines := strings.Split(documentText, "\n")
 	if strings.HasSuffix(documentText, "\n") {
 		textLines = textLines[:len(textLines)-1]
@@ -58,37 +60,42 @@ func modelineOf(documentText string) (schemaModeline, bool) {
 			continue
 		}
 		uriStart := len(lineText) - len(uriAndRest)
-		return schemaModeline{
-			schemaURI:    schemaURI,
-			lineNumber:   lineIndex + 1,
-			columnNumber: utf8.RuneCountInString(lineText[:uriStart]) + 1,
+		var schemaFragment *string
+		if _, fragmentText, hasFragment := strings.Cut(schemaURI, "#"); hasFragment {
+			schemaFragment = &fragmentText
+		}
+		return SchemaModeline{
+			SchemaURI:      schemaURI,
+			SchemaFragment: schemaFragment,
+			LineNumber:     lineIndex + 1,
+			ColumnNumber:   utf8.RuneCountInString(lineText[:uriStart]) + 1,
 		}, true
 	}
-	return schemaModeline{}, false
+	return SchemaModeline{}, false
 }
 
-// resolvedLocation is a location as written, without its fragment, resolved: its URL, the URL a reader is asked for,
+// ResolvedLocation is a location as written, without its fragment, resolved: its URL, the URL a reader is asked for,
 // and the cache's parameters it carries.
-type resolvedLocation struct {
-	writtenLocation string
-	schemaFragment  *string
-	locationURL     string
-	urlScheme       string
-	fetchURL        string
-	maxAgeDays      uint64
-	// machineCredentials is whether a refused read is asked again with the machine's credentials.
-	machineCredentials bool
-	// cacheParameterNames are the cache's parameters written in it, by name, in order.
-	cacheParameterNames []string
-	// cacheParameterProblem is the first of its cache's parameters that does not read, as a problem's message.
-	cacheParameterProblem *string
-	// filePath is the file a `file` location names, its `*` steps not yet matched; empty for any other.
-	filePath string
+type ResolvedLocation struct {
+	WrittenLocation string
+	SchemaFragment  *string
+	LocationURL     string
+	URLScheme       string
+	FetchURL        string
+	MaxAgeDays      uint64
+	// MachineCredentials is whether a refused read is asked again with the machine's credentials.
+	MachineCredentials bool
+	// CacheParameterNames are the cache's parameters written in it, by name, in order.
+	CacheParameterNames []string
+	// CacheParameterProblem is the first of its cache's parameters that does not read, as a problem's message.
+	CacheParameterProblem *string
+	// FilePath is the file a `file` location names, its `*` steps not yet matched; empty for any other.
+	FilePath string
 }
 
-// resolveLocation is writtenLocation, a path or a URL, resolved: a path against baseFolder, or against configRoot
+// ResolveLocation is writtenLocation, a path or a URL, resolved: a path against baseFolder, or against configRoot
 // when it starts with `{config_root}`.
-func resolveLocation(writtenLocation, baseFolder, configRoot string) resolvedLocation {
+func ResolveLocation(writtenLocation, baseFolder, configRoot string) ResolvedLocation {
 	withoutFragment, fragmentText, hasFragment := strings.Cut(writtenLocation, "#")
 	var schemaFragment *string
 	if hasFragment {
@@ -99,15 +106,15 @@ func resolveLocation(writtenLocation, baseFolder, configRoot string) resolvedLoc
 	urlScheme, hasScheme := urlSchemeOf(locationAddress)
 	var resolvedAddress, filePath string
 	switch {
-	case hasScheme && urlScheme == fileScheme:
-		filePath = fileURLPath(locationAddress)
-		resolvedAddress = fileURLOf(filePath)
+	case hasScheme && urlScheme == FileScheme:
+		filePath = FileURLPath(locationAddress)
+		resolvedAddress = FileURLOf(filePath)
 	case hasScheme:
 		resolvedAddress = locationAddress
 	default:
-		urlScheme = fileScheme
+		urlScheme = FileScheme
 		filePath = writtenPath(locationAddress, baseFolder, configRoot)
-		resolvedAddress = fileURLOf(filePath)
+		resolvedAddress = FileURLOf(filePath)
 	}
 	withQuery := func(queryParameters []string) string {
 		if len(queryParameters) == 0 {
@@ -119,17 +126,17 @@ func resolveLocation(writtenLocation, baseFolder, configRoot string) resolvedLoc
 	if hasQuery {
 		allParameters = strings.Split(queryText, "&")
 	}
-	return resolvedLocation{
-		writtenLocation:       withoutFragment,
-		schemaFragment:        schemaFragment,
-		locationURL:           withQuery(allParameters),
-		urlScheme:             urlScheme,
-		fetchURL:              withQuery(readParameters.passedParameters),
-		maxAgeDays:            readParameters.maxAgeDays,
-		machineCredentials:    readParameters.machineCredentials,
-		cacheParameterNames:   readParameters.parameterNames,
-		cacheParameterProblem: readParameters.parameterProblem,
-		filePath:              filePath,
+	return ResolvedLocation{
+		WrittenLocation:       withoutFragment,
+		SchemaFragment:        schemaFragment,
+		LocationURL:           withQuery(allParameters),
+		URLScheme:             urlScheme,
+		FetchURL:              withQuery(readParameters.passedParameters),
+		MaxAgeDays:            readParameters.maxAgeDays,
+		MachineCredentials:    readParameters.machineCredentials,
+		CacheParameterNames:   readParameters.parameterNames,
+		CacheParameterProblem: readParameters.parameterProblem,
+		FilePath:              filePath,
 	}
 }
 
@@ -234,8 +241,8 @@ func writtenPath(writtenLocation, baseFolder, configRoot string) string {
 	return machinePath
 }
 
-// fileURLPath is the machine path a `file` URL names.
-func fileURLPath(fileURL string) string {
+// FileURLPath is the machine path a `file` URL names.
+func FileURLPath(fileURL string) string {
 	afterScheme := fileURL
 	if separatorAt := strings.Index(fileURL, "://"); separatorAt >= 0 {
 		afterScheme = fileURL[separatorAt+3:]
@@ -272,8 +279,8 @@ func namesDrive(pathStep string) bool {
 	return len(pathStep) == 2 && pathStep[1] == ':' && isASCIILetter(pathStep[0])
 }
 
-// fileURLOf is the `file` URL of a machine path.
-func fileURLOf(machinePath string) string {
+// FileURLOf is the `file` URL of a machine path.
+func FileURLOf(machinePath string) string {
 	volumeName := filepath.VolumeName(machinePath)
 	var encodedSteps []string
 	if volumeName != "" {
@@ -315,9 +322,9 @@ func percentDecoded(encodedText string) string {
 	return strings.ToValidUTF8(string(decodedBytes), "�")
 }
 
-// firstMatchingFile is the first file a path names, each `*` step matching any run of characters within the step,
+// FirstMatchingFile is the first file a path names, each `*` step matching any run of characters within the step,
 // the steps' matches read in path order.
-func firstMatchingFile(patternPath string) (string, bool) {
+func FirstMatchingFile(patternPath string) (string, bool) {
 	volumeName := filepath.VolumeName(patternPath)
 	reachedPaths := []string{volumeName + string(filepath.Separator)}
 	for _, pathStep := range strings.Split(filepath.ToSlash(patternPath[len(volumeName):]), "/") {
@@ -375,6 +382,7 @@ func stepMatches(patternStep, entryName string) bool {
 	return true
 }
 
-func hasPattern(machinePath string) bool {
+// HasPattern is whether a machine path holds a `*` step.
+func HasPattern(machinePath string) bool {
 	return strings.Contains(machinePath, "*")
 }

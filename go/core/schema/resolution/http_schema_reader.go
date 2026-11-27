@@ -1,4 +1,4 @@
-package schema
+package resolution
 
 import (
 	"context"
@@ -9,25 +9,30 @@ import (
 
 const httpNotFoundReason = "the server answered 404"
 
-// httpSchemaReader is the core's reader of `http` and `https` links: what a server answers a link with, read with
+// HTTPSchemaReader is the core's reader of `http` and `https` links: what a server answers a link with, read with
 // the `.netrc` login of its host when asked for the machine's credentials.
-type httpSchemaReader struct {
+type HTTPSchemaReader struct {
 	credentials credentialSource
 }
 
-func newHTTPSchemaReader(credentials credentialSource) *httpSchemaReader {
-	return &httpSchemaReader{credentials: credentials}
+// NewHTTPSchemaReader is the core's reader of `http` and `https` links, reading the machine's `.netrc`.
+func NewHTTPSchemaReader() *HTTPSchemaReader {
+	return httpSchemaReaderWith(&machineCredentials{})
 }
 
-func (*httpSchemaReader) URLPrefixes() []string {
+func httpSchemaReaderWith(credentials credentialSource) *HTTPSchemaReader {
+	return &HTTPSchemaReader{credentials: credentials}
+}
+
+func (*HTTPSchemaReader) URLPrefixes() []string {
 	return []string{"http://", "https://"}
 }
 
-func (*httpSchemaReader) ReadsRemoteSources() bool {
+func (*HTTPSchemaReader) ReadsRemoteSources() bool {
 	return true
 }
 
-func (reader *httpSchemaReader) ReadSchemaURL(
+func (reader *HTTPSchemaReader) ReadSchemaURL(
 	readContext context.Context, urlRequest SchemaURLRequest,
 ) SchemaURLAnswer {
 	hostName := urlHost(urlRequest.FetchURL)

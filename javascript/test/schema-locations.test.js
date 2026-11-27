@@ -6,8 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
+const { schemaResolution } = require('..');
 const {
-  modelineOf,
   resolveLocation,
   urlSchemeOf,
   firstMatchingFile,
@@ -15,11 +15,16 @@ const {
 } = require('../core/schema/resolution/schema-locations');
 const { FileSchemaReader } = require('../core/schema/resolution/file-schema-reader');
 
-test('a modeline names its uri and where it starts', () => {
+test('a modeline names its uri, its fragment and where it starts', () => {
+  const { documentModeline } = schemaResolution;
   const text = 'name: mock\n  #  yaml-language-server:  $schema=../mock.schema.json#/a rest\n';
-  assert.deepStrictEqual(modelineOf(text), { schemaUri: '../mock.schema.json#/a', line: 2, column: 37 });
-  assert.strictEqual(modelineOf('# yaml-language-server: $schema=\n'), null);
-  assert.strictEqual(modelineOf('# mock: $schema=x\n'), null);
+  assert.deepStrictEqual(
+    documentModeline(text),
+    { schemaUri: '../mock.schema.json#/a', schemaFragment: '/a', line: 2, column: 37 },
+  );
+  assert.strictEqual(documentModeline('# yaml-language-server: $schema=mock.schema.json\n').schemaFragment, null);
+  assert.strictEqual(documentModeline('# yaml-language-server: $schema=\n'), null);
+  assert.strictEqual(documentModeline('# mock: $schema=x\n'), null);
 });
 
 test('a path is resolved to its file url by forward slash steps', () => {

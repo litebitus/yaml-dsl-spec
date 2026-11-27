@@ -1,4 +1,6 @@
-package schema
+// Package resolution is the YAML DSL standard's reading of schema URLs: locations, the readers of their prefixes and
+// the machine's credentials they read with.
+package resolution
 
 import "context"
 

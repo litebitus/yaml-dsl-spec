@@ -14,16 +14,19 @@ const MAX_AGE_PARAMETER: &str = "yaml_dsl_max_age_days";
 const MACHINE_CREDENTIALS_PARAMETER: &str = "yaml_dsl_machine_credentials";
 pub const FILE_SCHEME: &str = "file";
 
-/// A document's modeline: the schema URI it names and where that URI starts.
+/// A document's modeline: the schema URI it names, the fragment after its `#`,
+/// and the line and column that URI starts at.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Modeline {
+pub struct SchemaModeline {
     pub schema_uri: String,
+    pub schema_fragment: Option<String>,
     pub line: usize,
     pub column: usize,
 }
 
-/// The first line of `text` reading `# yaml-language-server: $schema=<uri>`.
-pub fn modeline_of(text: &str) -> Option<Modeline> {
+/// The modeline of a document's `text`: its first line reading
+/// `# yaml-language-server: $schema=<uri>`.
+pub fn document_modeline(text: &str) -> Option<SchemaModeline> {
     text.lines().enumerate().find_map(|(index, line)| {
         let after_hash = line.trim_start().strip_prefix('#')?.trim_start();
         let after_key = after_hash.strip_prefix(MODELINE_KEY)?.trim_start();
@@ -36,7 +39,10 @@ pub fn modeline_of(text: &str) -> Option<Modeline> {
             return None;
         }
         let uri_start = line.len() - uri_and_rest.len();
-        Some(Modeline {
+        Some(SchemaModeline {
+            schema_fragment: schema_uri
+                .split_once('#')
+                .map(|(_, fragment)| fragment.to_owned()),
             schema_uri,
             line: index + 1,
             column: line[..uri_start].chars().count() + 1,
@@ -356,15 +362,21 @@ mod tests {
     fn a_modeline_names_its_uri_and_where_it_starts() {
         let text = "name: mock\n  #  yaml-language-server:  $schema=../mock.schema.json#/a rest\n";
         assert_eq!(
-            modeline_of(text),
-            Some(Modeline {
+            document_modeline(text),
+            Some(SchemaModeline {
                 schema_uri: "../mock.schema.json#/a".into(),
+                schema_fragment: Some("/a".into()),
                 line: 2,
                 column: 37,
             })
         );
-        assert_eq!(modeline_of("# yaml-language-server: $schema=\n"), None);
-        assert_eq!(modeline_of("# mock: $schema=x\n"), None);
+        let whole = document_modeline("# yaml-language-server: $schema=mock.schema.json\n");
+        assert_eq!(whole.unwrap().schema_fragment, None);
+        assert_eq!(
+            document_modeline("# yaml-language-server: $schema=\n"),
+            None
+        );
+        assert_eq!(document_modeline("# mock: $schema=x\n"), None);
     }
 
     #[test]

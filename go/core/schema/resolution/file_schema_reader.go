@@ -1,4 +1,4 @@
-package schema
+package resolution
 
 import (
 	"context"
@@ -17,26 +17,26 @@ const (
 	fileSchemePrefix = "file://"
 )
 
-// fileSchemaReader is the core's reader of `file` URLs: a file on the machine, read each time.
-type fileSchemaReader struct{}
+// FileSchemaReader is the core's reader of `file` URLs: a file on the machine, read each time.
+type FileSchemaReader struct{}
 
-func (fileSchemaReader) URLPrefixes() []string {
+func (FileSchemaReader) URLPrefixes() []string {
 	return []string{fileSchemePrefix}
 }
 
-func (fileSchemaReader) ReadsRemoteSources() bool {
+func (FileSchemaReader) ReadsRemoteSources() bool {
 	return false
 }
 
-func (fileSchemaReader) ReadSchemaURL(_ context.Context, urlRequest SchemaURLRequest) SchemaURLAnswer {
+func (FileSchemaReader) ReadSchemaURL(_ context.Context, urlRequest SchemaURLRequest) SchemaURLAnswer {
 	fileAddress, queryText, hasQuery := strings.Cut(urlRequest.FetchURL, "?")
 	if hasQuery {
 		firstParameter, _, _ := strings.Cut(queryText, "&")
 		parameterName, _, _ := strings.Cut(firstParameter, "=")
 		return FailedAnswer(core.CodeSpan(parameterName) + " is not a parameter of a " +
-			core.CodeSpan(fileScheme) + " URL")
+			core.CodeSpan(FileScheme) + " URL")
 	}
-	filePath := fileURLPath(fileAddress)
+	filePath := FileURLPath(fileAddress)
 	if fileInfo, statError := os.Stat(filePath); statError != nil || !fileInfo.Mode().IsRegular() {
 		return MissingAnswer(noFileReason)
 	}
