@@ -105,8 +105,10 @@ func NewSchemaCache(cacheOptions ...SchemaCacheOption) *SchemaCache {
 }
 
 // NewSchemaFolderStore is schema.NewSchemaFolderStore.
-func NewSchemaFolderStore(storeFolder string, entryCapacity int) *SchemaFolderStore {
-	return schema.NewSchemaFolderStore(storeFolder, entryCapacity)
+func NewSchemaFolderStore(
+	storeFolder string, entryCapacity int, reportFailure func(failureMessage string),
+) *SchemaFolderStore {
+	return schema.NewSchemaFolderStore(storeFolder, entryCapacity, reportFailure)
 }
 
 // OutcomeAnswer is resolution.OutcomeAnswer.

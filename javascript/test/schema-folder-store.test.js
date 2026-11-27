@@ -18,9 +18,16 @@ function age(store, key, secondsAgo) {
 
 test.describe('the folder store', () => {
   let scratchFolder;
+  let reportedFailures;
+
+  /** A store in `folder` keeping `capacity` entries, its failures reported to `reportedFailures`. */
+  function reportingStore(folder, capacity) {
+    return new SchemaFolderStore(folder, capacity, (failureMessage) => reportedFailures.push(failureMessage));
+  }
 
   test.beforeEach(() => {
     scratchFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'yaml-dsl-spec-folder-store-'));
+    reportedFailures = [];
   });
 
   test.afterEach(() => {
@@ -28,15 +35,16 @@ test.describe('the folder store', () => {
   });
 
   test('an entry is kept as a file and read back', () => {
-    const store = new SchemaFolderStore(path.join(scratchFolder, 'entries'), 2);
+    const store = reportingStore(path.join(scratchFolder, 'entries'), 2);
     assert.strictEqual(store.read('mock-key'), null);
     store.write('mock-key', '{"mock": 1}');
     assert.strictEqual(store.read('mock-key'), '{"mock": 1}');
     assert.ok(fs.statSync(path.join(scratchFolder, 'entries', 'mock-key.json')).isFile());
+    assert.deepStrictEqual(reportedFailures, []);
   });
 
   test('a write drops the least recently used entries beyond the capacity', () => {
-    const store = new SchemaFolderStore(scratchFolder, 2);
+    const store = reportingStore(scratchFolder, 2);
     store.write('oldest', '1');
     store.write('used', '2');
     age(store, 'oldest', 300);
@@ -46,14 +54,18 @@ test.describe('the folder store', () => {
     assert.strictEqual(store.read('oldest'), null);
     assert.strictEqual(store.read('used'), '2');
     assert.strictEqual(store.read('newest'), '3');
+    assert.deepStrictEqual(reportedFailures, []);
   });
 
-  test('a write that cannot land leaves no entry, and a capacity below one is refused', () => {
+  test('a write that cannot land leaves no entry and is reported, and a capacity below one is refused', () => {
     const blockingFile = path.join(scratchFolder, 'blocking');
     fs.writeFileSync(blockingFile, '');
-    const store = new SchemaFolderStore(blockingFile, 1);
+    const store = reportingStore(blockingFile, 1);
     store.write('mock-key', '{}');
     assert.strictEqual(store.read('mock-key'), null);
-    assert.throws(() => new SchemaFolderStore(scratchFolder, 0), /capacity is a whole number from 1, not 0/);
+    assert.strictEqual(reportedFailures.length, 1);
+    const savePrefix = `failed to save schema store entry \`${path.join(blockingFile, 'mock-key.json')}\`: `;
+    assert.ok(reportedFailures[0].startsWith(savePrefix), reportedFailures[0]);
+    assert.throws(() => reportingStore(scratchFolder, 0), /capacity is a whole number from 1, not 0/);
   });
 });

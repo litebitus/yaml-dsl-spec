@@ -8,20 +8,31 @@
 const fs = require('fs');
 const path = require('path');
 
+const { codeSpan } = require('../problem-wording');
+
 const ENTRY_EXTENSION = '.json';
 
 class SchemaFolderStore {
-  /** A store keeping each entry as a file in `folder`, at most `capacity`, a whole number from 1, of them. */
-  constructor(folder, capacity) {
+  /**
+   * A store keeping each entry as a file in `folder`, at most `capacity`, a whole number from 1, of them, each
+   * entry it fails to save or drop reported to `reportFailure`.
+   */
+  constructor(folder, capacity, reportFailure) {
     if (!(Number.isInteger(capacity) && capacity >= 1)) {
       throw new Error(`a schema folder store's capacity is a whole number from 1, not ${capacity}`);
     }
     this.folder = folder;
     this.capacity = capacity;
+    this.reportFailure = reportFailure;
   }
 
   entryPath(key) {
     return path.join(this.folder, `${key}${ENTRY_EXTENSION}`);
+  }
+
+  /** Reports a failure on the file or folder at `failedPath`. */
+  report(failedAction, failedPath, failureError) {
+    this.reportFailure(`failed to ${failedAction} ${codeSpan(failedPath)}: ${failureError.message}`);
   }
 
   /** The entry written under `key`, marked used; `null` where the store holds none. */
@@ -45,8 +56,9 @@ class SchemaFolderStore {
       fs.mkdirSync(this.folder, { recursive: true });
       fs.writeFileSync(partialPath, prepared);
       fs.renameSync(partialPath, entryPath);
-    } catch {
-      removeEntryFile(partialPath);
+    } catch (writeError) {
+      removePartialFile(partialPath);
+      this.report('save schema store entry', entryPath, writeError);
       return;
     }
     this.dropLeastRecentlyUsed();
@@ -57,7 +69,8 @@ class SchemaFolderStore {
     let entryNames;
     try {
       entryNames = fs.readdirSync(this.folder);
-    } catch {
+    } catch (listError) {
+      this.report('list schema store folder', this.folder, listError);
       return;
     }
     const usedEntries = entryNames
@@ -69,14 +82,20 @@ class SchemaFolderStore {
       })
       .filter((usedEntry) => usedEntry !== null)
       .sort((first, second) => second.usedAt - first.usedAt);
-    for (const { entryPath } of usedEntries.slice(this.capacity)) removeEntryFile(entryPath);
+    for (const { entryPath } of usedEntries.slice(this.capacity)) {
+      try {
+        fs.rmSync(entryPath, { force: true });
+      } catch (dropError) {
+        this.report('drop schema store entry', entryPath, dropError);
+      }
+    }
   }
 }
 
-/** Removes the file at `entryPath`, where one is there to remove. */
-function removeEntryFile(entryPath) {
+/** Removes a failed write's partial file, where one is there to remove. */
+function removePartialFile(partialPath) {
   try {
-    fs.rmSync(entryPath, { force: true });
+    fs.rmSync(partialPath, { force: true });
   } catch {
     return;
   }

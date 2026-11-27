@@ -1,12 +1,16 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/litebitus/yaml-dsl-spec/go/core"
 )
 
 const folderEntryExtension = ".json"
@@ -16,18 +20,28 @@ const folderEntryExtension = ".json"
 type SchemaFolderStore struct {
 	storeFolder   string
 	entryCapacity int
+	reportFailure func(failureMessage string)
 }
 
-// NewSchemaFolderStore is a store keeping at most entryCapacity entries in storeFolder; it panics below one.
-func NewSchemaFolderStore(storeFolder string, entryCapacity int) *SchemaFolderStore {
+// NewSchemaFolderStore is a store keeping at most entryCapacity entries in storeFolder, each entry it fails to save
+// or drop reported to reportFailure; it panics below one entry.
+func NewSchemaFolderStore(
+	storeFolder string, entryCapacity int, reportFailure func(failureMessage string),
+) *SchemaFolderStore {
 	if entryCapacity < 1 {
 		panic(fmt.Sprintf("a schema folder store's capacity is a whole number from 1, not %d", entryCapacity))
 	}
-	return &SchemaFolderStore{storeFolder: storeFolder, entryCapacity: entryCapacity}
+	return &SchemaFolderStore{storeFolder: storeFolder, entryCapacity: entryCapacity, reportFailure: reportFailure}
 }
 
 func (folderStore *SchemaFolderStore) entryPath(storeKey string) string {
 	return filepath.Join(folderStore.storeFolder, storeKey+folderEntryExtension)
+}
+
+// report reports a failure on the file or folder at failedPath.
+func (folderStore *SchemaFolderStore) report(failedAction, failedPath string, failureError error) {
+	folderStore.reportFailure(
+		"failed to " + failedAction + " " + core.CodeSpan(failedPath) + ": " + failureError.Error())
 }
 
 // Read is the entry written under storeKey, and whether the folder holds it; reading it marks it used.
@@ -55,6 +69,7 @@ func (folderStore *SchemaFolderStore) Write(storeKey, preparedText string) {
 	}
 	if writeError != nil {
 		_ = os.Remove(partialPath)
+		folderStore.report("save schema store entry", entryPath, writeError)
 		return
 	}
 	folderStore.dropLeastRecentlyUsed()
@@ -64,6 +79,7 @@ func (folderStore *SchemaFolderStore) Write(storeKey, preparedText string) {
 func (folderStore *SchemaFolderStore) dropLeastRecentlyUsed() {
 	folderEntries, listError := os.ReadDir(folderStore.storeFolder)
 	if listError != nil {
+		folderStore.report("list schema store folder", folderStore.storeFolder, listError)
 		return
 	}
 	type usedEntry struct {
@@ -85,7 +101,10 @@ func (folderStore *SchemaFolderStore) dropLeastRecentlyUsed() {
 		return usedEntries[firstIndex].usedAt.After(usedEntries[secondIndex].usedAt)
 	})
 	for _, droppedEntry := range usedEntries[min(folderStore.entryCapacity, len(usedEntries)):] {
-		_ = os.Remove(droppedEntry.entryPath)
+		removeError := os.Remove(droppedEntry.entryPath)
+		if removeError != nil && !errors.Is(removeError, fs.ErrNotExist) {
+			folderStore.report("drop schema store entry", droppedEntry.entryPath, removeError)
+		}
 	}
 }
 

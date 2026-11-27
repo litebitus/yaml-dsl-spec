@@ -7,7 +7,8 @@
   - A schema URL's parameters other than the `yaml_dsl_` ones are its protocol's, and a reader may read a host's links its host's own way.
 - Packages
   - Schema resolution: a document's schema found and read through the schema cache, each URL by the reader of its prefix, a remote schema kept as a copy in the cache's store.
-  - The folder store, `json_pointer_steps`, `netrc_login` and `document_modeline`.
+  - The folder store, reporting each entry it fails to save or drop to its caller.
+  - `json_pointer_steps`, `netrc_login` and `document_modeline`.
   - The S3 and GitHub schema readers, extra packages; the S3 reader reads an object by its path where the machine's AWS configuration names an endpoint.
 
 ## v0.4.1 — 2026-11-26
