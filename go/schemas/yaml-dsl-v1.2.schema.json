@@ -1,0 +1,571 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/litebitus/yaml-dsl-spec/schemas/yaml-dsl-v1.2.schema.json",
+  "title": "yaml-dsl.yml v1.2",
+  "description": "The workspace's YAML DSLs: which files each one owns and the syntax of its names, references, placeholders and calls.",
+  "type": "object",
+  "required": ["version", "dsls"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "enum": ["1", "1.2"],
+      "description": "Config format version: `1.2`, or `1` for the newest 1.x the reader knows."
+    },
+    "dsls": {
+      "type": "array",
+      "description": "One entry per DSL.",
+      "items": { "$ref": "#/$defs/dsl" }
+    }
+  },
+  "$defs": {
+    "dsl": {
+      "type": "object",
+      "required": [
+        "id",
+        "file_includes",
+        "file_excludes",
+        "schema_search_paths",
+        "key_sort_orders",
+        "scopes",
+        "declarations",
+        "references"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the DSL."
+        },
+        "file_includes": {
+          "$ref": "#/$defs/globs",
+          "description": "Globs of the files the DSL owns. A glob starting with {config_root}/ matches below the config's folder."
+        },
+        "file_excludes": {
+          "$ref": "#/$defs/globs",
+          "description": "Globs of files the DSL does not own, even when file_includes matches them. A glob starting with {config_root}/ matches below the config's folder."
+        },
+        "schema_search_paths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Schemas tried in order when a file names none, or the one it names is not on disk. Each path is relative to the file, or to the config's folder when it starts with {config_root}/, and a * in a step matches within it; a URL is fetched."
+        },
+        "tag_keys": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["tag", "key"],
+            "additionalProperties": false,
+            "properties": {
+              "tag": {
+                "type": "string",
+                "pattern": "^![^\\s!]+$",
+                "description": "The YAML tag as written, such as !Ref."
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The key the tagged node stands for, such as Ref."
+              }
+            }
+          },
+          "description": "YAML tags that stand for keys: a tagged node reads as a map holding the key, the node its value."
+        },
+        "layers": { "$ref": "#/$defs/layers" },
+        "placeholder": { "$ref": "#/$defs/placeholder" },
+        "function": { "$ref": "#/$defs/function" },
+        "locals": { "$ref": "#/$defs/locals" },
+        "loops": { "$ref": "#/$defs/loops" },
+        "validator": { "$ref": "#/$defs/validator" },
+        "performance": { "$ref": "#/$defs/performance" },
+        "key_sort_orders": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/key_sort_order" },
+          "description": "Where an edit places a new key in each map. The first entry whose path covers the map applies."
+        },
+        "scopes": { "$ref": "#/$defs/scopes" },
+        "declarations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/declaration" },
+          "description": "Where names are declared."
+        },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reference" },
+          "description": "How names are referenced. Rules reading the same text are tried in order."
+        }
+      }
+    },
+    "layers": {
+      "type": "object",
+      "description": "The common layer and its overlays. Left out for a DSL without layers.",
+      "required": ["common_layer_discovery", "duplicate_check"],
+      "additionalProperties": false,
+      "if": { "properties": { "common_layer_discovery": { "const": "overlay_includes" } } },
+      "then": {
+        "required": ["overlay_includes"],
+        "not": { "anyOf": [{ "required": ["overlay_folders"] }, { "required": ["common_layer_files"] }] }
+      },
+      "else": {
+        "required": ["overlay_folders"],
+        "not": { "required": ["overlay_includes"] }
+      },
+      "properties": {
+        "overlay_folders": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Folder names of the overlays."
+        },
+        "common_layer_discovery": {
+          "enum": ["parent", "ancestor", "overlay_includes"],
+          "description": "How an overlay and its common layer are paired: by the overlay folder's parent, by the nearest ancestor above an overlay folder, or by an include in the overlay."
+        },
+        "overlay_includes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/overlay_include" },
+          "description": "How an include in an overlay names its common layer. Read only with common_layer_discovery overlay_includes."
+        },
+        "common_layer_files": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "pattern": "^[^/\\\\]+$" }
+          },
+          "description": "A layer file name to the names its common layer may take, the first that exists taken. {concern} in a name stands for a concern below its overlays, and each list holds a name without it. Left out, the common layer takes the layer file's own name."
+        },
+        "duplicate_check": {
+          "type": "object",
+          "description": "The unit a suggestion takes, a node of the overlays it moves or deletes whole.",
+          "required": ["depth", "key_depths", "skip_keys"],
+          "additionalProperties": false,
+          "properties": {
+            "depth": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "How many levels below the document root the unit sits, under a top-level key key_depths does not list."
+            },
+            "key_depths": {
+              "type": "object",
+              "additionalProperties": { "type": "integer", "minimum": 1 },
+              "description": "The unit's depth under a given top-level key, {} when every key takes depth."
+            },
+            "skip_keys": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Keys no suggestion compares or moves, at any depth."
+            }
+          }
+        }
+      }
+    },
+    "overlay_include": {
+      "type": "object",
+      "description": "An include: a key whose value names the common layer merged in place of the include.",
+      "required": ["key_paths", "value_conditions", "location_path", "location_mappings"],
+      "additionalProperties": false,
+      "properties": {
+        "key_paths": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "JSONPaths of the keys whose values are includes, such as $..['Fn::Transform']. A value that is a list holds one include per map."
+        },
+        "value_conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["key", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "key": { "type": "string", "minLength": 1, "description": "A key the include value holds." },
+              "value": { "type": "string", "minLength": 1, "description": "The value it holds at that key." }
+            }
+          },
+          "description": "The key and value pairs an include value holds, [] for none."
+        },
+        "location_path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A JSONPath of names from the include value to its location, such as $.Parameters.Location."
+        },
+        "location_mappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["local", "remote"],
+            "additionalProperties": false,
+            "properties": {
+              "local": {
+                "type": "string",
+                "minLength": 1,
+                "description": "The local path a remote location stands for, relative to the overlay, or to the config's folder when it starts with {config_root}/."
+              },
+              "remote": { "type": "string", "minLength": 1, "description": "The start of a location." }
+            }
+          },
+          "description": "A location starting with remote names the file at local followed by the rest of the location. A location none covers names no file."
+        }
+      }
+    },
+    "placeholder": {
+      "type": "object",
+      "description": "The placeholder syntax. Left out for a DSL without placeholders.",
+      "required": ["pattern", "unscanned_paths"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "pattern": "\\(\\?<body>",
+          "description": "Regular expression of a placeholder, with a (?<body>...) group."
+        },
+        "escape_prefix": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text that, written right before a placeholder, keeps it as literal text. Left out for none."
+        },
+        "unscanned_paths": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/path_entry" },
+          "description": "Paths whose text is another language's and is not read for placeholders."
+        }
+      }
+    },
+    "function": {
+      "type": "object",
+      "description": "Function calls. Left out for a DSL without calls.",
+      "required": ["definitions", "call_result_reference_positions", "calls_not_allowed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "definitions": {
+          "type": "array",
+          "items": { "enum": ["terraform", "schema"] },
+          "uniqueItems": true,
+          "description": "Sources of the function table, merged in order."
+        },
+        "call_result_reference_positions": {
+          "$ref": "#/$defs/positions",
+          "description": "Positions from which a name a call declares may be referenced."
+        },
+        "calls_not_allowed_at": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/path_entry" },
+          "description": "Paths where a call is a problem."
+        },
+        "marker_function": { "$ref": "#/$defs/marker_function" }
+      }
+    },
+    "loops": {
+      "type": "object",
+      "description": "The loop variables a loop macro binds within its body. Left out for a DSL that reads no loop variables.",
+      "required": ["scope_name"],
+      "additionalProperties": false,
+      "properties": {
+        "scope_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The scope, declared under scopes, whose reference rules read loop variables."
+        }
+      }
+    },
+    "locals": {
+      "type": "object",
+      "description": "Named values. Left out for a DSL without locals.",
+      "required": ["scope_name"],
+      "additionalProperties": false,
+      "properties": {
+        "scope_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The scope, declared under scopes, whose declarations are the locals."
+        },
+        "path_separator": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The text between the steps of a path into a local, read after the local's name. Left out, a local is read whole."
+        }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "description": "How the editor keeps a large schema fast. Left out for a DSL that needs none of it.",
+      "required": ["compiled_schema_cache"],
+      "additionalProperties": false,
+      "properties": {
+        "compiled_schema_cache": {
+          "type": "boolean",
+          "description": "Whether the compiled schema is kept in the extension's storage and loaded in later sessions instead of compiled."
+        }
+      }
+    },
+    "validator": {
+      "type": "object",
+      "description": "How a document is read before it is validated against its schema. Left out for a DSL whose documents are validated as written.",
+      "required": ["child_values_from_parent_key"],
+      "additionalProperties": false,
+      "properties": {
+        "merge_base_keys": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "The keys whose content is merged into their sibling entries before validation."
+        },
+        "child_values_from_parent_key": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pattern"],
+            "additionalProperties": false,
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "pattern": "\\(\\?<field>[\\s\\S]*\\(\\?<value>|\\(\\?<value>[\\s\\S]*\\(\\?<field>",
+                "description": "Regular expression of a key that sets a field of its own entry, with (?<field>...) and (?<value>...) groups."
+              }
+            }
+          },
+          "description": "Keys that set a field of the entry they key."
+        },
+        "allow_quoted_values": {
+          "type": "array",
+          "items": { "enum": ["boolean", "integer", "number"] },
+          "uniqueItems": true,
+          "description": "Types a quoted value is validated as, where the schema expects that type and the string spells one. Defaults to []."
+        }
+      }
+    },
+    "marker_function": {
+      "type": "object",
+      "description": "A call written in a key: <name> <call_marker><function>. Left out when the DSL's calls take another shape.",
+      "required": ["call_marker", "splat_operator", "calls_without_name_allowed"],
+      "additionalProperties": false,
+      "properties": {
+        "call_marker": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Text that opens a call in a key."
+        },
+        "splat_operator": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "Suffix after the function that spreads a list value into the arguments; `null` where the function table decides how a value binds the arguments."
+        },
+        "calls_without_name_allowed": {
+          "type": "boolean",
+          "description": "Whether a key that is the marker alone is a call, the only key of its map."
+        }
+      }
+    },
+    "scopes": {
+      "type": "object",
+      "description": "The DSL's scopes. A name in capitals is a logical scope; any other name is the DSL's own word.",
+      "patternProperties": {
+        "^[A-Z][A-Z0-9_]*$": { "$ref": "#/$defs/scope" }
+      },
+      "additionalProperties": {
+        "allOf": [
+          { "$ref": "#/$defs/scope" },
+          {
+            "properties": {
+              "named_by_parent_key": { "const": false },
+              "builtin_names": { "maxItems": 0 }
+            }
+          }
+        ]
+      }
+    },
+    "scope": {
+      "type": "object",
+      "required": ["regions", "later_items_of_declaring_list", "named_by_parent_key", "builtin_names"],
+      "additionalProperties": false,
+      "properties": {
+        "regions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/path" },
+          "description": "Paths whose subtree in any file of the fold sees the scope's names; $ is the whole fold."
+        },
+        "later_items_of_declaring_list": {
+          "type": "boolean",
+          "description": "Whether a name is also visible in the later items of the list that declares it."
+        },
+        "named_by_parent_key": {
+          "type": "boolean",
+          "description": "Whether the mapping key enclosing a declaration is the scope its name is in. Logical scopes only."
+        },
+        "builtin_names": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Names the scope holds without a declaration. Logical scopes only."
+        }
+      },
+      "if": { "properties": { "regions": { "maxItems": 0 } } },
+      "then": { "properties": { "later_items_of_declaring_list": { "const": true } } }
+    },
+    "declaration": {
+      "type": "object",
+      "required": [
+        "path",
+        "skip_keys",
+        "exclude_candidates",
+        "name_source",
+        "key_token",
+        "name_spelling",
+        "meta_argument_name",
+        "declares_every_name",
+        "scope_name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "skip_keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keys a .*, [*] or ..* step does not descend into."
+        },
+        "exclude_candidates": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keys at the last step that declare nothing."
+        },
+        "name_source": {
+          "enum": ["key", "value", "meta_argument"],
+          "description": "Where the name is read: the key, the scalar value, or a meta argument of the key."
+        },
+        "key_token": {
+          "enum": ["all_words", "first_word", "last_word", null],
+          "description": "The words of the key that are the name; null when the name is not read from the key."
+        },
+        "name_spelling": {
+          "enum": ["as_written", "dashes_as_underscores"],
+          "description": "How the name is spelled for references."
+        },
+        "meta_argument_name": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The meta argument holding the name; null when the name is not read from a meta argument."
+        },
+        "declares_every_name": {
+          "type": "boolean",
+          "description": "Whether the key declares every name of the scope, for names defined in a document the editor does not read."
+        },
+        "scope_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A scope declared under scopes."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "name_source": { "const": "key" } } },
+          "then": { "properties": { "key_token": { "type": "string" } } }
+        },
+        {
+          "if": { "properties": { "name_source": { "const": "meta_argument" } } },
+          "then": { "properties": { "meta_argument_name": { "type": "string" } } }
+        }
+      ]
+    },
+    "reference": {
+      "type": "object",
+      "required": [
+        "pattern",
+        "positions",
+        "text_after_name_allowed",
+        "scope_name",
+        "scope_group",
+        "name_group"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pattern": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Regular expression of a reference, with named groups."
+        },
+        "positions": {
+          "$ref": "#/$defs/positions",
+          "description": "Positions the reference may stand in."
+        },
+        "text_after_name_allowed": {
+          "type": "boolean",
+          "description": "Whether text such as a field path may follow the name."
+        },
+        "scope_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The scope the reference resolves in, declared under scopes."
+        },
+        "scope_group": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "The pattern group holding the scope of a named_by_parent_key scope; null for any other scope."
+        },
+        "name_group": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The pattern group holding the name."
+        }
+      }
+    },
+    "positions": {
+      "type": "array",
+      "items": { "enum": ["whole_scalar", "whole_placeholder", "placeholder_in_text", "anywhere_in_scalar"] },
+      "uniqueItems": true
+    },
+    "key_sort_order": {
+      "type": "object",
+      "required": ["path", "skip_keys", "order", "first_keys", "last_keys"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "skip_keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keys a .*, [*] or ..* step does not select or descend into."
+        },
+        "order": {
+          "enum": ["alphabetical", "significance"],
+          "description": "Where a new key goes among the map's keys."
+        },
+        "first_keys": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Under significance, keys at the top of the map, in this order. [] under alphabetical."
+        },
+        "last_keys": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Under significance, keys at the bottom of the map, in this order. [] under alphabetical."
+        }
+      }
+    },
+    "path_entry": {
+      "type": "object",
+      "required": ["path", "skip_keys"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "skip_keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keys a .*, [*] or ..* step does not select or descend into."
+        },
+        "includes_subtree": {
+          "type": "boolean",
+          "description": "List the path ending in ..* as its own entry instead.",
+          "deprecated": true
+        }
+      }
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^\\$(\\.(\\*|[^.\\[*][^.\\[]*)|\\[\\*\\]|\\['[^']+'\\]|\\.\\.([^.\\[*][^.\\[]*|\\['[^']+'\\]))*(\\.\\.\\*)?$",
+      "description": "A JSONPath (RFC 9535) from $, with .name, ['name'], ..name, .* and [*] steps and an optional final ..*."
+    },
+    "globs": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}
