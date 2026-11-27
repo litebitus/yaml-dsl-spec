@@ -463,8 +463,8 @@ The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
 
 - Without the machine's credentials, an object is read by an unsigned request.
 - The machine's credentials are the SDK's default chain: the AWS environment variables, the profile `AWS_PROFILE` names with its SSO login, a container's or an instance's role.
-- `assume_role=<role ARN>`, the one parameter the protocol takes, reads the object as that role, assumed with the machine's credentials. A role's credentials are kept, and renewed as they expire.
-- An object is read in its bucket's own region, whatever region the machine is set to.
+- `assume_role=<role ARN>`, the one parameter the protocol takes, reads the object as that role, assumed with the machine's credentials in the region the machine is set to, else in the bucket's region. A role's credentials are kept, and renewed as they expire.
+- An object is read in its bucket's own region, whatever region the machine is set to. S3 names it, asked by an unsigned request before the bucket's first read.
 - Where the machine's AWS configuration names an endpoint, such as `AWS_ENDPOINT_URL`, an object is read by its path, `<endpoint>/<bucket>/<key>`, as an S3-compatible server serves it.
 - A copy version is the object's `ETag`, and a read asks with it whether the kept copy is current.
 
@@ -480,6 +480,7 @@ The URL reader of `s3://<bucket>/<key>`, read with the AWS SDK of its language.
 | anything else | `ReadFailed` | |
 
 - A refusal is refused by `AWS`, its reason the error's code and the identity it names, such as `AccessDenied for arn:aws:iam::<account>:user/<name>`.
+- A failure's reason is the message of the innermost error the SDK reports.
 
 ### GitHub schema reader
 

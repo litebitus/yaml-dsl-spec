@@ -10,12 +10,13 @@ const {
 
 const { S3SchemaReader } = require('..');
 const {
-  parsedS3Object, errorAnswer, redirectedRegion, credentialsAnswer, refusalReason,
+  parsedS3Object, errorAnswer, stsRegionOf, answeredBucketRegion, innermostMessage, credentialsAnswer, refusalReason,
 } = require('../lib/s3-schema-reader');
 
 const MOCK_SCHEMA = '{"type": "object"}';
 const CREDENTIALS_FIX = 'run `aws sso login`, or set `AWS_PROFILE` to a profile that reads it';
 const MOCK_ROLE = 'arn:aws:iam::000000000000:role/mock-reader';
+const DEFAULT_REGION = 'us-east-1';
 
 /** The Moto server the tests read from. */
 function motoEndpoint() {
@@ -34,8 +35,8 @@ function mockReader() {
   return new S3SchemaReader('mock-session');
 }
 
-function seedingClient() {
-  return new S3Client({ endpoint: motoEndpoint(), forcePathStyle: true });
+function seedingClient(bucketRegion) {
+  return new S3Client({ region: bucketRegion, endpoint: motoEndpoint(), forcePathStyle: true });
 }
 
 function mockRequest(fetchUrl, machineCredentials, keptCopyVersion = null) {
@@ -43,13 +44,16 @@ function mockRequest(fetchUrl, machineCredentials, keptCopyVersion = null) {
 }
 
 /**
- * A bucket in the Moto server holding `objects`, anyone allowed to read those `publicKeys` names, created
- * before each test of a suite and deleted after it.
+ * A bucket in `bucketRegion` in the Moto server holding `objects`, anyone allowed to read those `publicKeys` names,
+ * created before each test of a suite and deleted after it.
  */
-function seededBucket(bucketName, objects, publicKeys = []) {
+function seededBucket(bucketName, objects, publicKeys = [], bucketRegion = DEFAULT_REGION) {
   test.beforeEach(async () => {
-    const client = seedingClient();
-    await client.send(new CreateBucketCommand({ Bucket: bucketName }));
+    const client = seedingClient(bucketRegion);
+    const locationConfiguration = bucketRegion === DEFAULT_REGION
+      ? {}
+      : { CreateBucketConfiguration: { LocationConstraint: bucketRegion } };
+    await client.send(new CreateBucketCommand({ Bucket: bucketName, ...locationConfiguration }));
     for (const [objectKey, objectBody] of Object.entries(objects)) {
       const objectAcl = publicKeys.includes(objectKey) ? 'public-read' : undefined;
       await client.send(new PutObjectCommand({
@@ -58,7 +62,7 @@ function seededBucket(bucketName, objects, publicKeys = []) {
     }
   });
   test.afterEach(async () => {
-    const client = seedingClient();
+    const client = seedingClient(bucketRegion);
     const listing = await client.send(new ListObjectsV2Command({ Bucket: bucketName }));
     for (const listed of listing.Contents || []) {
       await client.send(new DeleteObjectCommand({ Bucket: bucketName, Key: listed.Key }));
@@ -101,13 +105,20 @@ test.describe('an object in a bucket', () => {
 });
 
 test.describe('an object read as a role', () => {
-  seededBucket('mock-role-bucket', { 'mock.schema.json': MOCK_SCHEMA });
+  seededBucket('mock-role-bucket', { 'mock.schema.json': MOCK_SCHEMA }, [], 'mock-bucket-region');
 
-  test('an object is read as the role its url names', async () => {
+  test('an object is read as the role its url names in its bucket\'s region', async () => {
+    const reader = mockReader();
     const url = `s3://mock-role-bucket/mock.schema.json?assume_role=${MOCK_ROLE}`;
-    const sent = await mockReader().readSchemaUrl(mockRequest(url, true));
+    const sent = await reader.readSchemaUrl(mockRequest(url, true));
     assert.strictEqual(sent.readOutcome.outcomeKind, 'textSent', JSON.stringify(sent));
+    assert.strictEqual(reader.bucketRegions.get('mock-role-bucket'), 'mock-bucket-region');
   });
+});
+
+test('a role is assumed in the configured region else the bucket\'s', () => {
+  assert.strictEqual(stsRegionOf('mock-configured-region', 'mock-bucket-region'), 'mock-configured-region');
+  assert.strictEqual(stsRegionOf(null, 'mock-bucket-region'), 'mock-bucket-region');
 });
 
 /** Posts `recorderAction` to the Moto server's request recorder. */
@@ -213,7 +224,7 @@ function mockServiceError(status, code, message, bucketRegion = null) {
   return serviceError;
 }
 
-test('an s3 error is refused, redirected or failed by its code and status', () => {
+test('an s3 error is refused or failed by its code and status', () => {
   const s3Object = { bucketName: 'mock-bucket', objectKey: 'a.json', assumedRole: null };
   const denied = 'User: arn:aws:iam::000000000000:user/mock is not authorized';
   const machine = { identityKind: 'machine' };
@@ -242,9 +253,20 @@ test('an s3 error is refused, redirected or failed by its code and status', () =
     errorAnswer(mockServiceError(500, 'InternalError', 'mock'), s3Object, { identityKind: 'unsigned' }).readOutcome,
     { outcomeKind: 'readFailed', failureReason: 'InternalError' },
   );
-  assert.strictEqual(redirectedRegion(mockServiceError(301, 'PermanentRedirect', '', 'eu-west-1')), 'eu-west-1');
-  assert.strictEqual(redirectedRegion(mockServiceError(403, 'AccessDenied', '', 'eu-west-1')), null);
-  assert.strictEqual(redirectedRegion(new Error('mock')), null);
+});
+
+test('a bucket\'s region is read from s3\'s answer refused or not', () => {
+  assert.strictEqual(answeredBucketRegion({ BucketRegion: 'mock-bucket-region' }, null), 'mock-bucket-region');
+  assert.strictEqual(
+    answeredBucketRegion(null, mockServiceError(403, 'AccessDenied', '', 'mock-bucket-region')),
+    'mock-bucket-region',
+  );
+  assert.strictEqual(answeredBucketRegion(null, new Error('mock connection error')), null);
+});
+
+test('a failure is said by the innermost error', () => {
+  const wrapped = new Error('dispatch failure', { cause: new Error('mock innermost cause') });
+  assert.strictEqual(innermostMessage(wrapped), 'mock innermost cause');
 });
 
 test('a refusal names its code the identity refused and what renews it', () => {

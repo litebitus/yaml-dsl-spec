@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -67,6 +68,14 @@ func motoRecorderCall(testingContext *testing.T, httpMethod, recorderAction stri
 func seedBucket(
 	testingContext *testing.T, bucketName string, seededObjects map[string]string, publicKeys ...string,
 ) {
+	seedRegionalBucket(testingContext, defaultRegion, bucketName, seededObjects, publicKeys...)
+}
+
+// seedRegionalBucket creates bucketName in bucketRegion holding seededObjects in the Moto server, anyone allowed to
+// read the objects publicKeys names, and removes both when the test ends.
+func seedRegionalBucket(
+	testingContext *testing.T, bucketRegion, bucketName string, seededObjects map[string]string, publicKeys ...string,
+) {
 	endpointURL := motoEndpoint(testingContext)
 	seedContext, cancelSeed := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancelSeed()
@@ -75,12 +84,17 @@ func seedBucket(
 		testingContext.Fatal(configError)
 	}
 	seedClient := s3.NewFromConfig(machineConfig, func(clientOptions *s3.Options) {
+		clientOptions.Region = bucketRegion
 		clientOptions.BaseEndpoint = aws.String(endpointURL)
 		clientOptions.UsePathStyle = true
 	})
-	if _, createError := seedClient.CreateBucket(seedContext, &s3.CreateBucketInput{
-		Bucket: aws.String(bucketName),
-	}); createError != nil {
+	createInput := &s3.CreateBucketInput{Bucket: aws.String(bucketName)}
+	if bucketRegion != defaultRegion {
+		createInput.CreateBucketConfiguration = &s3types.CreateBucketConfiguration{
+			LocationConstraint: s3types.BucketLocationConstraint(bucketRegion),
+		}
+	}
+	if _, createError := seedClient.CreateBucket(seedContext, createInput); createError != nil {
 		testingContext.Fatal(createError)
 	}
 	for objectKey, objectBody := range seededObjects {
@@ -200,13 +214,48 @@ func TestAnObjectThatIsNotUTF8Fails(testingContext *testing.T) {
 	}
 }
 
-func TestAnObjectIsReadAsTheRoleItsURLNames(testingContext *testing.T) {
+func TestAnObjectIsReadAsTheRoleItsURLNamesInItsBucketsRegion(testingContext *testing.T) {
 	reader := motoReader(testingContext)
-	seedBucket(testingContext, "mock-role-bucket", map[string]string{"mock.schema.json": mockSchemaText})
+	seedRegionalBucket(testingContext, "mock-bucket-region", "mock-role-bucket",
+		map[string]string{"mock.schema.json": mockSchemaText})
 	objectURL := "s3://mock-role-bucket/mock.schema.json?assume_role=arn:aws:iam::000000000000:role/mock-reader"
 	if sentAnswer := readObject(testingContext, reader, objectURL, true, nil); sentAnswer.ReadOutcome.OutcomeKind !=
 		yamldslspec.OutcomeTextSent {
 		testingContext.Fatalf("sent %+v", sentAnswer)
+	}
+	if knownRegion := reader.bucketRegions["mock-role-bucket"]; knownRegion != "mock-bucket-region" {
+		testingContext.Fatalf("the bucket's region is %q", knownRegion)
+	}
+}
+
+func TestARoleIsAssumedInTheConfiguredRegionElseTheBuckets(testingContext *testing.T) {
+	if assumedRegion := stsRegionOf("mock-configured-region", "mock-bucket-region"); assumedRegion !=
+		"mock-configured-region" {
+		testingContext.Fatalf("assumed in %s", assumedRegion)
+	}
+	if assumedRegion := stsRegionOf("", "mock-bucket-region"); assumedRegion != "mock-bucket-region" {
+		testingContext.Fatalf("assumed in %s", assumedRegion)
+	}
+}
+
+func TestABucketsRegionIsReadFromS3sAnswerRefusedOrNot(testingContext *testing.T) {
+	foundOutput := &s3.HeadBucketOutput{BucketRegion: aws.String("mock-bucket-region")}
+	if foundRegion := answeredBucketRegionOf(foundOutput, nil); foundRegion != "mock-bucket-region" {
+		testingContext.Fatalf("found in %s", foundRegion)
+	}
+	refusedError := s3ServiceError(403, "AccessDenied", "", http.Header{"X-Amz-Bucket-Region": {"mock-bucket-region"}})
+	if refusedRegion := answeredBucketRegionOf(nil, refusedError); refusedRegion != "mock-bucket-region" {
+		testingContext.Fatalf("refused in %s", refusedRegion)
+	}
+	if unreachedRegion := answeredBucketRegionOf(nil, errors.New("mock connection error")); unreachedRegion != "" {
+		testingContext.Fatalf("unreached in %s", unreachedRegion)
+	}
+}
+
+func TestAFailureIsSaidByTheInnermostError(testingContext *testing.T) {
+	wrappedError := fmt.Errorf("dispatch failure: %w", errors.New("mock innermost cause"))
+	if innermostMessage := innermostMessageOf(wrappedError); innermostMessage != "mock innermost cause" {
+		testingContext.Fatalf("said %s", innermostMessage)
 	}
 }
 
@@ -327,15 +376,10 @@ func TestWhatS3AnswersComesToItsOutcomeAndRenewalFix(testingContext *testing.T) 
 			testingContext.Fatalf("%v fails with %+v", readError, failedAnswer)
 		}
 	}
-	redirectHeaders := http.Header{"X-Amz-Bucket-Region": {"mock-region"}}
-	redirectError := s3ServiceError(301, "PermanentRedirect", "", redirectHeaders)
-	if bucketRegion, isRedirected := redirectedRegionOf(redirectError); !isRedirected || bucketRegion != "mock-region" {
-		testingContext.Fatalf("redirected to %s", bucketRegion)
-	}
 	credentialsError := &smithy.OperationError{ServiceID: "S3", OperationName: "GetObject", Err: &smithy.OperationError{
 		ServiceID: "STS", OperationName: "AssumeRole", Err: s3ServiceError(403, "AccessDenied", "mock", nil),
 	}}
-	if _, isRedirected := redirectedRegionOf(credentialsError); isRedirected {
+	if _, _, _, isServiceError := serviceErrorOf(credentialsError); isServiceError {
 		testingContext.Fatal("an STS error was read as S3's")
 	}
 }

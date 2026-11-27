@@ -7,7 +7,9 @@
  * names one.
  */
 
-const { S3Client, GetObjectCommand, S3ServiceException } = require('@aws-sdk/client-s3');
+const {
+  S3Client, GetObjectCommand, HeadBucketCommand, S3ServiceException,
+} = require('@aws-sdk/client-s3');
 const { fromNodeProviderChain, fromTemporaryCredentials } = require('@aws-sdk/credential-providers');
 const { codeSpan, schemaResolution } = require('yaml-dsl-spec');
 
@@ -27,12 +29,6 @@ const CREDENTIALS_REFUSED_CODES = [
   'InvalidClientTokenId',
   'SignatureDoesNotMatch',
 ];
-const REGION_REDIRECT_CODES = [
-  'PermanentRedirect',
-  'AuthorizationHeaderMalformed',
-  'IllegalLocationConstraintException',
-];
-const REGION_REDIRECT_STATUSES = [301, 307];
 const CREDENTIALS_PROVIDER_ERRORS = ['CredentialsProviderError', 'TokenProviderError'];
 const CREDENTIALS_FIX = 'run `aws sso login`, or set `AWS_PROFILE` to a profile that reads it';
 const UNSIGNED_IDENTITY = { identityKind: 'unsigned' };
@@ -82,13 +78,8 @@ class S3SchemaReader {
   async answerOf(s3Object, identity, keptEtag, answerSignal) {
     let read;
     try {
-      const region = await this.bucketRegion(s3Object.bucketName);
+      const region = await this.bucketRegion(s3Object.bucketName, answerSignal);
       read = await this.objectRead(identity, region, s3Object, keptEtag, answerSignal);
-      const bucketRegion = read.readError ? redirectedRegion(read.readError) : null;
-      if (bucketRegion !== null && bucketRegion !== region) {
-        this.bucketRegions.set(s3Object.bucketName, bucketRegion);
-        read = await this.objectRead(identity, bucketRegion, s3Object, keptEtag, answerSignal);
-      }
     } catch (error) {
       read = { readError: error };
     }
@@ -121,7 +112,7 @@ class S3SchemaReader {
     const pathStyle = await this.pathStyleAddressing();
     const clientKey = JSON.stringify([identity.identityKind, identity.assumedRole || null, region]);
     if (!this.identityClients.has(clientKey)) {
-      const clientConfig = { region, credentials: this.credentialsOf(identity) };
+      const clientConfig = { region, credentials: await this.credentialsOf(identity, region) };
       if (identity.identityKind === 'unsigned') {
         clientConfig.signer = { sign: async (unsignedRequest) => unsignedRequest };
       }
@@ -139,27 +130,44 @@ class S3SchemaReader {
     return this.configuredEndpoint !== null;
   }
 
-  credentialsOf(identity) {
+  /** The credentials a read as `identity` of a bucket in `bucketRegion` is made with. */
+  async credentialsOf(identity, bucketRegion) {
     if (identity.identityKind === 'unsigned') return async () => ({ accessKeyId: '', secretAccessKey: '' });
     if (this.machineCredentials === null) this.machineCredentials = fromNodeProviderChain();
     if (identity.identityKind === 'machine') return this.machineCredentials;
     return fromTemporaryCredentials({
       params: { RoleArn: identity.assumedRole, RoleSessionName: this.roleSessionName },
       masterCredentials: this.machineCredentials,
+      clientConfig: { region: stsRegionOf(await this.configuredRegion(), bucketRegion) },
     });
   }
 
-  /** The region `bucketName` is read in: where it was last found, else the machine's region, else the default. */
-  async bucketRegion(bucketName) {
-    if (this.bucketRegions.has(bucketName)) return this.bucketRegions.get(bucketName);
+  /** The region the machine is set to, `null` where it is set to none. */
+  async configuredRegion() {
     if (this.machineRegion === undefined) {
       try {
-        this.machineRegion = await new S3Client({}).config.region();
+        this.machineRegion = (await new S3Client({}).config.region()) || null;
       } catch {
         this.machineRegion = null;
       }
     }
-    return this.machineRegion || DEFAULT_REGION;
+    return this.machineRegion;
+  }
+
+  /** The region S3 names `bucketName` in, asked by an unsigned request the first time; the default where it names none. */
+  async bucketRegion(bucketName, answerSignal) {
+    if (this.bucketRegions.has(bucketName)) return this.bucketRegions.get(bucketName);
+    const client = await this.identityClient(UNSIGNED_IDENTITY, DEFAULT_REGION);
+    let answeredRegion;
+    try {
+      const headOutput = await client.send(new HeadBucketCommand({ Bucket: bucketName }), { abortSignal: answerSignal });
+      answeredRegion = answeredBucketRegion(headOutput, null);
+    } catch (headError) {
+      answeredRegion = answeredBucketRegion(null, headError);
+    }
+    if (answeredRegion === null) return DEFAULT_REGION;
+    this.bucketRegions.set(bucketName, answeredRegion);
+    return answeredRegion;
   }
 
   /** Reads the machine's credentials again when next asked, after a refusal. */
@@ -214,21 +222,31 @@ function codeOf(serviceError) {
   return typeof serviceError.Code === 'string' ? serviceError.Code : '';
 }
 
-/** The region a refused or redirected read names its bucket in, `null` where it names none. */
-function redirectedRegion(readError) {
-  if (!(readError instanceof S3ServiceException)) return null;
-  const redirected = REGION_REDIRECT_CODES.includes(codeOf(readError))
-    || REGION_REDIRECT_STATUSES.includes(statusOf(readError));
-  const headers = readError.$response && readError.$response.headers ? readError.$response.headers : {};
+/** The region a role is assumed in: the one the machine is set to, else the bucket's. */
+function stsRegionOf(configuredRegion, bucketRegion) {
+  return configuredRegion === null ? bucketRegion : configuredRegion;
+}
+
+/** The region S3 names a bucket in, answering a `HeadBucket`, refused or not; `null` where it names none. */
+function answeredBucketRegion(headOutput, headError) {
+  if (headError === null) return typeof headOutput.BucketRegion === 'string' ? headOutput.BucketRegion : null;
+  const headers = headError.$response && headError.$response.headers ? headError.$response.headers : {};
   const bucketRegion = headers[BUCKET_REGION_HEADER];
-  return redirected && typeof bucketRegion === 'string' ? bucketRegion : null;
+  return typeof bucketRegion === 'string' ? bucketRegion : null;
+}
+
+/** The message of the innermost error of `readError`'s chain, the cause the SDK's layers wrap. */
+function innermostMessage(readError) {
+  let innermostError = readError;
+  while (innermostError.cause instanceof Error) innermostError = innermostError.cause;
+  return innermostError.message;
 }
 
 /** What an error comes to. */
 function errorAnswer(readError, s3Object, identity) {
   if (!(readError instanceof S3ServiceException)) {
     const said = `${readError.name}: ${readError.message}`;
-    return credentialsAnswer(said, readError.name, identity) || failedAnswer(said);
+    return credentialsAnswer(said, readError.name, identity) || failedAnswer(innermostMessage(readError));
   }
   const status = statusOf(readError);
   const code = codeOf(readError);
@@ -290,7 +308,9 @@ module.exports = {
   S3SchemaReader,
   parsedS3Object,
   errorAnswer,
-  redirectedRegion,
+  stsRegionOf,
+  answeredBucketRegion,
+  innermostMessage,
   credentialsAnswer,
   refusalReason,
 };

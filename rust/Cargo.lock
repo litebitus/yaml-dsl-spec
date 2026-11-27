@@ -2963,6 +2963,7 @@ version = "0.4.1"
 dependencies = [
  "aws-config",
  "aws-sdk-s3",
+ "aws-smithy-types",
  "aws-types",
  "serde_json",
  "tokio",

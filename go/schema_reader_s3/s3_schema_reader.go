@@ -44,11 +44,6 @@ var (
 		"InvalidClientTokenId",
 		"SignatureDoesNotMatch",
 	}
-	regionRedirectCodes = []string{
-		"PermanentRedirect",
-		"AuthorizationHeaderMalformed",
-		"IllegalLocationConstraintException",
-	}
 	credentialsMissingPhrases = []string{
 		"no providers",
 		"expired",
@@ -63,8 +58,14 @@ type S3SchemaReader struct {
 	roleSessionName string
 	stateLock       sync.Mutex
 	machineConfig   *aws.Config
-	roleCredentials map[string]aws.CredentialsProvider
+	roleCredentials map[roleInRegion]aws.CredentialsProvider
 	bucketRegions   map[string]string
+}
+
+// roleInRegion is a role and the region it is assumed in.
+type roleInRegion struct {
+	roleARN   string
+	stsRegion string
 }
 
 // s3Object is an `s3://<bucket>/<key>` URL: where its object is, and the role it is read as.
@@ -93,7 +94,7 @@ type readIdentity struct {
 func NewS3SchemaReader(roleSessionName string) *S3SchemaReader {
 	return &S3SchemaReader{
 		roleSessionName: roleSessionName,
-		roleCredentials: map[string]aws.CredentialsProvider{},
+		roleCredentials: map[roleInRegion]aws.CredentialsProvider{},
 		bucketRegions:   map[string]string{},
 	}
 }
@@ -140,21 +141,13 @@ func (reader *S3SchemaReader) ReadSchemaURL(
 func (reader *S3SchemaReader) objectAnswer(
 	readContext context.Context, namedObject s3Object, identity readIdentity, keptEntityTag string,
 ) yamldslspec.SchemaURLAnswer {
-	readConfig, configError := reader.configOf(readContext, identity)
+	bucketRegion := reader.bucketRegion(readContext, namedObject.bucketName)
+	readConfig, configError := reader.configOf(readContext, identity, bucketRegion)
 	var objectAnswer yamldslspec.SchemaURLAnswer
 	if configError != nil {
 		objectAnswer = errorAnswer(configError, namedObject, identity)
 	} else {
-		bucketRegion := reader.bucketRegion(namedObject.bucketName, readConfig)
 		objectOutput, readError := reader.getObject(readContext, readConfig, bucketRegion, namedObject, keptEntityTag)
-		if redirectedRegion, isRedirected := redirectedRegionOf(readError); isRedirected &&
-			redirectedRegion != bucketRegion {
-			reader.stateLock.Lock()
-			reader.bucketRegions[namedObject.bucketName] = redirectedRegion
-			reader.stateLock.Unlock()
-			objectOutput, readError = reader.getObject(readContext, readConfig, redirectedRegion, namedObject,
-				keptEntityTag)
-		}
 		if readError != nil {
 			objectAnswer = errorAnswer(readError, namedObject, identity)
 		} else {
@@ -171,26 +164,38 @@ func (reader *S3SchemaReader) objectAnswer(
 func (reader *S3SchemaReader) getObject(
 	readContext context.Context, readConfig aws.Config, bucketRegion string, namedObject s3Object, keptEntityTag string,
 ) (*s3.GetObjectOutput, error) {
-	s3Client := s3.NewFromConfig(readConfig, func(clientOptions *s3.Options) {
-		clientOptions.Region = bucketRegion
-		if clientOptions.BaseEndpoint != nil {
-			clientOptions.UsePathStyle = true
-		}
-	})
 	objectInput := &s3.GetObjectInput{
 		Bucket: aws.String(namedObject.bucketName), Key: aws.String(namedObject.objectKey),
 	}
 	if keptEntityTag != "" {
 		objectInput.IfNoneMatch = aws.String(keptEntityTag)
 	}
-	return s3Client.GetObject(readContext, objectInput)
+	return s3ClientOf(readConfig, bucketRegion).GetObject(readContext, objectInput)
 }
 
-// configOf is the configuration a read as identity is made with.
-func (reader *S3SchemaReader) configOf(readContext context.Context, identity readIdentity) (aws.Config, error) {
+// s3ClientOf is the S3 client of a read in bucketRegion with readConfig, by the object's path where the configuration
+// names an endpoint.
+func s3ClientOf(readConfig aws.Config, bucketRegion string) *s3.Client {
+	return s3.NewFromConfig(readConfig, func(clientOptions *s3.Options) {
+		clientOptions.Region = bucketRegion
+		if clientOptions.BaseEndpoint != nil {
+			clientOptions.UsePathStyle = true
+		}
+	})
+}
+
+// unsignedConfigOf is the configuration of an unsigned read.
+func unsignedConfigOf(readContext context.Context) (aws.Config, error) {
+	return config.LoadDefaultConfig(readContext, config.WithCredentialsProvider(aws.AnonymousCredentials{}))
+}
+
+// configOf is the configuration a read as identity of a bucket in bucketRegion is made with.
+func (reader *S3SchemaReader) configOf(
+	readContext context.Context, identity readIdentity, bucketRegion string,
+) (aws.Config, error) {
 	switch identity.identityKind {
 	case unsignedIdentity:
-		return config.LoadDefaultConfig(readContext, config.WithCredentialsProvider(aws.AnonymousCredentials{}))
+		return unsignedConfigOf(readContext)
 	case machineIdentity:
 		return reader.machineConfigOf(readContext)
 	}
@@ -199,7 +204,9 @@ func (reader *S3SchemaReader) configOf(readContext context.Context, identity rea
 		return aws.Config{}, configError
 	}
 	roleConfig := machineConfig.Copy()
-	roleConfig.Credentials = reader.roleProvider(identity.roleARN, machineConfig)
+	roleConfig.Credentials = reader.roleProvider(
+		roleInRegion{roleARN: identity.roleARN, stsRegion: stsRegionOf(machineConfig.Region, bucketRegion)},
+		machineConfig)
 	return roleConfig, nil
 }
 
@@ -220,33 +227,78 @@ func (reader *S3SchemaReader) machineConfigOf(readContext context.Context) (aws.
 	return loadedConfig, nil
 }
 
-// roleProvider is the credentials of roleARN, assumed with the machine's credentials and renewed as they expire.
-func (reader *S3SchemaReader) roleProvider(roleARN string, machineConfig aws.Config) aws.CredentialsProvider {
+// roleProvider is the credentials of a role, assumed in its region with the machine's credentials and renewed as they
+// expire.
+func (reader *S3SchemaReader) roleProvider(assumedRole roleInRegion, machineConfig aws.Config) aws.CredentialsProvider {
 	reader.stateLock.Lock()
 	defer reader.stateLock.Unlock()
-	if heldProvider, isHeld := reader.roleCredentials[roleARN]; isHeld {
+	if heldProvider, isHeld := reader.roleCredentials[assumedRole]; isHeld {
 		return heldProvider
 	}
 	setSessionName := func(assumeOptions *stscreds.AssumeRoleOptions) {
 		assumeOptions.RoleSessionName = reader.roleSessionName
 	}
+	stsClient := sts.NewFromConfig(machineConfig, func(stsOptions *sts.Options) {
+		stsOptions.Region = assumedRole.stsRegion
+	})
 	assumedProvider := aws.NewCredentialsCache(
-		stscreds.NewAssumeRoleProvider(sts.NewFromConfig(machineConfig), roleARN, setSessionName))
-	reader.roleCredentials[roleARN] = assumedProvider
+		stscreds.NewAssumeRoleProvider(stsClient, assumedRole.roleARN, setSessionName))
+	reader.roleCredentials[assumedRole] = assumedProvider
 	return assumedProvider
 }
 
-func (reader *S3SchemaReader) bucketRegion(bucketName string, readConfig aws.Config) string {
+// bucketRegion is the region S3 names bucketName in, asked by an unsigned request the first time; the default region
+// where S3 names none.
+func (reader *S3SchemaReader) bucketRegion(readContext context.Context, bucketName string) string {
 	reader.stateLock.Lock()
 	knownRegion, isKnown := reader.bucketRegions[bucketName]
 	reader.stateLock.Unlock()
-	switch {
-	case isKnown:
+	if isKnown {
 		return knownRegion
-	case readConfig.Region != "":
-		return readConfig.Region
 	}
-	return defaultRegion
+	unsignedConfig, configError := unsignedConfigOf(readContext)
+	if configError != nil {
+		return defaultRegion
+	}
+	headOutput, headError := s3ClientOf(unsignedConfig, defaultRegion).HeadBucket(readContext,
+		&s3.HeadBucketInput{Bucket: aws.String(bucketName)})
+	answeredRegion := answeredBucketRegionOf(headOutput, headError)
+	if answeredRegion == "" {
+		return defaultRegion
+	}
+	reader.stateLock.Lock()
+	reader.bucketRegions[bucketName] = answeredRegion
+	reader.stateLock.Unlock()
+	return answeredRegion
+}
+
+// stsRegionOf is the region a role is assumed in: the one the machine is set to, else the bucket's.
+func stsRegionOf(configuredRegion, bucketRegion string) string {
+	if configuredRegion != "" {
+		return configuredRegion
+	}
+	return bucketRegion
+}
+
+// answeredBucketRegionOf is the region S3 names a bucket in, answering a HeadBucket, refused or not; empty where it
+// names none.
+func answeredBucketRegionOf(headOutput *s3.HeadBucketOutput, headError error) string {
+	if headError == nil {
+		return aws.ToString(headOutput.BucketRegion)
+	}
+	var responseError *awshttp.ResponseError
+	if errors.As(headError, &responseError) && responseError.Response != nil {
+		return responseError.Response.Header.Get(bucketRegionHeader)
+	}
+	return ""
+}
+
+// innermostMessageOf is the message of the innermost error of readError's chain, the cause the SDK's layers wrap.
+func innermostMessageOf(readError error) string {
+	for wrappedError := errors.Unwrap(readError); wrappedError != nil; wrappedError = errors.Unwrap(readError) {
+		readError = wrappedError
+	}
+	return readError.Error()
 }
 
 // forgetCredentials reads the machine's credentials again when next asked, after a refusal.
@@ -323,19 +375,6 @@ func serviceErrorOf(readError error) (*awshttp.ResponseError, string, string, bo
 	return responseError, "", "", true
 }
 
-// redirectedRegionOf is the region a refused or redirected read names its bucket in, where it names one.
-func redirectedRegionOf(readError error) (string, bool) {
-	responseError, errorCode, _, isServiceError := serviceErrorOf(readError)
-	if !isServiceError {
-		return "", false
-	}
-	statusCode := responseError.HTTPStatusCode()
-	isRedirected := slices.Contains(regionRedirectCodes, errorCode) ||
-		statusCode == http.StatusMovedPermanently || statusCode == http.StatusTemporaryRedirect
-	bucketRegion := responseError.Response.Header.Get(bucketRegionHeader)
-	return bucketRegion, isRedirected && bucketRegion != ""
-}
-
 // errorAnswer is what an S3 error comes to.
 func errorAnswer(readError error, namedObject s3Object, identity readIdentity) yamldslspec.SchemaURLAnswer {
 	responseError, errorCode, errorMessage, isServiceError := serviceErrorOf(readError)
@@ -344,7 +383,7 @@ func errorAnswer(readError error, namedObject s3Object, identity readIdentity) y
 		if credentialsAnswer, isRefused := credentialsAnswerOf(errorText, identity); isRefused {
 			return credentialsAnswer
 		}
-		return yamldslspec.FailedAnswer(errorText)
+		return yamldslspec.FailedAnswer(innermostMessageOf(readError))
 	}
 	statusCode := responseError.HTTPStatusCode()
 	if statusCode == http.StatusNotModified {

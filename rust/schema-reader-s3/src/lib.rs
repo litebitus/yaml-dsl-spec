@@ -14,6 +14,7 @@ use aws_sdk_s3::Client;
 use aws_sdk_s3::config::SharedCredentialsProvider;
 use aws_sdk_s3::error::{DisplayErrorContext, ProvideErrorMetadata, SdkError};
 use aws_sdk_s3::operation::get_object::{GetObjectError, GetObjectOutput};
+use aws_sdk_s3::operation::head_bucket::{HeadBucketError, HeadBucketOutput};
 use aws_types::service_config::ServiceConfigKey;
 use serde_json::{Value as JsonValue, json};
 use yaml_dsl_spec::code_span;
@@ -38,11 +39,6 @@ const CREDENTIALS_REFUSED_CODES: [&str; 4] = [
     "InvalidClientTokenId",
     "SignatureDoesNotMatch",
 ];
-const REGION_REDIRECT_CODES: [&str; 3] = [
-    "PermanentRedirect",
-    "AuthorizationHeaderMalformed",
-    "IllegalLocationConstraintException",
-];
 const CREDENTIALS_FIX: &str =
     "run `aws sso login`, or set `AWS_PROFILE` to a profile that reads it";
 
@@ -53,11 +49,12 @@ pub struct S3SchemaReader {
 }
 
 /// What the reader keeps between reads: the machine's configuration and each
-/// role's credentials, read when first needed, and each bucket's region.
+/// role's credentials in each region, read when first needed, and each bucket's
+/// region.
 struct ReaderState {
     role_session_name: String,
     machine_config: Mutex<Option<SdkConfig>>,
-    role_credentials: Mutex<BTreeMap<String, SharedCredentialsProvider>>,
+    role_credentials: Mutex<BTreeMap<(String, String), SharedCredentialsProvider>>,
     bucket_regions: Mutex<BTreeMap<String, String>>,
 }
 
@@ -151,29 +148,11 @@ impl ReaderState {
         kept_etag: Option<String>,
         remaining: std::time::Duration,
     ) -> SchemaUrlAnswer {
-        let config = self.config_of(identity).await;
-        let region = self.bucket_region(&object.bucket, &config);
-        let mut read = self
+        let region = self.bucket_region(&object.bucket, remaining).await;
+        let config = self.config_of(identity, &region).await;
+        let read = self
             .get_object(&config, &region, object, kept_etag.as_deref(), remaining)
             .await;
-        if let Err(error) = &read
-            && let Some(bucket_region) = redirected_region(error)
-            && bucket_region != region
-        {
-            self.bucket_regions
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .insert(object.bucket.clone(), bucket_region.clone());
-            read = self
-                .get_object(
-                    &config,
-                    &bucket_region,
-                    object,
-                    kept_etag.as_deref(),
-                    remaining,
-                )
-                .await;
-        }
         let answer = match read {
             Ok(output) => sent_answer(output).await,
             Err(error) => error_answer(&error, object, identity),
@@ -194,17 +173,7 @@ impl ReaderState {
         kept_etag: Option<&str>,
         remaining: std::time::Duration,
     ) -> Result<GetObjectOutput, Box<SdkError<GetObjectError>>> {
-        let mut builder = aws_sdk_s3::config::Builder::from(config)
-            .region(Region::new(region.to_owned()))
-            .timeout_config(
-                TimeoutConfig::builder()
-                    .operation_timeout(remaining)
-                    .build(),
-            );
-        if names_endpoint(config) {
-            builder = builder.force_path_style(true);
-        }
-        let mut call = Client::from_conf(builder.build())
+        let mut call = s3_client(config, region, remaining)
             .get_object()
             .bucket(&object.bucket)
             .key(&object.key);
@@ -214,19 +183,16 @@ impl ReaderState {
         call.send().await.map_err(Box::new)
     }
 
-    /// The configuration a read as `identity` is made with.
-    async fn config_of(&self, identity: &ReadIdentity) -> SdkConfig {
+    /// The configuration a read as `identity` of a bucket in `bucket_region` is
+    /// made with.
+    async fn config_of(&self, identity: &ReadIdentity, bucket_region: &str) -> SdkConfig {
         match identity {
-            ReadIdentity::Unsigned => {
-                aws_config::defaults(BehaviorVersion::latest())
-                    .no_credentials()
-                    .load()
-                    .await
-            }
+            ReadIdentity::Unsigned => unsigned_config().await,
             ReadIdentity::Machine => self.machine_config().await,
             ReadIdentity::AssumedRole(role) => {
                 let machine = self.machine_config().await;
-                let provider = self.role_provider(role, &machine).await;
+                let region = sts_region(machine.region().map(Region::as_ref), bucket_region);
+                let provider = self.role_provider(role, &region, &machine).await;
                 machine
                     .into_builder()
                     .credentials_provider(provider)
@@ -252,14 +218,20 @@ impl ReaderState {
         loaded
     }
 
-    /// The credentials of `role`, assumed with the machine's credentials and
-    /// renewed by the SDK as they expire.
-    async fn role_provider(&self, role: &str, machine: &SdkConfig) -> SharedCredentialsProvider {
+    /// The credentials of `role`, assumed in `region` with the machine's
+    /// credentials and renewed by the SDK as they expire.
+    async fn role_provider(
+        &self,
+        role: &str,
+        region: &str,
+        machine: &SdkConfig,
+    ) -> SharedCredentialsProvider {
+        let role_in_region = (role.to_owned(), region.to_owned());
         if let Some(provider) = self
             .role_credentials
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(role)
+            .get(&role_in_region)
             .cloned()
         {
             return provider;
@@ -268,26 +240,43 @@ impl ReaderState {
             AssumeRoleProvider::builder(role)
                 .session_name(&self.role_session_name)
                 .configure(machine)
+                .region(Region::new(region.to_owned()))
                 .build()
                 .await,
         );
         self.role_credentials
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(role.to_owned(), provider.clone());
+            .insert(role_in_region, provider.clone());
         provider
     }
 
-    fn bucket_region(&self, bucket: &str, config: &SdkConfig) -> String {
+    /// The region S3 names `bucket` in, asked by an unsigned request the first
+    /// time; the default region where S3 names none.
+    async fn bucket_region(&self, bucket: &str, remaining: std::time::Duration) -> String {
         let known = self
             .bucket_regions
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(bucket)
             .cloned();
-        known
-            .or_else(|| config.region().map(|region| region.to_string()))
-            .unwrap_or_else(|| DEFAULT_REGION.to_owned())
+        if let Some(region) = known {
+            return region;
+        }
+        let config = unsigned_config().await;
+        let answered = s3_client(&config, DEFAULT_REGION, remaining)
+            .head_bucket()
+            .bucket(bucket)
+            .send()
+            .await;
+        let Some(region) = answered_bucket_region(&answered) else {
+            return DEFAULT_REGION.to_owned();
+        };
+        self.bucket_regions
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(bucket.to_owned(), region.clone());
+        region
     }
 
     /// Reads the machine's credentials again when next asked, after a refusal.
@@ -369,20 +358,59 @@ async fn sent_answer(output: GetObjectOutput) -> SchemaUrlAnswer {
     }
 }
 
-/// The region a refused or redirected read names its bucket in, where it names one.
-fn redirected_region<E: ProvideErrorMetadata>(error: &SdkError<E>) -> Option<String> {
-    let SdkError::ServiceError(service) = error else {
-        return None;
-    };
-    let code = service.err().code().unwrap_or_default();
-    let redirected = REGION_REDIRECT_CODES.contains(&code)
-        || matches!(service.raw().status().as_u16(), 301 | 307);
-    let region = service
-        .raw()
-        .headers()
-        .get(BUCKET_REGION_HEADER)
-        .map(str::to_owned);
-    redirected.then_some(region).flatten()
+/// The configuration of an unsigned read.
+async fn unsigned_config() -> SdkConfig {
+    aws_config::defaults(BehaviorVersion::latest())
+        .no_credentials()
+        .load()
+        .await
+}
+
+/// The S3 client of a read in `region` with `config`, by the object's path where
+/// the configuration names an endpoint.
+fn s3_client(config: &SdkConfig, region: &str, remaining: std::time::Duration) -> Client {
+    let mut builder = aws_sdk_s3::config::Builder::from(config)
+        .region(Region::new(region.to_owned()))
+        .timeout_config(
+            TimeoutConfig::builder()
+                .operation_timeout(remaining)
+                .build(),
+        );
+    if names_endpoint(config) {
+        builder = builder.force_path_style(true);
+    }
+    Client::from_conf(builder.build())
+}
+
+/// The region a role is assumed in: the one the machine is set to, else the
+/// bucket's.
+fn sts_region(configured_region: Option<&str>, bucket_region: &str) -> String {
+    configured_region.unwrap_or(bucket_region).to_owned()
+}
+
+/// The region S3 names a bucket in, answering a `HeadBucket`, refused or not.
+fn answered_bucket_region(
+    answered: &Result<HeadBucketOutput, SdkError<HeadBucketError>>,
+) -> Option<String> {
+    match answered {
+        Ok(output) => output.bucket_region().map(str::to_owned),
+        Err(SdkError::ServiceError(service)) => service
+            .raw()
+            .headers()
+            .get(BUCKET_REGION_HEADER)
+            .map(str::to_owned),
+        Err(_) => None,
+    }
+}
+
+/// The message of the innermost error of `error`'s chain, the cause the SDK's
+/// layers wrap.
+fn innermost_message(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut innermost = error;
+    while let Some(source) = innermost.source() {
+        innermost = source;
+    }
+    innermost.to_string()
 }
 
 /// What an S3 error comes to.
@@ -394,7 +422,7 @@ fn error_answer<E: ProvideErrorMetadata + std::error::Error + 'static>(
     let SdkError::ServiceError(service) = error else {
         let said = DisplayErrorContext(error).to_string();
         return credentials_answer(&said, identity)
-            .unwrap_or_else(|| SchemaUrlAnswer::failed(said));
+            .unwrap_or_else(|| SchemaUrlAnswer::failed(innermost_message(error)));
     };
     let status = service.raw().status().as_u16();
     let code = service.err().code().unwrap_or_default();
@@ -529,18 +557,73 @@ mod tests {
         publicly_readable: bool,
     }
 
-    /// Creates `bucket` holding `objects` in the Moto server.
-    fn seed(reader: &S3SchemaReader, bucket: &str, objects: &[SeededObject]) {
+    /// A bucket a test seeded, removed with its objects when the test ends,
+    /// passed or failed.
+    #[must_use]
+    struct SeededBucket<'reader> {
+        reader: &'reader S3SchemaReader,
+        seeding_client: Client,
+        bucket: String,
+        object_keys: Vec<&'static str>,
+    }
+
+    impl Drop for SeededBucket<'_> {
+        fn drop(&mut self) {
+            self.reader.runtime.block_on(async {
+                for object_key in &self.object_keys {
+                    let _ = self
+                        .seeding_client
+                        .delete_object()
+                        .bucket(&self.bucket)
+                        .key(*object_key)
+                        .send()
+                        .await;
+                }
+                let _ = self
+                    .seeding_client
+                    .delete_bucket()
+                    .bucket(&self.bucket)
+                    .send()
+                    .await;
+            });
+        }
+    }
+
+    /// Creates `bucket` in `bucket_region` holding `objects` in the Moto server.
+    fn seed<'reader>(
+        reader: &'reader S3SchemaReader,
+        bucket: &str,
+        bucket_region: &str,
+        objects: &[SeededObject],
+    ) -> SeededBucket<'reader> {
         let endpoint = moto_endpoint();
-        reader.runtime.block_on(async {
+        let seeding_client = reader.runtime.block_on(async {
             let config = aws_config::defaults(BehaviorVersion::latest()).load().await;
-            let client = Client::from_conf(
+            Client::from_conf(
                 aws_sdk_s3::config::Builder::from(&config)
+                    .region(Region::new(bucket_region.to_owned()))
                     .endpoint_url(endpoint)
                     .force_path_style(true)
                     .build(),
-            );
-            client.create_bucket().bucket(bucket).send().await.unwrap();
+            )
+        });
+        let seeded = SeededBucket {
+            reader,
+            seeding_client,
+            bucket: bucket.to_owned(),
+            object_keys: objects.iter().map(|object| object.object_key).collect(),
+        };
+        let client = &seeded.seeding_client;
+        reader.runtime.block_on(async {
+            let mut create = client.create_bucket().bucket(bucket);
+            if bucket_region != DEFAULT_REGION {
+                create = create.create_bucket_configuration(
+                    aws_sdk_s3::types::CreateBucketConfiguration::builder()
+                        .location_constraint(bucket_region.into())
+                        .build(),
+                );
+            }
+            create.send().await.unwrap();
             for object in objects {
                 let mut put = client
                     .put_object()
@@ -553,6 +636,7 @@ mod tests {
                 put.send().await.unwrap();
             }
         });
+        seeded
     }
 
     fn request(url: &str, machine_credentials: bool, kept: Option<JsonValue>) -> SchemaUrlRequest {
@@ -581,9 +665,10 @@ mod tests {
             publicly_readable: true,
             ..private_object("schemas/public.schema.json")
         };
-        seed(
+        let _seeded_bucket = seed(
             &reader,
             "mock-sent-bucket",
+            DEFAULT_REGION,
             &[private_object("schemas/mock.schema.json"), public_object],
         );
         let private_url = "s3://mock-sent-bucket/schemas/mock.schema.json";
@@ -608,9 +693,10 @@ mod tests {
     #[test]
     fn a_private_object_read_without_credentials_is_refused() {
         let reader = reader();
-        seed(
+        let _seeded_bucket = seed(
             &reader,
             "mock-private-bucket",
+            DEFAULT_REGION,
             &[private_object("mock.schema.json")],
         );
         let refused = reader.read_schema_url(&request(
@@ -625,11 +711,12 @@ mod tests {
     }
 
     #[test]
-    fn an_object_is_read_as_the_role_its_url_names() {
+    fn an_object_is_read_as_the_role_its_url_names_in_its_buckets_region() {
         let reader = reader();
-        seed(
+        let _seeded_bucket = seed(
             &reader,
             "mock-role-bucket",
+            "mock-bucket-region",
             &[private_object("mock.schema.json")],
         );
         let url = "s3://mock-role-bucket/mock.schema.json?assume_role=arn:aws:iam::000000000000:role/mock-reader";
@@ -638,12 +725,99 @@ mod tests {
             matches!(sent.read_outcome, SchemaUrlOutcome::TextSent { .. }),
             "{sent:?}"
         );
+        assert_eq!(
+            reader
+                .shared
+                .bucket_regions
+                .lock()
+                .unwrap()
+                .get("mock-role-bucket")
+                .map(String::as_str),
+            Some("mock-bucket-region")
+        );
+    }
+
+    #[test]
+    fn a_role_is_assumed_in_the_configured_region_else_the_buckets() {
+        assert_eq!(
+            sts_region(Some("mock-configured-region"), "mock-bucket-region"),
+            "mock-configured-region"
+        );
+        assert_eq!(sts_region(None, "mock-bucket-region"), "mock-bucket-region");
+    }
+
+    #[test]
+    fn a_buckets_region_is_read_from_s3s_answer_refused_or_not() {
+        let found: Result<HeadBucketOutput, SdkError<HeadBucketError>> =
+            Ok(HeadBucketOutput::builder()
+                .bucket_region("mock-bucket-region")
+                .build());
+        assert_eq!(
+            answered_bucket_region(&found).as_deref(),
+            Some("mock-bucket-region")
+        );
+        let mut refused_reply = aws_sdk_s3::config::http::HttpResponse::new(
+            STATUS_FORBIDDEN.try_into().unwrap(),
+            aws_smithy_types::body::SdkBody::empty(),
+        );
+        refused_reply
+            .headers_mut()
+            .insert(BUCKET_REGION_HEADER, "mock-bucket-region");
+        let refused: Result<HeadBucketOutput, SdkError<HeadBucketError>> =
+            Err(SdkError::service_error(
+                HeadBucketError::generic(
+                    aws_sdk_s3::error::ErrorMetadata::builder()
+                        .code("AccessDenied")
+                        .build(),
+                ),
+                refused_reply,
+            ));
+        assert_eq!(
+            answered_bucket_region(&refused).as_deref(),
+            Some("mock-bucket-region")
+        );
+        let unreached: Result<HeadBucketOutput, SdkError<HeadBucketError>> =
+            Err(SdkError::timeout_error("mock timeout"));
+        assert_eq!(answered_bucket_region(&unreached), None);
+    }
+
+    /// An error wrapping the next, as the SDK's layers do.
+    #[derive(Debug)]
+    struct MockErrorLayer {
+        layer_message: &'static str,
+        wrapped_layer: Option<Box<MockErrorLayer>>,
+    }
+
+    impl std::fmt::Display for MockErrorLayer {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter.write_str(self.layer_message)
+        }
+    }
+
+    impl std::error::Error for MockErrorLayer {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            self.wrapped_layer
+                .as_deref()
+                .map(|layer| layer as &(dyn std::error::Error + 'static))
+        }
+    }
+
+    #[test]
+    fn a_failure_is_said_by_the_innermost_error() {
+        let wrapped = MockErrorLayer {
+            layer_message: "dispatch failure",
+            wrapped_layer: Some(Box::new(MockErrorLayer {
+                layer_message: "mock innermost cause",
+                wrapped_layer: None,
+            })),
+        };
+        assert_eq!(innermost_message(&wrapped), "mock innermost cause");
     }
 
     #[test]
     fn a_key_or_a_bucket_that_is_not_there_is_missing() {
         let reader = reader();
-        seed(&reader, "mock-missing-bucket", &[]);
+        let _seeded_bucket = seed(&reader, "mock-missing-bucket", DEFAULT_REGION, &[]);
         let missing_key = reader.read_schema_url(&request(
             "s3://mock-missing-bucket/absent.json",
             false,
